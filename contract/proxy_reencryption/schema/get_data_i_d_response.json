@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetDataIDResponse",
+  "type": "object",
+  "properties": {
+    "data_entry": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DataEntry"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "DataEntry": {
+      "type": "object",
+      "required": [
+        "capsule",
+        "delegator_pubkey"
+      ],
+      "properties": {
+        "capsule": {
+          "$ref": "#/definitions/Binary"
+        },
+        "delegator_pubkey": {
+          "$ref": "#/definitions/Binary"
+        }
+      }
+    }
+  }
+}

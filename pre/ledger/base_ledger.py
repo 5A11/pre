@@ -1,0 +1,2 @@
+class AbstractLedger:
+    pass

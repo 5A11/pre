@@ -1,11 +1,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Binary};
-use crate::state::{DataEntry, ProxyTask, DataId};
+use crate::state::{DataEntry, ProxyTask, HashID};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyDelegation {
-    pub proxy_addr: Addr,
+    pub proxy_pubkey: Binary,
     pub delegation_string: Binary,
 }
 
@@ -34,29 +34,33 @@ pub enum ExecuteMsg {
     },
 
     // Proxy actions
-    RegisterProxy {},
+    RegisterProxy
+    {
+    proxy_pubkey: Binary
+    },
     UnregisterProxy {},
     ProvideReencryptedFragment
     {
-        data_id: DataId,
+        data_id: HashID,
         delegatee_pubkey: Binary,
-        fragment: DataId,
+        fragment: HashID,
     },
 
     // Delegator actions
     AddData
     {
-        data_id: DataId,
+        data_id: HashID,
         delegator_pubkey: Binary,
     },
     AddDelegation
     {
+        delegator_pubkey: Binary,
         delegatee_pubkey: Binary,
         proxy_delegations: Vec<ProxyDelegation>,
     },
     RequestReencryption
     {
-        data_id: DataId,
+        data_id: HashID,
         delegatee_pubkey: Binary,
     },
 }
@@ -65,16 +69,16 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetAvailableProxies {},
-    GetDataID { data_id: DataId },
-    GetFragments { data_id: DataId, delegatee_pubkey: Binary },
+    GetDataID { data_id: HashID },
+    GetFragments { data_id: HashID, delegatee_pubkey: Binary },
     GetThreshold {},
-    GetNextProxyTask { proxy_addr: Addr },
-    GetDoesDelegationExist { delegator_addr: Addr, delegatee_pubkey: Binary },
+    GetNextProxyTask { proxy_pubkey: Binary },
+    GetDoesDelegationExist { delegator_addr: Addr, delegator_pubkey: Binary, delegatee_pubkey: Binary },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetAvailableProxiesResponse {
-    pub proxies: Vec<Addr>,
+    pub proxy_pubkeys: Vec<Binary>,
 }
 
 
@@ -85,7 +89,7 @@ pub struct GetDataIDResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetFragmentsResponse {
-    pub fragments: Vec<DataId>,
+    pub fragments: Vec<HashID>,
     pub threshold: u32,
 }
 

@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{Env, Addr, Response, StdResult, MessageInfo, DepsMut, Binary};
+use cosmwasm_std::{Env, Addr, Response, StdResult, MessageInfo, DepsMut};
 
 use crate::contract::{execute, instantiate, get_next_proxy_task};
 use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegation};
@@ -64,7 +64,7 @@ fn remove_proxy(
 fn register_proxy(
     deps: DepsMut,
     creator: &Addr,
-    proxy_pubkey: &Binary) -> StdResult<Response>
+    proxy_pubkey: &String) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
 
@@ -88,7 +88,7 @@ fn provide_reencrypted_fragment(
     deps: DepsMut,
     creator: &Addr,
     data_id: &HashID,
-    delegatee_pubkey: &Binary,
+    delegatee_pubkey: &String,
     fragment: &HashID) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
@@ -107,7 +107,7 @@ fn add_data(
     deps: DepsMut,
     creator: &Addr,
     data_id: &HashID,
-    delegator_pubkey: &Binary) -> StdResult<Response>
+    delegator_pubkey: &String) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
 
@@ -123,8 +123,8 @@ fn add_data(
 fn add_delegation(
     deps: DepsMut,
     creator: &Addr,
-    delegator_pubkey: &Binary,
-    delegatee_pubkey: &Binary,
+    delegator_pubkey: &String,
+    delegatee_pubkey: &String,
     proxy_delegations: &Vec<ProxyDelegation>) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
@@ -142,8 +142,8 @@ fn add_delegation(
 fn request_proxies_for_delegation(
     deps: DepsMut,
     creator: &Addr,
-    delegator_pubkey: &Binary,
-    delegatee_pubkey: &Binary) -> StdResult<Response>
+    delegator_pubkey: &String,
+    delegatee_pubkey: &String) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
 
@@ -160,7 +160,7 @@ fn request_reencryption(
     deps: DepsMut,
     creator: &Addr,
     data_id: &HashID,
-    delegatee_pubkey: &Binary) -> StdResult<Response>
+    delegatee_pubkey: &String) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
 
@@ -235,7 +235,7 @@ mod init {
         let proxy1 = Addr::unchecked("proxy1".to_string());
         let proxy2 = Addr::unchecked("proxy2".to_string());
 
-        let proxy_pubkey: Binary = Binary::from(*b"proxy_pubkey");
+        let proxy_pubkey: String = String::from("proxy_pubkey");
 
         let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
 
@@ -293,7 +293,7 @@ mod init {
         let delegator = Addr::unchecked("delegator".to_string());
 
         // Pubkeys
-        let delegator_pubkey: Binary = Binary::from(*b"DRK");
+        let delegator_pubkey: String = String::from("DRK");
 
         let data_id = String::from("DATA");
         let data_entry = DataEntry {
@@ -324,10 +324,10 @@ mod init {
         let delegator = Addr::unchecked("delegator".to_string());
 
         // Pubkeys
-        let delegator_pubkey: Binary = Binary::from(*b"DRK");
-        let delegatee_pubkey: Binary = Binary::from(*b"DEK1");
-        let proxy1_pubkey: Binary = Binary::from(*b"proxy1_pubkey");
-        let proxy2_pubkey: Binary = Binary::from(*b"proxy2_pubkey");
+        let delegator_pubkey: String = String::from("DRK");
+        let delegatee_pubkey: String = String::from("DEK1");
+        let proxy1_pubkey: String = String::from("proxy1_pubkey");
+        let proxy2_pubkey: String = String::from("proxy2_pubkey");
 
         let data_id = String::from("DATA");
         let data_entry = DataEntry {
@@ -349,8 +349,8 @@ mod init {
         assert!(add_data(deps.as_mut(), &delegator, &data_id, &data_entry.delegator_pubkey).is_ok());
 
         // Add delegation for proxy
-        let proxy1_delegation_string = Binary::from(*b"DS_P1");
-        let proxy2_delegation_string = Binary::from(*b"DS_P2");
+        let proxy1_delegation_string = String::from("DS_P1");
+        let proxy2_delegation_string = String::from("DS_P2");
 
         let proxy_delegations: Vec<ProxyDelegation> = vec![
             ProxyDelegation { proxy_pubkey: proxy1_pubkey.clone(), delegation_string: proxy1_delegation_string.clone() },
@@ -408,10 +408,10 @@ mod init {
         let delegator = Addr::unchecked("delegator".to_string());
 
         // Pubkeys
-        let delegator_pubkey: Binary = Binary::from(*b"DRK");
-        let delegatee_pubkey: Binary = Binary::from(*b"DEK1");
-        let other_delegatee_pubkey: Binary = Binary::from(*b"DEK2");
-        let proxy_pubkey: Binary = Binary::from(*b"proxy_pubkey");
+        let delegator_pubkey: String = String::from("DRK");
+        let delegatee_pubkey: String = String::from("DEK1");
+        let other_delegatee_pubkey: String = String::from("DEK2");
+        let proxy_pubkey: String = String::from("proxy_pubkey");
 
         let data_id = String::from("DATA");
 
@@ -433,7 +433,7 @@ mod init {
         assert!(add_data(deps.as_mut(), &delegator, &data_id, &data_entry.delegator_pubkey).is_ok());
 
         // Add delegation for proxy
-        let proxy_delegation_string = Binary::from(*b"DS_P1");
+        let proxy_delegation_string = String::from("DS_P1");
         let proxy_delegations: Vec<ProxyDelegation> = vec![
             ProxyDelegation { proxy_pubkey: proxy_pubkey.clone(), delegation_string: proxy_delegation_string.clone() },
         ];
@@ -477,11 +477,11 @@ mod init {
         let delegator = Addr::unchecked("delegator".to_string());
 
         // Pubkeys
-        let delegator_pubkey: Binary = Binary::from(*b"DRK");
-        let delegatee1_pubkey: Binary = Binary::from(*b"DEK1");
-        let delegatee2_pubkey: Binary = Binary::from(*b"DEK2");
-        let proxy1_pubkey: Binary = Binary::from(*b"proxy_pubkey1");
-        let proxy2_pubkey: Binary = Binary::from(*b"proxy_pubkey2");
+        let delegator_pubkey: String = String::from("DRK");
+        let delegatee1_pubkey: String = String::from("DEK1");
+        let delegatee2_pubkey: String = String::from("DEK2");
+        let proxy1_pubkey: String = String::from("proxy_pubkey1");
+        let proxy2_pubkey: String = String::from("proxy_pubkey2");
 
         let data_id = String::from("DATA");
         let data_entry = DataEntry {
@@ -504,8 +504,8 @@ mod init {
         assert!(add_data(deps.as_mut(), &delegator, &data_id, &data_entry.delegator_pubkey).is_ok());
 
         // Add 2 delegations for 2 proxies
-        let proxy1_delegation_string = Binary::from(*b"DS_P1");
-        let proxy2_delegation_string = Binary::from(*b"DS_P2");
+        let proxy1_delegation_string = String::from("DS_P1");
+        let proxy2_delegation_string = String::from("DS_P2");
 
         let proxy_delegations: Vec<ProxyDelegation> = vec![
             ProxyDelegation { proxy_pubkey: proxy1_pubkey.clone(), delegation_string: proxy1_delegation_string.clone() },

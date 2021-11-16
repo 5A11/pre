@@ -2,8 +2,8 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, GetAvailableProxiesRespon
 use crate::state::{get_state, set_state, State, get_is_proxy, set_is_proxy, set_proxy_availability, remove_proxy_availability, DataEntry, set_data_entry, set_delegation_string, get_proxy_availability, get_all_proxies_from_delegation, add_reencryption_request, get_delegation_string, set_fragment, get_data_entry, get_all_fragments, ProxyTask, get_all_reencryption_requests, remove_reencryption_request, is_reencryption_request, ReencryptionRequest, get_fragment, HashID, get_all_available_proxy_pubkeys, increase_available_proxy_pubkeys, decrease_available_proxy_pubkeys, is_delegation_empty};
 
 use cosmwasm_std::{
-    StdError, attr, to_binary, Binary, Addr, Env, Response,
-    StdResult, DepsMut, Deps, MessageInfo, Storage,
+    StdError, attr, to_binary, Addr, Env, Response,
+    StdResult, DepsMut, Deps, MessageInfo, Storage, Binary
 };
 
 macro_rules! generic_err {
@@ -111,7 +111,7 @@ fn try_register_proxy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    proxy_pubkey: Binary,
+    proxy_pubkey: String,
 ) -> StdResult<Response> {
     ensure_proxy(deps.storage, &info.sender)?;
 
@@ -178,7 +178,7 @@ fn try_provide_reencrypted_fragment(
     _env: Env,
     info: MessageInfo,
     data_id: &HashID,
-    delegatee_pubkey: &Binary,
+    delegatee_pubkey: &String,
     fragment: &HashID,
 ) -> StdResult<Response> {
     let request = ReencryptionRequest
@@ -228,7 +228,7 @@ fn try_add_data(
     _env: Env,
     info: MessageInfo,
     data_id: &HashID,
-    delegator_pubkey: &Binary,
+    delegator_pubkey: &String,
 ) -> StdResult<Response> {
     if get_data_entry(deps.storage, &data_id)?.is_some()
     {
@@ -249,7 +249,7 @@ fn try_add_data(
                 info.sender.as_str(),
             ),
             attr("data_id", data_id),
-            attr("delegator_pubkey", delegator_pubkey.to_base64()),
+            attr("delegator_pubkey", delegator_pubkey),
         ],
         data: None,
     };
@@ -260,8 +260,8 @@ fn try_request_proxies_for_delegation(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    delegator_pubkey: &Binary,
-    delegatee_pubkey: &Binary,
+    delegator_pubkey: &String,
+    delegatee_pubkey: &String,
 ) -> StdResult<Response>
 {
     if !is_delegation_empty(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey)?
@@ -300,8 +300,8 @@ fn try_add_delegation(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    delegator_pubkey: &Binary,
-    delegatee_pubkey: &Binary,
+    delegator_pubkey: &String,
+    delegatee_pubkey: &String,
     proxy_delegations: &Vec<ProxyDelegation>,
 ) -> StdResult<Response> {
     let n_expected_strings = get_all_proxies_from_delegation(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey)?.len();
@@ -353,7 +353,7 @@ fn try_request_reencryption(
     _env: Env,
     info: MessageInfo,
     data_id: &HashID,
-    delegatee_pubkey: &Binary,
+    delegatee_pubkey: &String,
 ) -> StdResult<Response> {
 
     // Only data owner can request reencryption
@@ -405,7 +405,7 @@ fn try_request_reencryption(
 }
 
 
-pub fn get_next_proxy_task(store: &dyn Storage, proxy_pubkey: &Binary) -> StdResult<Option<ProxyTask>> {
+pub fn get_next_proxy_task(store: &dyn Storage, proxy_pubkey: &String) -> StdResult<Option<ProxyTask>> {
     let requests = get_all_reencryption_requests(store, proxy_pubkey)?;
 
     if requests.len() == 0
@@ -529,7 +529,7 @@ fn ensure_data_owner(store: &dyn Storage, data_id: &HashID, addr: &Addr) -> StdR
     }
 }
 
-fn select_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<Binary>>
+fn select_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<String>>
 {
     let state: State = get_state(store)?;
     let proxy_pubkeys = get_all_available_proxy_pubkeys(store)?;

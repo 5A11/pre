@@ -52,6 +52,11 @@ pub enum ExecuteMsg {
         data_id: HashID,
         delegator_pubkey: Binary,
     },
+    RequestProxiesForDelegation
+    {
+        delegator_pubkey: Binary,
+        delegatee_pubkey: Binary,
+    },
     AddDelegation
     {
         delegator_pubkey: Binary,
@@ -74,6 +79,7 @@ pub enum QueryMsg {
     GetThreshold {},
     GetNextProxyTask { proxy_pubkey: Binary },
     GetDoesDelegationExist { delegator_addr: Addr, delegator_pubkey: Binary, delegatee_pubkey: Binary },
+    GetSelectedProxiesForDelegation {delegator_addr: Addr, delegator_pubkey: Binary, delegatee_pubkey: Binary}
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -106,4 +112,9 @@ pub struct GetNextProxyTaskResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetDoesDelegationExistRepsonse {
     pub delegation_exists: bool
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct GetSelectedProxiesForDelegationResponse {
+    pub proxy_pubkeys: Vec<Binary>
 }

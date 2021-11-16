@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Storage, StdResult, Binary, to_vec, StdError};
+use cosmwasm_std::{Addr, Storage, StdResult, Binary, to_vec, StdError, Order};
 use cosmwasm_storage::{singleton, singleton_read, Singleton, Bucket, ReadonlyBucket, bucket_read, bucket};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ static PROXIES_PUBKEYS_KEY: &[u8] = b"ProxyPubkey";
 // Map String data_id -> DataEntry data_entry
 static DATA_ENTRIES_KEY: &[u8] = b"DataEntries";
 
-// Map Addr delegator_addr -> Binary delegator_pubkey -> Binary delegatee_pubkey -> Binary proxy_pubkey -> Binary delegation_string
+// Map Addr delegator_addr -> Binary delegator_pubkey -> Binary delegatee_pubkey -> Binary proxy_pubkey -> Option<Binary> delegation_string
 static DELEGATIONS_STORE_KEY: &[u8] = b"DelegationStore";
 
 // Map Binary proxy_pubkey -> ReencryptionRequest reencryption_request -> bool is_reencryption_request
@@ -156,7 +156,7 @@ pub fn decrease_available_proxy_pubkeys(store: &mut dyn Storage, proxy_pubkey: &
     }
 }
 
-pub fn get_available_proxy_pubkeys(store: &dyn Storage, proxy_pubkey: &Binary) -> StdResult<u32> {
+pub fn get_n_available_proxy_pubkeys(store: &dyn Storage, proxy_pubkey: &Binary) -> StdResult<u32> {
     let bucket: ReadonlyBucket<u32> = bucket_read(store, PROXIES_PUBKEYS_KEY);
 
     match bucket.may_load(&to_vec(proxy_pubkey)?)?
@@ -188,27 +188,38 @@ pub fn get_data_entry(store: &dyn Storage, data_id: &HashID) -> StdResult<Option
 }
 
 // DELEGATIONS_STORE
-pub fn set_delegation_string(store: &mut dyn Storage, delegator_addr: &Addr, delegator_pubkey: &Binary, delegatee_pubkey: &Binary, proxy_pubkey: &Binary, delegation: &Binary) -> StdResult<()> {
-    let mut bucket: Bucket<Binary> = Bucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+pub fn set_delegation_string(store: &mut dyn Storage, delegator_addr: &Addr, delegator_pubkey: &Binary, delegatee_pubkey: &Binary, proxy_pubkey: &Binary, delegation_string: &Option<Binary>) -> StdResult<()> {
+    let mut bucket: Bucket<Option<Binary>> = Bucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
 
-    return bucket.save(&to_vec(proxy_pubkey)?, delegation);
+    return bucket.save(&to_vec(proxy_pubkey)?, delegation_string);
 }
 
 pub fn remove_delegation_string(store: &mut dyn Storage, delegator_addr: &Addr, delegator_pubkey: &Binary, delegatee_pubkey: &Binary, proxy_pubkey: &Binary) -> StdResult<()> {
-    let mut bucket: Bucket<Binary> = Bucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+    let mut bucket: Bucket<Option<Binary>> = Bucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
 
     bucket.remove(&to_vec(proxy_pubkey)?);
     Ok(())
 }
 
-pub fn get_delegation_string(store: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &Binary, delegatee_pubkey: &Binary, proxy_pubkey: &Binary) -> StdResult<Option<Binary>> {
-    let bucket: ReadonlyBucket<Binary> = ReadonlyBucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+pub fn get_delegation_string(store: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &Binary, delegatee_pubkey: &Binary, proxy_pubkey: &Binary) -> StdResult<Option<Option<Binary>>> {
+    let bucket: ReadonlyBucket<Option<Binary>> = ReadonlyBucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
 
     bucket.may_load(&to_vec(proxy_pubkey)?)
 }
 
 pub fn get_all_proxies_from_delegation(store: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &Binary, delegatee_pubkey: &Binary) -> StdResult<Vec<Binary>> {
-    return get_all_keys_multilevel::<Binary, Binary>(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+    return get_all_keys_multilevel::<Binary, Option<Binary>>(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+}
+
+pub fn is_delegation_empty(store: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &Binary, delegatee_pubkey: &Binary) -> StdResult<bool>
+{
+    let bucket: ReadonlyBucket<Option<Binary>> = ReadonlyBucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+
+    for _ in bucket.range(None, None, Order::Ascending)
+    {
+        return Ok(false);
+    }
+    return Ok(true);
 }
 
 

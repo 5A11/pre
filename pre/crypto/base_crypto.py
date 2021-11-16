@@ -16,8 +16,10 @@ class AbstractCrypto(ABC):
     def generate_delegations(
         self,
         capsule: Capsule,
+        threshold: int,
         delegatee_public_key: PublicKey,
-        proxies_public_keys: List[Tuple[Address, PublicKey]],
+        proxies_public_keys: List[PublicKey],
+        delegator_private_key: PrivateKey,
     ) -> List[Delegation]:
         pass
 
@@ -27,6 +29,8 @@ class AbstractCrypto(ABC):
         capsule: Capsule,
         delegation: Delegation,
         proxy_private_key: PrivateKey,
+        delegator_public_key: PublicKey,
+        delegatee_public_key: PublicKey,
     ) -> ReencryptedFragment:
         pass
 
@@ -36,5 +40,6 @@ class AbstractCrypto(ABC):
         encrypted_data: EncryptedData,
         encrypted_data_fragments: List[ReencryptedFragment],
         delegatee_private_key: PrivateKey,
+        delegator_public_key: PublicKey,
     ) -> Union[bytes, IO]:
         pass

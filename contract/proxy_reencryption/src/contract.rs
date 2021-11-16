@@ -230,13 +230,13 @@ fn try_add_data(
     data_id: &HashID,
     delegator_pubkey: &String,
 ) -> StdResult<Response> {
-    if get_data_entry(deps.storage, &data_id)?.is_some()
+    if get_data_entry(deps.storage, &data_id).is_some()
     {
         return generic_err!(format!("Entry with ID {} already exist.",data_id));
     }
 
     let entry = DataEntry { delegator_pubkey: delegator_pubkey.clone(), delegator_addr: info.sender.clone() };
-    set_data_entry(deps.storage, &data_id, &entry)?;
+    set_data_entry(deps.storage, &data_id, &entry);
 
     // Return response
     let res = Response {
@@ -359,7 +359,7 @@ fn try_request_reencryption(
     // Only data owner can request reencryption
     ensure_data_owner(deps.storage, &data_id, &info.sender)?;
 
-    let data_entry: DataEntry = get_data_entry(deps.storage, &data_id)?.unwrap();
+    let data_entry: DataEntry = get_data_entry(deps.storage, &data_id).unwrap();
 
 
     // Get selected proxies for current delegation
@@ -414,7 +414,7 @@ pub fn get_next_proxy_task(store: &dyn Storage, proxy_pubkey: &String) -> StdRes
     }
     let request = &requests[0];
 
-    let data_entry = get_data_entry(store, &request.data_id)?.unwrap();
+    let data_entry = get_data_entry(store, &request.data_id).unwrap();
 
     let delegation_string = get_delegation_string(store, &data_entry.delegator_addr, &data_entry.delegator_pubkey, &request.delegatee_pubkey, &proxy_pubkey)?.unwrap();
 
@@ -458,7 +458,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::GetDataID { data_id } => {
             Ok(to_binary(&GetDataIDResponse {
-                data_entry: get_data_entry(deps.storage, &data_id)?,
+                data_entry: get_data_entry(deps.storage, &data_id),
             })?)
         }
         QueryMsg::GetFragments { data_id, delegatee_pubkey } => {
@@ -522,7 +522,7 @@ fn ensure_proxy(store: &dyn Storage, addr: &Addr) -> StdResult<()>
 
 fn ensure_data_owner(store: &dyn Storage, data_id: &HashID, addr: &Addr) -> StdResult<()>
 {
-    match get_data_entry(store, &data_id)?
+    match get_data_entry(store, &data_id)
     {
         None => generic_err!(format!("DataID {} doesn't exist.",data_id)),
         Some(data_entry) => if &data_entry.delegator_addr != addr { generic_err!(format!("Only data owner {} can execute.",data_entry.delegator_addr)) } else { Ok(()) }

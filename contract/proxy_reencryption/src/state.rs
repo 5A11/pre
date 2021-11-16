@@ -205,23 +205,25 @@ pub fn get_n_available_proxy_pubkeys(storage: &dyn Storage, proxy_pubkey: &Strin
 
 
 // DATA_ENTRIES
-pub fn set_data_entry(storage: &mut dyn Storage, data_id: &HashID, data_entry: &DataEntry) -> StdResult<()> {
-    let mut bucket: Bucket<DataEntry> = bucket(storage, DATA_ENTRIES_KEY);
-
-    return bucket.save(&to_vec(data_id)?, data_entry);
+pub fn set_data_entry(storage: &mut dyn Storage, data_id: &HashID, data_entry: &DataEntry) -> () {
+    let mut store = PrefixedStorage::new(storage, DATA_ENTRIES_KEY);
+    store.set(data_id.as_bytes(), &to_vec(data_entry).unwrap());
 }
 
-pub fn remove_data_entry(storage: &mut dyn Storage, data_id: &HashID) -> StdResult<()> {
-    let mut bucket: Bucket<DataEntry> = bucket(storage, DATA_ENTRIES_KEY);
+pub fn remove_data_entry(storage: &mut dyn Storage, data_id: &HashID) -> () {
+    let mut store = PrefixedStorage::new(storage, DATA_ENTRIES_KEY);
 
-    bucket.remove(&to_vec(data_id)?);
-    Ok(())
+    store.remove(data_id.as_bytes());
 }
 
-pub fn get_data_entry(storage: &dyn Storage, data_id: &HashID) -> StdResult<Option<DataEntry>> {
-    let bucket: ReadonlyBucket<DataEntry> = bucket_read(storage, DATA_ENTRIES_KEY);
+pub fn get_data_entry(storage: &dyn Storage, data_id: &HashID) -> Option<DataEntry> {
+    let store = ReadonlyPrefixedStorage::new(storage, DATA_ENTRIES_KEY);
 
-    bucket.may_load(&to_vec(data_id)?)
+    match store.get(data_id.as_bytes())
+    {
+        None => None,
+        Some(data) => Some(from_slice(&data).unwrap())
+    }
 }
 
 // DELEGATIONS_STORE

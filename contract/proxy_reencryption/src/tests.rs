@@ -308,7 +308,7 @@ mod init {
         // Add data by delegator
         assert!(add_data(deps.as_mut(), &delegator, &data_id, &data_entry.delegator_pubkey).is_ok());
 
-        assert_eq!(&get_data_entry(deps.as_mut().storage, &data_id).unwrap().unwrap(), &data_entry);
+        assert_eq!(&get_data_entry(deps.as_mut().storage, &data_id).unwrap(), &data_entry);
     }
 
 

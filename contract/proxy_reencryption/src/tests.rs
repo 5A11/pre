@@ -187,8 +187,8 @@ mod init {
         assert!(init_contract(deps.as_mut(), &creator, None, None, None, Some(proxies.clone())).is_ok());
 
         let state: State = get_state(&deps.storage).unwrap();
-        let available_proxies = get_all_available_proxy_pubkeys(&deps.storage).unwrap();
-        let all_proxies = get_all_proxies(&deps.storage).unwrap();
+        let available_proxies = get_all_available_proxy_pubkeys(&deps.storage);
+        let all_proxies = get_all_proxies(&deps.storage);
 
         assert_eq!(available_proxies.len(), 0);
         assert_eq!(all_proxies.len(), 2);
@@ -208,14 +208,14 @@ mod init {
 
         assert!(init_contract(deps.as_mut(), &creator, None, Some(admin.clone()), None, None).is_ok());
 
-        let all_proxies = get_all_proxies(&deps.storage).unwrap();
+        let all_proxies = get_all_proxies(&deps.storage);
         assert_eq!(all_proxies.len(), 0);
 
         // Only admin can add proxies
         assert!(add_proxy(deps.as_mut(), &creator, &proxy).is_err());
         assert!(add_proxy(deps.as_mut(), &admin, &proxy).is_ok());
 
-        let all_proxies = get_all_proxies(&deps.storage).unwrap();
+        let all_proxies = get_all_proxies(&deps.storage);
         assert_eq!(all_proxies.len(), 1);
         assert_eq!(&all_proxies[0], &proxy);
 
@@ -223,7 +223,7 @@ mod init {
         assert!(remove_proxy(deps.as_mut(), &creator, &proxy).is_err());
         assert!(remove_proxy(deps.as_mut(), &admin, &proxy).is_ok());
 
-        let all_proxies = get_all_proxies(&deps.storage).unwrap();
+        let all_proxies = get_all_proxies(&deps.storage);
         assert_eq!(all_proxies.len(), 0);
     }
 
@@ -241,7 +241,7 @@ mod init {
 
         assert!(init_contract(deps.as_mut(), &creator, None, None, None, Some(proxies.clone())).is_ok());
 
-        assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).unwrap().len(), 0);
+        assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).len(), 0);
 
         // Only proxy can add pubkeys
         assert!(register_proxy(deps.as_mut(), &creator, &proxy_pubkey).is_err());
@@ -249,7 +249,7 @@ mod init {
         // Already registered
         assert!(register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey).is_err());
 
-        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage).unwrap();
+        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage);
         assert_eq!(available_proxy_pubkeys.len(), 1);
         assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
@@ -259,7 +259,7 @@ mod init {
         assert!(register_proxy(deps.as_mut(), &proxy2, &proxy_pubkey).is_err());
 
         // Number of available pubkeys remains the same
-        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage).unwrap();
+        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage);
         assert_eq!(available_proxy_pubkeys.len(), 1);
         assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
@@ -270,7 +270,7 @@ mod init {
         assert!(unregister_proxy(deps.as_mut(), &proxy1).is_err());
 
         // Number of available pubkeys remains the same
-        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage).unwrap();
+        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage);
         assert_eq!(available_proxy_pubkeys.len(), 1);
         assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
@@ -281,7 +281,7 @@ mod init {
         assert!(unregister_proxy(deps.as_mut(), &proxy2).is_err());
 
         // All proxies with this pubkey unregistered
-        assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).unwrap().len(), 0);
+        assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).len(), 0);
     }
 
     #[test]

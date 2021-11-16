@@ -1,7 +1,8 @@
-use cosmwasm_std::{Addr, Storage, StdResult, to_vec, StdError, Order};
-use cosmwasm_storage::{singleton, singleton_read, Singleton, Bucket, ReadonlyBucket, bucket_read, bucket};
+use cosmwasm_std::{Addr, Storage, StdResult, to_vec, StdError, Order, from_slice};
+use cosmwasm_storage::{singleton, singleton_read, Singleton, Bucket, ReadonlyBucket, bucket_read, bucket, PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 
 use crate::types::{set_bool_store, get_bool_store, get_all_keys, get_all_keys_multilevel, set_bool_store_multilevel, get_bool_store_multilevel, get_all_values_multilevel};
 
@@ -83,137 +84,173 @@ pub fn set_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
 }
 
 // IS_PROXY
-pub fn set_is_proxy(store: &mut dyn Storage, proxy_addr: &Addr, is_proxy: bool) -> StdResult<()> {
-    return set_bool_store(store, IS_PROXY_KEY, &to_vec(proxy_addr)?, is_proxy);
+pub fn set_is_proxy(storage: &mut dyn Storage, proxy_addr: &Addr, is_proxy: bool) -> () {
+    let mut store = PrefixedStorage::new(storage, IS_PROXY_KEY);
+
+    match is_proxy
+    {
+        true => store.set(proxy_addr.as_bytes(), &[0]),
+        false => store.remove(proxy_addr.as_bytes())
+    }
+
 }
 
-pub fn get_is_proxy(store: &dyn Storage, proxy_addr: &Addr) -> StdResult<bool> {
-    return get_bool_store(store, IS_PROXY_KEY, &to_vec(proxy_addr)?);
+pub fn get_is_proxy(storage: &dyn Storage, proxy_addr: &Addr) -> bool{
+    let store = ReadonlyPrefixedStorage::new(storage, IS_PROXY_KEY);
+
+    match store.get(proxy_addr.as_bytes())
+    {
+        None => false,
+        Some(_) => true
+    }
 }
 
-pub fn get_all_proxies(store: &dyn Storage) -> StdResult<Vec<Addr>> {
-    return get_all_keys::<Addr, bool>(store, IS_PROXY_KEY);
+pub fn get_all_proxies(storage: &dyn Storage) -> Vec<Addr> {
+    let store = ReadonlyPrefixedStorage::new(storage, IS_PROXY_KEY);
+
+    let mut deserialized_keys: Vec<Addr> = Vec::new();
+
+    for pair in store.range(None, None, Order::Ascending)
+    {
+        // Deserialize keys with inverse operation to &proxy_addr.as_bytes()
+        deserialized_keys.push( Addr::unchecked(std::str::from_utf8(&pair.0).unwrap()));
+    }
+
+    return deserialized_keys;
 }
 
 // PROXIES_AVAILABITY
-pub fn set_proxy_availability(store: &mut dyn Storage, proxy_addr: &Addr, pub_key: &String) -> StdResult<()> {
-    let mut bucket: Bucket<String> = bucket(store, PROXIES_AVAILABITY_KEY);
+pub fn set_proxy_availability(storage: &mut dyn Storage, proxy_addr: &Addr, pub_key: &String) -> () {
+    let mut storage = PrefixedStorage::new(storage, PROXIES_AVAILABITY_KEY);
 
-    return bucket.save(&to_vec(proxy_addr)?, pub_key);
+    storage.set(proxy_addr.as_bytes(), pub_key.as_bytes());
 }
 
-pub fn remove_proxy_availability(store: &mut dyn Storage, proxy_addr: &Addr) -> StdResult<()> {
-    let mut bucket: Bucket<String> = bucket(store, PROXIES_AVAILABITY_KEY);
+pub fn remove_proxy_availability(storage: &mut dyn Storage, proxy_addr: &Addr) -> () {
+    let mut storage = PrefixedStorage::new(storage, PROXIES_AVAILABITY_KEY);
 
-    bucket.remove(&to_vec(proxy_addr)?);
-    Ok(())
+    storage.remove(proxy_addr.as_bytes());
 }
 
-pub fn get_proxy_availability(store: &dyn Storage, proxy_addr: &Addr) -> StdResult<Option<String>> {
-    let bucket: ReadonlyBucket<String> = bucket_read(store, PROXIES_AVAILABITY_KEY);
+pub fn get_proxy_availability(storage: &dyn Storage, proxy_addr: &Addr) -> Option<String> {
+    let store = ReadonlyPrefixedStorage::new(storage, PROXIES_AVAILABITY_KEY);
 
-    bucket.may_load(&to_vec(proxy_addr)?)
+    let res = store.get(proxy_addr.as_bytes());
+    match res
+    {
+        None => None,
+        Some(res) => Some(String::from_utf8(res).unwrap())
+    }
+
 }
 
 
 // PROXIES_PUBKEYS_KEY
 
 
-pub fn get_all_available_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<String>> {
-    get_all_keys::<String, u32>(store, PROXIES_PUBKEYS_KEY)
+pub fn get_all_available_proxy_pubkeys(storage: &dyn Storage) -> Vec<String> {
+    let store = ReadonlyPrefixedStorage::new(storage, PROXIES_PUBKEYS_KEY);
+
+    let mut deserialized_keys: Vec<String> = Vec::new();
+
+    for pair in store.range(None, None, Order::Ascending)
+    {
+        // Deserialize keys with inverse operation to &string.as_bytes()
+        deserialized_keys.push( std::str::from_utf8(&pair.0).unwrap().to_string());
+    }
+
+    return deserialized_keys;
 }
 
 
-pub fn increase_available_proxy_pubkeys(store: &mut dyn Storage, proxy_pubkey: &String) -> StdResult<()> {
-    let mut bucket: Bucket<u32> = bucket(store, PROXIES_PUBKEYS_KEY);
+pub fn increase_available_proxy_pubkeys(storage: &mut dyn Storage, proxy_pubkey: &String) -> () {
+    let mut store = PrefixedStorage::new(storage, PROXIES_PUBKEYS_KEY);
 
-    let n_keys = bucket.may_load(&to_vec(proxy_pubkey)?)?;
 
-    match n_keys
+    match store.get(proxy_pubkey.as_bytes())
     {
-        None => { bucket.save(&to_vec(proxy_pubkey)?, &1) }
-        Some(n) => { bucket.save(&to_vec(proxy_pubkey)?, &(n + 1)) }
+        None => { store.set(proxy_pubkey.as_bytes(), &1_u32.to_le_bytes()) }
+        Some(n) => { store.set(proxy_pubkey.as_bytes(), &(u32::from_le_bytes(n.try_into().unwrap()) + 1).to_le_bytes() ) }
     }
 }
 
-pub fn decrease_available_proxy_pubkeys(store: &mut dyn Storage, proxy_pubkey: &String) -> StdResult<()> {
-    let mut bucket: Bucket<u32> = bucket(store, PROXIES_PUBKEYS_KEY);
+pub fn decrease_available_proxy_pubkeys(storage: &mut dyn Storage, proxy_pubkey: &String) -> () {
+    let mut store = PrefixedStorage::new(storage, PROXIES_PUBKEYS_KEY);
 
-    let n_keys = bucket.may_load(&to_vec(proxy_pubkey)?)?;
-
-    match n_keys
+    match store.get(proxy_pubkey.as_bytes())
     {
-        None => { Err(StdError::generic_err("Number of pubkeys is already 0")) }
-        Some(n) =>
+        None => { panic!("Number of pubkeys is already 0") }
+        Some(res) =>
             {
+                let n:u32 = u32::from_le_bytes(res.try_into().unwrap());
                 if n == 1
                 {
-                    Ok(bucket.remove(&to_vec(proxy_pubkey)?))
+                    store.remove(proxy_pubkey.as_bytes())
                 } else {
-                    bucket.save(&to_vec(proxy_pubkey)?, &(n - 1))
+                    store.set(proxy_pubkey.as_bytes(), &(n - 1).to_le_bytes())
                 }
             }
     }
 }
 
-pub fn get_n_available_proxy_pubkeys(store: &dyn Storage, proxy_pubkey: &String) -> StdResult<u32> {
-    let bucket: ReadonlyBucket<u32> = bucket_read(store, PROXIES_PUBKEYS_KEY);
+pub fn get_n_available_proxy_pubkeys(storage: &dyn Storage, proxy_pubkey: &String) -> u32 {
+    let store = ReadonlyPrefixedStorage::new(storage, PROXIES_PUBKEYS_KEY);
 
-    match bucket.may_load(&to_vec(proxy_pubkey)?)?
+    match store.get(proxy_pubkey.as_bytes())
     {
-        None => Ok(0),
-        Some(n) => Ok(n),
+        None => 0,
+        Some(n) => u32::from_le_bytes(n.try_into().unwrap()),
     }
 }
 
 
 // DATA_ENTRIES
-pub fn set_data_entry(store: &mut dyn Storage, data_id: &HashID, data_entry: &DataEntry) -> StdResult<()> {
-    let mut bucket: Bucket<DataEntry> = bucket(store, DATA_ENTRIES_KEY);
+pub fn set_data_entry(storage: &mut dyn Storage, data_id: &HashID, data_entry: &DataEntry) -> StdResult<()> {
+    let mut bucket: Bucket<DataEntry> = bucket(storage, DATA_ENTRIES_KEY);
 
     return bucket.save(&to_vec(data_id)?, data_entry);
 }
 
-pub fn remove_data_entry(store: &mut dyn Storage, data_id: &HashID) -> StdResult<()> {
-    let mut bucket: Bucket<DataEntry> = bucket(store, DATA_ENTRIES_KEY);
+pub fn remove_data_entry(storage: &mut dyn Storage, data_id: &HashID) -> StdResult<()> {
+    let mut bucket: Bucket<DataEntry> = bucket(storage, DATA_ENTRIES_KEY);
 
     bucket.remove(&to_vec(data_id)?);
     Ok(())
 }
 
-pub fn get_data_entry(store: &dyn Storage, data_id: &HashID) -> StdResult<Option<DataEntry>> {
-    let bucket: ReadonlyBucket<DataEntry> = bucket_read(store, DATA_ENTRIES_KEY);
+pub fn get_data_entry(storage: &dyn Storage, data_id: &HashID) -> StdResult<Option<DataEntry>> {
+    let bucket: ReadonlyBucket<DataEntry> = bucket_read(storage, DATA_ENTRIES_KEY);
 
     bucket.may_load(&to_vec(data_id)?)
 }
 
 // DELEGATIONS_STORE
-pub fn set_delegation_string(store: &mut dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String, proxy_pubkey: &String, delegation_string: &Option<String>) -> StdResult<()> {
-    let mut bucket: Bucket<Option<String>> = Bucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+pub fn set_delegation_string(storage: &mut dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String, proxy_pubkey: &String, delegation_string: &Option<String>) -> StdResult<()> {
+    let mut bucket: Bucket<Option<String>> = Bucket::multilevel(storage, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
 
     return bucket.save(&to_vec(proxy_pubkey)?, delegation_string);
 }
 
-pub fn remove_delegation_string(store: &mut dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String, proxy_pubkey: &String) -> StdResult<()> {
-    let mut bucket: Bucket<Option<String>> = Bucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+pub fn remove_delegation_string(storage: &mut dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String, proxy_pubkey: &String) -> StdResult<()> {
+    let mut bucket: Bucket<Option<String>> = Bucket::multilevel(storage, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
 
     bucket.remove(&to_vec(proxy_pubkey)?);
     Ok(())
 }
 
-pub fn get_delegation_string(store: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String, proxy_pubkey: &String) -> StdResult<Option<Option<String>>> {
-    let bucket: ReadonlyBucket<Option<String>> = ReadonlyBucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+pub fn get_delegation_string(storage: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String, proxy_pubkey: &String) -> StdResult<Option<Option<String>>> {
+    let bucket: ReadonlyBucket<Option<String>> = ReadonlyBucket::multilevel(storage, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
 
     bucket.may_load(&to_vec(proxy_pubkey)?)
 }
 
-pub fn get_all_proxies_from_delegation(store: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String) -> StdResult<Vec<String>> {
-    return get_all_keys_multilevel::<String, Option<String>>(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+pub fn get_all_proxies_from_delegation(storage: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String) -> StdResult<Vec<String>> {
+    return get_all_keys_multilevel::<String, Option<String>>(storage, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
 }
 
-pub fn is_delegation_empty(store: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String) -> StdResult<bool>
+pub fn is_delegation_empty(storage: &dyn Storage, delegator_addr: &Addr, delegator_pubkey: &String, delegatee_pubkey: &String) -> StdResult<bool>
 {
-    let bucket: ReadonlyBucket<Option<String>> = ReadonlyBucket::multilevel(store, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
+    let bucket: ReadonlyBucket<Option<String>> = ReadonlyBucket::multilevel(storage, &[DELEGATIONS_STORE_KEY, &to_vec(delegator_addr)?, &to_vec(delegator_pubkey)?, &to_vec(delegatee_pubkey)?]);
 
     for _ in bucket.range(None, None, Order::Ascending)
     {
@@ -224,45 +261,45 @@ pub fn is_delegation_empty(store: &dyn Storage, delegator_addr: &Addr, delegator
 
 
 // FRAGMENTS_STORE
-pub fn set_fragment(store: &mut dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String, reencrypted_cap_fragment: &HashID) -> StdResult<()> {
-    let mut bucket: Bucket<HashID> = Bucket::multilevel(store, &[FRAGMENTS_STORE_KEY, &to_vec(data_id)?, &to_vec(delegatee_pubkey)?]);
+pub fn set_fragment(storage: &mut dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String, reencrypted_cap_fragment: &HashID) -> StdResult<()> {
+    let mut bucket: Bucket<HashID> = Bucket::multilevel(storage, &[FRAGMENTS_STORE_KEY, &to_vec(data_id)?, &to_vec(delegatee_pubkey)?]);
 
     return bucket.save(&to_vec(proxy_pubkey)?, reencrypted_cap_fragment);
 }
 
-pub fn remove_fragment(store: &mut dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String) -> StdResult<()> {
-    let mut bucket: Bucket<HashID> = Bucket::multilevel(store, &[FRAGMENTS_STORE_KEY, &to_vec(data_id)?, &to_vec(delegatee_pubkey)?]);
+pub fn remove_fragment(storage: &mut dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String) -> StdResult<()> {
+    let mut bucket: Bucket<HashID> = Bucket::multilevel(storage, &[FRAGMENTS_STORE_KEY, &to_vec(data_id)?, &to_vec(delegatee_pubkey)?]);
 
     bucket.remove(&to_vec(proxy_pubkey)?);
     Ok(())
 }
 
-pub fn get_fragment(store: &dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String) -> StdResult<Option<HashID>> {
-    let bucket: ReadonlyBucket<HashID> = ReadonlyBucket::multilevel(store, &[FRAGMENTS_STORE_KEY, &to_vec(data_id)?, &to_vec(delegatee_pubkey)?]);
+pub fn get_fragment(storage: &dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String) -> StdResult<Option<HashID>> {
+    let bucket: ReadonlyBucket<HashID> = ReadonlyBucket::multilevel(storage, &[FRAGMENTS_STORE_KEY, &to_vec(data_id)?, &to_vec(delegatee_pubkey)?]);
 
     bucket.may_load(&to_vec(proxy_pubkey)?)
 }
 
-pub fn get_all_fragments(store: &dyn Storage, data_id: &HashID, delegatee_pubkey: &String) -> StdResult<Vec<HashID>> {
-    return get_all_values_multilevel::<HashID>(store, &[FRAGMENTS_STORE_KEY, &to_vec(data_id)?, &to_vec(delegatee_pubkey)?]);
+pub fn get_all_fragments(storage: &dyn Storage, data_id: &HashID, delegatee_pubkey: &String) -> StdResult<Vec<HashID>> {
+    return get_all_values_multilevel::<HashID>(storage, &[FRAGMENTS_STORE_KEY, &to_vec(data_id)?, &to_vec(delegatee_pubkey)?]);
 }
 
 
 // REENCRYPTION_REQUESTS_STORE
-pub fn add_reencryption_request(store: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> StdResult<()> {
-    return set_bool_store_multilevel(store, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?], &to_vec(reencryption_request)?, true);
+pub fn add_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> StdResult<()> {
+    return set_bool_store_multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?], &to_vec(reencryption_request)?, true);
 }
 
-pub fn remove_reencryption_request(store: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> StdResult<()> {
-    return set_bool_store_multilevel(store, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?], &to_vec(reencryption_request)?, false);
+pub fn remove_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> StdResult<()> {
+    return set_bool_store_multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?], &to_vec(reencryption_request)?, false);
 }
 
-pub fn is_reencryption_request(store: &dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> StdResult<bool> {
-    return get_bool_store_multilevel(store, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?], &to_vec(reencryption_request)?);
+pub fn is_reencryption_request(storage: &dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> StdResult<bool> {
+    return get_bool_store_multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?], &to_vec(reencryption_request)?);
 }
 
-pub fn get_all_reencryption_requests(store: &dyn Storage, proxy_pubkey: &String) -> StdResult<Vec<ReencryptionRequest>> {
-    return get_all_keys_multilevel::<ReencryptionRequest, bool>(store, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?]);
+pub fn get_all_reencryption_requests(storage: &dyn Storage, proxy_pubkey: &String) -> StdResult<Vec<ReencryptionRequest>> {
+    return get_all_keys_multilevel::<ReencryptionRequest, bool>(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?]);
 }
 
 

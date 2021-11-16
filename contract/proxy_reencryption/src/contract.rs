@@ -28,7 +28,7 @@ pub fn instantiate(
     if let Some(proxies) = msg.proxies {
         for proxy in proxies
         {
-            set_is_proxy(deps.storage, &proxy, true)?;
+            set_is_proxy(deps.storage, &proxy, true);
         }
     };
 
@@ -47,12 +47,12 @@ fn try_add_proxy(
 
     ensure_admin(&state, &info.sender)?;
 
-    if get_is_proxy(deps.storage, proxy)?
+    if get_is_proxy(deps.storage, proxy)
     {
         return generic_err!(format!("{} is already proxy",proxy));
     }
 
-    set_is_proxy(deps.storage, &proxy, true)?;
+    set_is_proxy(deps.storage, &proxy, true);
 
     // Return response
     let res = Response {
@@ -81,12 +81,12 @@ fn try_remove_proxy(
 
     ensure_admin(&state, &info.sender)?;
 
-    if !get_is_proxy(deps.storage, proxy)?
+    if !get_is_proxy(deps.storage, proxy)
     {
         return generic_err!(format!("{} is not a proxy",proxy));
     }
 
-    set_is_proxy(deps.storage, &proxy, false)?;
+    set_is_proxy(deps.storage, &proxy, false);
 
     // Return response
     let res = Response {
@@ -115,13 +115,13 @@ fn try_register_proxy(
 ) -> StdResult<Response> {
     ensure_proxy(deps.storage, &info.sender)?;
 
-    if !get_proxy_availability(deps.storage, &info.sender)?.is_none()
+    if !get_proxy_availability(deps.storage, &info.sender).is_none()
     {
         return generic_err!("Proxy already registered");
     }
 
-    set_proxy_availability(deps.storage, &info.sender, &proxy_pubkey)?;
-    increase_available_proxy_pubkeys(deps.storage, &proxy_pubkey)?;
+    set_proxy_availability(deps.storage, &info.sender, &proxy_pubkey);
+    increase_available_proxy_pubkeys(deps.storage, &proxy_pubkey);
 
     // Return response
     let res = Response {
@@ -147,14 +147,14 @@ fn try_unregister_proxy(
 ) -> StdResult<Response> {
     ensure_proxy(deps.storage, &info.sender)?;
 
-    let proxy_pubkey = match get_proxy_availability(deps.storage, &info.sender)?
+    let proxy_pubkey = match get_proxy_availability(deps.storage, &info.sender)
     {
         Some(pubkey) => Ok(pubkey),
         None => generic_err!("Proxy not registered")
     }?;
 
-    decrease_available_proxy_pubkeys(deps.storage, &proxy_pubkey)?;
-    remove_proxy_availability(deps.storage, &info.sender)?;
+    decrease_available_proxy_pubkeys(deps.storage, &proxy_pubkey);
+    remove_proxy_availability(deps.storage, &info.sender);
 
     // Return response
     let res = Response {
@@ -187,7 +187,7 @@ fn try_provide_reencrypted_fragment(
         delegatee_pubkey: delegatee_pubkey.clone(),
     };
 
-    let proxy_pubkey = match get_proxy_availability(deps.storage, &info.sender)?
+    let proxy_pubkey = match get_proxy_availability(deps.storage, &info.sender)
     {
         Some(pubkey) => Ok(pubkey),
         None => generic_err!("Proxy not registered")
@@ -453,7 +453,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetAvailableProxies {} => {
             Ok(to_binary(&GetAvailableProxiesResponse {
-                proxy_pubkeys: get_all_available_proxy_pubkeys(deps.storage)?,
+                proxy_pubkeys: get_all_available_proxy_pubkeys(deps.storage),
             })?)
         }
         QueryMsg::GetDataID { data_id } => {
@@ -512,7 +512,7 @@ fn ensure_admin(state: &State, addr: &Addr) -> StdResult<()>
 
 fn ensure_proxy(store: &dyn Storage, addr: &Addr) -> StdResult<()>
 {
-    if !get_is_proxy(store, addr)?
+    if !get_is_proxy(store, addr)
     {
         return generic_err!("Only proxy can execute this method.");
     }
@@ -532,7 +532,7 @@ fn ensure_data_owner(store: &dyn Storage, data_id: &HashID, addr: &Addr) -> StdR
 fn select_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<String>>
 {
     let state: State = get_state(store)?;
-    let proxy_pubkeys = get_all_available_proxy_pubkeys(store)?;
+    let proxy_pubkeys = get_all_available_proxy_pubkeys(store);
 
     // Select n_max_proxies or maximum possible
     let n_proxies = std::cmp::min(state.n_max_proxies as usize, proxy_pubkeys.len());

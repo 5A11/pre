@@ -575,9 +575,9 @@ mod init {
 
         // Check available fragments
         assert_eq!(
-            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey).unwrap(),
+            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
             vec![proxy1_fragment1.clone()]);
-        assert_eq!(get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey).unwrap().len(), 0);
+        assert_eq!(get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey).len(), 0);
 
 
         // Check if proxy got task 2
@@ -601,10 +601,10 @@ mod init {
 
         // Check available fragments
         assert_eq!(
-            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey).unwrap(),
+            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
             vec![proxy1_fragment1]);
         assert_eq!(
-            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey).unwrap(),
+            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey),
             vec![proxy1_fragment2]);
     }
 }

@@ -200,7 +200,7 @@ fn try_provide_reencrypted_fragment(
     }
 
     // Add fragment to fragments store
-    set_fragment(deps.storage, &data_id, &delegatee_pubkey, &proxy_pubkey, &fragment)?;
+    set_fragment(deps.storage, &data_id, &delegatee_pubkey, &proxy_pubkey, &fragment);
 
     // Remove request as it's completed
     remove_reencryption_request(deps.storage, &proxy_pubkey, &request).unwrap();
@@ -264,7 +264,7 @@ fn try_request_proxies_for_delegation(
     delegatee_pubkey: &String,
 ) -> StdResult<Response>
 {
-    if !is_delegation_empty(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey)?
+    if !is_delegation_empty(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey)
     {
         return generic_err!("Delegation already exist");
     }
@@ -274,7 +274,7 @@ fn try_request_proxies_for_delegation(
 
     for proxy_pubkey in selected_proxy_pubkeys
     {
-        set_delegation_string(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey, &proxy_pubkey, &None)?;
+        set_delegation_string(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey, &proxy_pubkey, &None);
         selected_proxy_pubkeys_str += format!("\"{}\", ", proxy_pubkey).as_str();
     }
     selected_proxy_pubkeys_str += "]";
@@ -304,7 +304,7 @@ fn try_add_delegation(
     delegatee_pubkey: &String,
     proxy_delegations: &Vec<ProxyDelegation>,
 ) -> StdResult<Response> {
-    let n_expected_strings = get_all_proxies_from_delegation(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey)?.len();
+    let n_expected_strings = get_all_proxies_from_delegation(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey).len();
     let n_provided_strings = proxy_delegations.len();
     if n_expected_strings != n_provided_strings
     {
@@ -313,7 +313,7 @@ fn try_add_delegation(
 
     for proxy_delegation in proxy_delegations
     {
-        let optional_delegation_string = get_delegation_string(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey, &proxy_delegation.proxy_pubkey)?;
+        let optional_delegation_string = get_delegation_string(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey, &proxy_delegation.proxy_pubkey);
         match optional_delegation_string
         {
             // Delegation not requested
@@ -326,7 +326,7 @@ fn try_add_delegation(
                         // Delegation requested and strings already provided
                         Some(_) => { return generic_err!("Delegation strings already provided"); }
                         // Delegation requested and strings not provided - correct case
-                        None => { set_delegation_string(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey, &proxy_delegation.proxy_pubkey, &Some(proxy_delegation.delegation_string.clone()))?; }
+                        None => { set_delegation_string(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey, &proxy_delegation.proxy_pubkey, &Some(proxy_delegation.delegation_string.clone())); }
                     }
                 }
         }
@@ -363,7 +363,7 @@ fn try_request_reencryption(
 
 
     // Get selected proxies for current delegation
-    let proxy_pubkeys = get_all_proxies_from_delegation(deps.storage, &info.sender, &data_entry.delegator_pubkey, &delegatee_pubkey)?;
+    let proxy_pubkeys = get_all_proxies_from_delegation(deps.storage, &info.sender, &data_entry.delegator_pubkey, &delegatee_pubkey);
 
     if proxy_pubkeys.len() == 0
     {
@@ -373,13 +373,13 @@ fn try_request_reencryption(
     for proxy_pubkey in proxy_pubkeys
     {
         // Can happen only when you request re-encryption before providing delegation strings for proxies
-        if get_delegation_string(deps.storage, &data_entry.delegator_addr, &data_entry.delegator_pubkey, &delegatee_pubkey, &proxy_pubkey)?.unwrap().is_none()
+        if get_delegation_string(deps.storage, &data_entry.delegator_addr, &data_entry.delegator_pubkey, &delegatee_pubkey, &proxy_pubkey).unwrap().is_none()
         {
             return generic_err!("Not all delegation strings provided");
         }
 
         let reencryption_request = ReencryptionRequest { data_id: data_id.clone(), delegatee_pubkey: delegatee_pubkey.clone() };
-        if get_fragment(deps.storage, &data_id, &delegatee_pubkey, &proxy_pubkey)?.is_some() ||
+        if get_fragment(deps.storage, &data_id, &delegatee_pubkey, &proxy_pubkey).is_some() ||
             is_reencryption_request(deps.storage, &proxy_pubkey, &reencryption_request)?
         {
             return generic_err!("Reencryption already requested");
@@ -416,7 +416,7 @@ pub fn get_next_proxy_task(store: &dyn Storage, proxy_pubkey: &String) -> StdRes
 
     let data_entry = get_data_entry(store, &request.data_id).unwrap();
 
-    let delegation_string = get_delegation_string(store, &data_entry.delegator_addr, &data_entry.delegator_pubkey, &request.delegatee_pubkey, &proxy_pubkey)?.unwrap();
+    let delegation_string = get_delegation_string(store, &data_entry.delegator_addr, &data_entry.delegator_pubkey, &request.delegatee_pubkey, &proxy_pubkey).unwrap();
 
     let proxy_task = ProxyTask {
         data_id: request.data_id.clone(),
@@ -464,7 +464,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetFragments { data_id, delegatee_pubkey } => {
             let state = get_state(deps.storage)?;
             Ok(to_binary(&GetFragmentsResponse {
-                fragments: get_all_fragments(deps.storage, &data_id, &delegatee_pubkey)?,
+                fragments: get_all_fragments(deps.storage, &data_id, &delegatee_pubkey),
                 threshold: state.threshold,
             })?)
         }
@@ -481,7 +481,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
 
         QueryMsg::GetDoesDelegationExist { delegator_addr, delegator_pubkey, delegatee_pubkey } => {
-            let delegations = get_all_proxies_from_delegation(deps.storage, &delegator_addr, &delegator_pubkey, &delegatee_pubkey)?;
+            let delegations = get_all_proxies_from_delegation(deps.storage, &delegator_addr, &delegator_pubkey, &delegatee_pubkey);
 
             let delegation_exists: bool = if delegations.len() > 0 { true } else { false };
 
@@ -492,7 +492,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::GetSelectedProxiesForDelegation { delegator_addr, delegator_pubkey, delegatee_pubkey } => {
             Ok(to_binary(&GetSelectedProxiesForDelegationResponse {
-                proxy_pubkeys: get_all_proxies_from_delegation(deps.storage, &delegator_addr, &delegator_pubkey, &delegatee_pubkey)?,
+                proxy_pubkeys: get_all_proxies_from_delegation(deps.storage, &delegator_addr, &delegator_pubkey, &delegatee_pubkey),
             })?)
         }
     }

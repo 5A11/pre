@@ -194,7 +194,7 @@ fn try_provide_reencrypted_fragment(
     }?;
 
     // Check if reencryption was requested
-    if !is_reencryption_request(deps.storage, &proxy_pubkey, &request)?
+    if !is_reencryption_request(deps.storage, &proxy_pubkey, &request)
     {
         return generic_err!("This fragment was not requested.");
     }
@@ -203,7 +203,7 @@ fn try_provide_reencrypted_fragment(
     set_fragment(deps.storage, &data_id, &delegatee_pubkey, &proxy_pubkey, &fragment);
 
     // Remove request as it's completed
-    remove_reencryption_request(deps.storage, &proxy_pubkey, &request).unwrap();
+    remove_reencryption_request(deps.storage, &proxy_pubkey, &request);
 
     // Return response
     let res = Response {
@@ -380,13 +380,13 @@ fn try_request_reencryption(
 
         let reencryption_request = ReencryptionRequest { data_id: data_id.clone(), delegatee_pubkey: delegatee_pubkey.clone() };
         if get_fragment(deps.storage, &data_id, &delegatee_pubkey, &proxy_pubkey).is_some() ||
-            is_reencryption_request(deps.storage, &proxy_pubkey, &reencryption_request)?
+            is_reencryption_request(deps.storage, &proxy_pubkey, &reencryption_request)
         {
             return generic_err!("Reencryption already requested");
         }
 
         // Add reencryption task for each proxy
-        add_reencryption_request(deps.storage, &proxy_pubkey, &reencryption_request)?;
+        add_reencryption_request(deps.storage, &proxy_pubkey, &reencryption_request);
     }
 
 
@@ -406,7 +406,7 @@ fn try_request_reencryption(
 
 
 pub fn get_next_proxy_task(store: &dyn Storage, proxy_pubkey: &String) -> StdResult<Option<ProxyTask>> {
-    let requests = get_all_reencryption_requests(store, proxy_pubkey)?;
+    let requests = get_all_reencryption_requests(store, proxy_pubkey);
 
     if requests.len() == 0
     {

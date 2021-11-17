@@ -1,10 +1,8 @@
-use cosmwasm_std::{Addr, Storage, StdResult, to_vec, StdError, Order, from_slice};
-use cosmwasm_storage::{singleton, singleton_read, Singleton, Bucket, ReadonlyBucket, bucket_read, bucket, PrefixedStorage, ReadonlyPrefixedStorage};
+use cosmwasm_std::{Addr, Storage, StdResult, to_vec, Order, from_slice};
+use cosmwasm_storage::{singleton, singleton_read, Singleton, PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
-
-use crate::types::{set_bool_store, get_bool_store, get_all_keys, get_all_keys_multilevel, set_bool_store_multilevel, get_bool_store_multilevel, get_all_values_multilevel};
 
 pub type HashID = String;
 
@@ -312,20 +310,40 @@ pub fn get_all_fragments(storage: &dyn Storage, data_id: &HashID, delegatee_pubk
 
 
 // REENCRYPTION_REQUESTS_STORE
-pub fn add_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> StdResult<()> {
-    return set_bool_store_multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?], &to_vec(reencryption_request)?, true);
+pub fn add_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> () {
+    let mut store = PrefixedStorage::multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
+
+    store.set(&to_vec(reencryption_request).unwrap(), &[0]);
 }
 
-pub fn remove_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> StdResult<()> {
-    return set_bool_store_multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?], &to_vec(reencryption_request)?, false);
+pub fn remove_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> () {
+    let mut store = PrefixedStorage::multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
+
+    store.remove(&to_vec(reencryption_request).unwrap());
 }
 
-pub fn is_reencryption_request(storage: &dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> StdResult<bool> {
-    return get_bool_store_multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?], &to_vec(reencryption_request)?);
+pub fn is_reencryption_request(storage: &dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> bool {
+    let store = ReadonlyPrefixedStorage::multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
+
+    match store.get(&to_vec(reencryption_request).unwrap())
+    {
+        None => false,
+        Some(_) => true
+    }
 }
 
-pub fn get_all_reencryption_requests(storage: &dyn Storage, proxy_pubkey: &String) -> StdResult<Vec<ReencryptionRequest>> {
-    return get_all_keys_multilevel::<ReencryptionRequest, bool>(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, &to_vec(proxy_pubkey)?]);
+pub fn get_all_reencryption_requests(storage: &dyn Storage, proxy_pubkey: &String) -> Vec<ReencryptionRequest> {
+    let store = ReadonlyPrefixedStorage::multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
+
+    let mut deserialized_keys: Vec<ReencryptionRequest> = Vec::new();
+
+    for pair in store.range(None, None, Order::Ascending)
+    {
+        // Deserialize keys with inverse operation to to_vec
+        deserialized_keys.push(from_slice(&pair.0).unwrap());
+    }
+
+    return deserialized_keys;
 }
 
 

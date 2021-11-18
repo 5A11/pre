@@ -221,7 +221,7 @@ class UmbralCrypto(AbstractCrypto):
         umb_capsule = UmbralCapsule.from_bytes(encrypted_data.capsule)._umbral_capsule
 
         cfrags = []
-        for i, frag_bytes in enumerate(encrypted_data_fragments_bytes):
+        for frag_bytes in encrypted_data_fragments_bytes:
             frag = UmbralReencryptedFragment.from_bytes(frag_bytes)
             reenc_frag = cast(UmbralReencryptedFragment, frag)._reenc_cap_frag
             cfrag = CapsuleFrag.from_bytes(bytes(reenc_frag))

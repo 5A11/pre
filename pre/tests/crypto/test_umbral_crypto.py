@@ -1,7 +1,9 @@
 from typing import List
+
 from umbral import SecretKey
+
 from pre.common import ReencryptedFragment
-from pre.crypto.umbral_crypto import UmbralPrivateKey, UmbralCrypto
+from pre.crypto.umbral_crypto import UmbralCrypto, UmbralPrivateKey
 
 
 def new_umbral_key():
@@ -28,8 +30,8 @@ def test_encryption_delegation_reencryption_decryption_cycle():
     delegations = crypto.generate_delegations(
         encrypted_data.capsule,
         threshold,
-        delegatee.public_key,
-        [p.public_key for p in proxies],
+        bytes(delegatee.public_key),
+        [bytes(p.public_key) for p in proxies],
         delegator,
     )
     reencrypted_cap_frags: List[ReencryptedFragment] = []
@@ -37,10 +39,10 @@ def test_encryption_delegation_reencryption_decryption_cycle():
         reencrypted_cap_frags.append(
             crypto.reencrypt(
                 encrypted_data.capsule,
-                delegations[i],
+                bytes(delegations[i].delegation_string),
                 p,
-                delegator.public_key,
-                delegatee.public_key,
+                bytes(delegator.public_key),
+                bytes(delegatee.public_key),
             )
         )
 
@@ -48,7 +50,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
         encrypted_data,
         reencrypted_cap_frags[:threshold],
         delegatee,
-        delegator.public_key,
+        bytes(delegator.public_key),
     )
 
     assert (

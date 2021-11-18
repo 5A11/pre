@@ -85,9 +85,10 @@ pub fn set_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
 pub fn set_is_proxy(storage: &mut dyn Storage, proxy_addr: &Addr, is_proxy: bool) -> () {
     let mut store = PrefixedStorage::new(storage, IS_PROXY_KEY);
 
+    // Any value in store means true - &[1]
     match is_proxy
     {
-        true => store.set(proxy_addr.as_bytes(), &[0]),
+        true => store.set(proxy_addr.as_bytes(), &[1]),
         false => store.remove(proxy_addr.as_bytes())
     }
 }
@@ -252,7 +253,7 @@ pub fn get_all_proxies_from_delegation(storage: &dyn Storage, delegator_addr: &A
 
     for pair in store.range(None, None, Order::Ascending)
     {
-        // Deserialize keys with inverse operation to to_vec
+        // Deserialize keys with inverse operation to string.as_bytes()
         deserialized_keys.push(std::str::from_utf8(&pair.0).unwrap().to_string());
     }
 
@@ -313,7 +314,8 @@ pub fn get_all_fragments(storage: &dyn Storage, data_id: &HashID, delegatee_pubk
 pub fn add_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> () {
     let mut store = PrefixedStorage::multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
 
-    store.set(&to_vec(reencryption_request).unwrap(), &[0]);
+    // Any value in store means true - &[1]
+    store.set(&to_vec(reencryption_request).unwrap(), &[1]);
 }
 
 pub fn remove_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> () {

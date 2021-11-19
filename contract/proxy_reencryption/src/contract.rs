@@ -22,6 +22,7 @@ pub fn instantiate(
         admin: msg.admin.unwrap_or(info.sender),
         n_max_proxies: msg.n_max_proxies.unwrap_or(u32::MAX),
         threshold: msg.threshold.unwrap_or(1),
+        next_request_id: 0
     };
     set_state(deps.storage, &state)?;
 

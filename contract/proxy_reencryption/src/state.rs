@@ -43,6 +43,9 @@ pub struct State {
     // n_selected proxies will be between threshold and n_max_proxies
     pub threshold: u32,
     pub n_max_proxies: u32,
+
+    // Total number of re-encryption requests
+    pub next_request_id: u64,
 }
 
 // Store structures

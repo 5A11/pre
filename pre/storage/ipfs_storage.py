@@ -10,9 +10,17 @@ from pre.storage.base_storage import AbstractStorage
 
 
 class IpfsStorage(AbstractStorage):
-    def __init__(self, storage_config: Optional[Dict] = None):
-        self._storage_config = storage_config
+    def __init__(
+        self,
+        addr: Optional[str] = None,
+        port: Optional[int] = None,
+        storage_config: Optional[Dict] = None,
+    ):
+        self._storage_config = storage_config or {}
         self._client: Optional[Client] = None
+        if addr and port:
+            url = "/dns/" + str(addr) + "/tcp/" + str(port) + "/http"
+            self._storage_config["addr"] = url
 
     def _check_connected(self):
         if self._client is None:
@@ -21,7 +29,7 @@ class IpfsStorage(AbstractStorage):
     def connect(self):
         if self._client is not None:
             raise ValueError("Already connected!")
-        self._client = ipfshttpclient.connect(**self._storage_config or {})
+        self._client = ipfshttpclient.connect(**self._storage_config)
 
     def disconnect(self):
         self._check_connected()

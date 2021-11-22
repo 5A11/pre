@@ -1,0 +1,40 @@
+version: '3.5'
+
+services:
+  fetchd:
+    # profiles: ["fetchd"]
+    build:
+      context: ../
+      dockerfile: ./docker/fetchd.Dockerfile
+    environment:
+      FETCHMNEMONIC: "gap bomb bulk border original scare assault pelican resemble found laptop skin gesture height inflict clinic reject giggle hurdle bubble soldier hurt moon hint"
+
+    networks:
+      - localnet
+  
+  ipfs:
+    # profiles: ["ipfs"]
+    image: "ipfs/go-ipfs:v0.7.0"
+    networks:
+      - localnet
+
+  tests:
+    profiles: ["tests"]
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    image: pre:latest
+    
+    container_name: tests
+    entrypoint: ./scripts/run_tests.sh
+    networks:
+      - localnet
+
+networks:
+  localnet:
+    name: pre-local
+    driver: bridge
+    ipam:
+      driver: default
+
+

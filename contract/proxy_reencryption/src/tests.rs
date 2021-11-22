@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{Env, Addr, Response, StdResult, MessageInfo, DepsMut, Binary};
+use cosmwasm_std::{Env, Addr, Response, StdResult, MessageInfo, DepsMut};
 
 use crate::contract::{execute, instantiate, get_next_proxy_task};
 use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegation};
@@ -64,7 +64,7 @@ fn remove_proxy(
 fn register_proxy(
     deps: DepsMut,
     creator: &Addr,
-    proxy_pubkey: &Binary) -> StdResult<Response>
+    proxy_pubkey: &String) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
 
@@ -88,7 +88,7 @@ fn provide_reencrypted_fragment(
     deps: DepsMut,
     creator: &Addr,
     data_id: &HashID,
-    delegatee_pubkey: &Binary,
+    delegatee_pubkey: &String,
     fragment: &HashID) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
@@ -107,7 +107,7 @@ fn add_data(
     deps: DepsMut,
     creator: &Addr,
     data_id: &HashID,
-    delegator_pubkey: &Binary) -> StdResult<Response>
+    delegator_pubkey: &String) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
 
@@ -123,8 +123,8 @@ fn add_data(
 fn add_delegation(
     deps: DepsMut,
     creator: &Addr,
-    delegator_pubkey: &Binary,
-    delegatee_pubkey: &Binary,
+    delegator_pubkey: &String,
+    delegatee_pubkey: &String,
     proxy_delegations: &Vec<ProxyDelegation>) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
@@ -142,8 +142,8 @@ fn add_delegation(
 fn request_proxies_for_delegation(
     deps: DepsMut,
     creator: &Addr,
-    delegator_pubkey: &Binary,
-    delegatee_pubkey: &Binary) -> StdResult<Response>
+    delegator_pubkey: &String,
+    delegatee_pubkey: &String) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
 
@@ -160,7 +160,7 @@ fn request_reencryption(
     deps: DepsMut,
     creator: &Addr,
     data_id: &HashID,
-    delegatee_pubkey: &Binary) -> StdResult<Response>
+    delegatee_pubkey: &String) -> StdResult<Response>
 {
     let env = mock_env_height(&creator, 450);
 
@@ -187,8 +187,8 @@ mod init {
         assert!(init_contract(deps.as_mut(), &creator, None, None, None, Some(proxies.clone())).is_ok());
 
         let state: State = get_state(&deps.storage).unwrap();
-        let available_proxies = get_all_available_proxy_pubkeys(&deps.storage).unwrap();
-        let all_proxies = get_all_proxies(&deps.storage).unwrap();
+        let available_proxies = get_all_available_proxy_pubkeys(&deps.storage);
+        let all_proxies = get_all_proxies(&deps.storage);
 
         assert_eq!(available_proxies.len(), 0);
         assert_eq!(all_proxies.len(), 2);
@@ -208,14 +208,14 @@ mod init {
 
         assert!(init_contract(deps.as_mut(), &creator, None, Some(admin.clone()), None, None).is_ok());
 
-        let all_proxies = get_all_proxies(&deps.storage).unwrap();
+        let all_proxies = get_all_proxies(&deps.storage);
         assert_eq!(all_proxies.len(), 0);
 
         // Only admin can add proxies
         assert!(add_proxy(deps.as_mut(), &creator, &proxy).is_err());
         assert!(add_proxy(deps.as_mut(), &admin, &proxy).is_ok());
 
-        let all_proxies = get_all_proxies(&deps.storage).unwrap();
+        let all_proxies = get_all_proxies(&deps.storage);
         assert_eq!(all_proxies.len(), 1);
         assert_eq!(&all_proxies[0], &proxy);
 
@@ -223,7 +223,7 @@ mod init {
         assert!(remove_proxy(deps.as_mut(), &creator, &proxy).is_err());
         assert!(remove_proxy(deps.as_mut(), &admin, &proxy).is_ok());
 
-        let all_proxies = get_all_proxies(&deps.storage).unwrap();
+        let all_proxies = get_all_proxies(&deps.storage);
         assert_eq!(all_proxies.len(), 0);
     }
 
@@ -235,13 +235,13 @@ mod init {
         let proxy1 = Addr::unchecked("proxy1".to_string());
         let proxy2 = Addr::unchecked("proxy2".to_string());
 
-        let proxy_pubkey: Binary = Binary::from(*b"proxy_pubkey");
+        let proxy_pubkey: String = String::from("proxy_pubkey");
 
         let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
 
         assert!(init_contract(deps.as_mut(), &creator, None, None, None, Some(proxies.clone())).is_ok());
 
-        assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).unwrap().len(), 0);
+        assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).len(), 0);
 
         // Only proxy can add pubkeys
         assert!(register_proxy(deps.as_mut(), &creator, &proxy_pubkey).is_err());
@@ -249,7 +249,7 @@ mod init {
         // Already registered
         assert!(register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey).is_err());
 
-        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage).unwrap();
+        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage);
         assert_eq!(available_proxy_pubkeys.len(), 1);
         assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
@@ -259,7 +259,7 @@ mod init {
         assert!(register_proxy(deps.as_mut(), &proxy2, &proxy_pubkey).is_err());
 
         // Number of available pubkeys remains the same
-        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage).unwrap();
+        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage);
         assert_eq!(available_proxy_pubkeys.len(), 1);
         assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
@@ -270,7 +270,7 @@ mod init {
         assert!(unregister_proxy(deps.as_mut(), &proxy1).is_err());
 
         // Number of available pubkeys remains the same
-        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage).unwrap();
+        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage);
         assert_eq!(available_proxy_pubkeys.len(), 1);
         assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
@@ -281,7 +281,7 @@ mod init {
         assert!(unregister_proxy(deps.as_mut(), &proxy2).is_err());
 
         // All proxies with this pubkey unregistered
-        assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).unwrap().len(), 0);
+        assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).len(), 0);
     }
 
     #[test]
@@ -293,7 +293,7 @@ mod init {
         let delegator = Addr::unchecked("delegator".to_string());
 
         // Pubkeys
-        let delegator_pubkey: Binary = Binary::from(*b"DRK");
+        let delegator_pubkey: String = String::from("DRK");
 
         let data_id = String::from("DATA");
         let data_entry = DataEntry {
@@ -308,7 +308,7 @@ mod init {
         // Add data by delegator
         assert!(add_data(deps.as_mut(), &delegator, &data_id, &data_entry.delegator_pubkey).is_ok());
 
-        assert_eq!(&get_data_entry(deps.as_mut().storage, &data_id).unwrap().unwrap(), &data_entry);
+        assert_eq!(&get_data_entry(deps.as_mut().storage, &data_id).unwrap(), &data_entry);
     }
 
 
@@ -324,10 +324,10 @@ mod init {
         let delegator = Addr::unchecked("delegator".to_string());
 
         // Pubkeys
-        let delegator_pubkey: Binary = Binary::from(*b"DRK");
-        let delegatee_pubkey: Binary = Binary::from(*b"DEK1");
-        let proxy1_pubkey: Binary = Binary::from(*b"proxy1_pubkey");
-        let proxy2_pubkey: Binary = Binary::from(*b"proxy2_pubkey");
+        let delegator_pubkey: String = String::from("DRK");
+        let delegatee_pubkey: String = String::from("DEK1");
+        let proxy1_pubkey: String = String::from("proxy1_pubkey");
+        let proxy2_pubkey: String = String::from("proxy2_pubkey");
 
         let data_id = String::from("DATA");
         let data_entry = DataEntry {
@@ -349,8 +349,8 @@ mod init {
         assert!(add_data(deps.as_mut(), &delegator, &data_id, &data_entry.delegator_pubkey).is_ok());
 
         // Add delegation for proxy
-        let proxy1_delegation_string = Binary::from(*b"DS_P1");
-        let proxy2_delegation_string = Binary::from(*b"DS_P2");
+        let proxy1_delegation_string = String::from("DS_P1");
+        let proxy2_delegation_string = String::from("DS_P2");
 
         let proxy_delegations: Vec<ProxyDelegation> = vec![
             ProxyDelegation { proxy_pubkey: proxy1_pubkey.clone(), delegation_string: proxy1_delegation_string.clone() },
@@ -393,7 +393,7 @@ mod init {
         assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee_pubkey).is_err());
 
         // Check if request was created
-        assert!(is_reencryption_request(deps.as_mut().storage, &proxy1_pubkey, &ReencryptionRequest { data_id: data_id, delegatee_pubkey: delegatee_pubkey }).unwrap());
+        assert!(is_reencryption_request(deps.as_mut().storage, &proxy1_pubkey, &ReencryptionRequest { data_id: data_id, delegatee_pubkey: delegatee_pubkey }));
     }
 
 
@@ -408,10 +408,10 @@ mod init {
         let delegator = Addr::unchecked("delegator".to_string());
 
         // Pubkeys
-        let delegator_pubkey: Binary = Binary::from(*b"DRK");
-        let delegatee_pubkey: Binary = Binary::from(*b"DEK1");
-        let other_delegatee_pubkey: Binary = Binary::from(*b"DEK2");
-        let proxy_pubkey: Binary = Binary::from(*b"proxy_pubkey");
+        let delegator_pubkey: String = String::from("DRK");
+        let delegatee_pubkey: String = String::from("DEK1");
+        let other_delegatee_pubkey: String = String::from("DEK2");
+        let proxy_pubkey: String = String::from("proxy_pubkey");
 
         let data_id = String::from("DATA");
 
@@ -433,7 +433,7 @@ mod init {
         assert!(add_data(deps.as_mut(), &delegator, &data_id, &data_entry.delegator_pubkey).is_ok());
 
         // Add delegation for proxy
-        let proxy_delegation_string = Binary::from(*b"DS_P1");
+        let proxy_delegation_string = String::from("DS_P1");
         let proxy_delegations: Vec<ProxyDelegation> = vec![
             ProxyDelegation { proxy_pubkey: proxy_pubkey.clone(), delegation_string: proxy_delegation_string.clone() },
         ];
@@ -451,7 +451,7 @@ mod init {
         assert!(request_reencryption(deps.as_mut(), &delegator, &reencryption_request.data_id, &reencryption_request.delegatee_pubkey).is_ok());
 
         /*************** Provide reencrypted fragment *************/
-        assert!(is_reencryption_request(deps.as_mut().storage, &proxy_pubkey, &reencryption_request).unwrap());
+        assert!(is_reencryption_request(deps.as_mut().storage, &proxy_pubkey, &reencryption_request));
 
         let proxy_fragment: HashID = String::from("PR1_FRAG1");
         // Provide unwanted fragment
@@ -461,7 +461,7 @@ mod init {
         // Fragment already provided
         assert!(provide_reencrypted_fragment(deps.as_mut(), &proxy, &data_id, &delegatee_pubkey, &proxy_fragment).is_err());
 
-        assert!(!is_reencryption_request(deps.as_mut().storage, &proxy_pubkey, &reencryption_request).unwrap());
+        assert!(!is_reencryption_request(deps.as_mut().storage, &proxy_pubkey, &reencryption_request));
     }
 
 
@@ -477,11 +477,11 @@ mod init {
         let delegator = Addr::unchecked("delegator".to_string());
 
         // Pubkeys
-        let delegator_pubkey: Binary = Binary::from(*b"DRK");
-        let delegatee1_pubkey: Binary = Binary::from(*b"DEK1");
-        let delegatee2_pubkey: Binary = Binary::from(*b"DEK2");
-        let proxy1_pubkey: Binary = Binary::from(*b"proxy_pubkey1");
-        let proxy2_pubkey: Binary = Binary::from(*b"proxy_pubkey2");
+        let delegator_pubkey: String = String::from("DRK");
+        let delegatee1_pubkey: String = String::from("DEK1");
+        let delegatee2_pubkey: String = String::from("DEK2");
+        let proxy1_pubkey: String = String::from("proxy_pubkey1");
+        let proxy2_pubkey: String = String::from("proxy_pubkey2");
 
         let data_id = String::from("DATA");
         let data_entry = DataEntry {
@@ -504,8 +504,8 @@ mod init {
         assert!(add_data(deps.as_mut(), &delegator, &data_id, &data_entry.delegator_pubkey).is_ok());
 
         // Add 2 delegations for 2 proxies
-        let proxy1_delegation_string = Binary::from(*b"DS_P1");
-        let proxy2_delegation_string = Binary::from(*b"DS_P2");
+        let proxy1_delegation_string = String::from("DS_P1");
+        let proxy2_delegation_string = String::from("DS_P2");
 
         let proxy_delegations: Vec<ProxyDelegation> = vec![
             ProxyDelegation { proxy_pubkey: proxy1_pubkey.clone(), delegation_string: proxy1_delegation_string.clone() },
@@ -534,8 +534,8 @@ mod init {
         assert!(request_reencryption(deps.as_mut(), &delegator, &reencryption_request1.data_id, &reencryption_request1.delegatee_pubkey).is_ok());
 
         // Check number of requests
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).unwrap().len(), 1);
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).unwrap().len(), 1);
+        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(), 1);
+        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(), 1);
 
 
         let reencryption_request2 = ReencryptionRequest
@@ -547,12 +547,12 @@ mod init {
 
 
         // Check number of requests
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).unwrap().len(), 2);
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).unwrap().len(), 2);
+        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(), 2);
+        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(), 2);
 
 
         /*************** Process reencryption by proxies *************/
-        let all_requests = get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).unwrap();
+        let all_requests = get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey);
         assert_eq!(all_requests.len(), 2);
 
         // Check if proxy got task 1
@@ -570,14 +570,14 @@ mod init {
         assert!(provide_reencrypted_fragment(deps.as_mut(), &proxy1, &data_id, &delegatee1_pubkey, &proxy1_fragment1).is_ok());
 
         // Check numbers of requests
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).unwrap().len(), 1);
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).unwrap().len(), 2);
+        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(), 1);
+        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(), 2);
 
         // Check available fragments
         assert_eq!(
-            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey).unwrap(),
+            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
             vec![proxy1_fragment1.clone()]);
-        assert_eq!(get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey).unwrap().len(), 0);
+        assert_eq!(get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey).len(), 0);
 
 
         // Check if proxy got task 2
@@ -601,10 +601,10 @@ mod init {
 
         // Check available fragments
         assert_eq!(
-            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey).unwrap(),
+            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
             vec![proxy1_fragment1]);
         assert_eq!(
-            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey).unwrap(),
+            get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey),
             vec![proxy1_fragment2]);
     }
 }

@@ -24,6 +24,17 @@ pub fn instantiate(
         threshold: msg.threshold.unwrap_or(1),
         next_request_id: 0,
     };
+
+    if state.threshold == 0
+    {
+        return generic_err!("Threshold cannot be 0");
+    }
+
+    if state.n_max_proxies < state.threshold
+    {
+        return generic_err!("Value of n_max_proxies cannot be lower than threshold.");
+    }
+
     set_state(deps.storage, &state)?;
 
     if let Some(proxies) = msg.proxies {
@@ -378,7 +389,7 @@ fn try_request_reencryption(
         delegatee_pubkey: delegatee_pubkey.clone(),
         data_id: data_id.clone(),
         fragment: None,
-        proxy_address: None
+        proxy_address: None,
     };
 
     for proxy_pubkey in proxy_pubkeys
@@ -389,7 +400,7 @@ fn try_request_reencryption(
             return generic_err!("Not all delegation strings provided");
         }
 
-        if  get_delegatee_reencryption_request(deps.storage, &data_id, &delegatee_pubkey,&proxy_pubkey).is_some()
+        if get_delegatee_reencryption_request(deps.storage, &data_id, &delegatee_pubkey, &proxy_pubkey).is_some()
         {
             return generic_err!("Reencryption already requested");
         }
@@ -556,7 +567,6 @@ fn select_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<String>>
 }
 
 pub fn get_all_fragments(storage: &dyn Storage, data_id: &HashID, delegatee_pubkey: &String) -> Vec<HashID> {
-
     let mut fragments: Vec<HashID> = Vec::new();
     for request_id in get_all_delegatee_reencryption_requests(storage, &data_id, &delegatee_pubkey)
     {

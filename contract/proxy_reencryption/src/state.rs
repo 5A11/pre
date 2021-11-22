@@ -298,7 +298,6 @@ pub fn get_reencryption_request(storage: &dyn Storage, reencryption_request_id: 
 pub fn add_delegatee_reencryption_request(storage: &mut dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String, reencryption_request_id: &u64) -> () {
     let mut store = PrefixedStorage::multilevel(storage, &[DELEGATEE_REQUESTS_STORE_KEY, data_id.as_bytes(), delegatee_pubkey.as_bytes()]);
 
-    // Any value in store means true - &[1]
     store.set(&proxy_pubkey.as_bytes(), &reencryption_request_id.to_le_bytes());
 }
 

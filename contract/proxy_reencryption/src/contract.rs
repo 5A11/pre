@@ -320,6 +320,12 @@ fn try_add_delegation(
 ) -> StdResult<Response> {
     let n_expected_strings = get_all_proxies_from_delegation(deps.storage, &info.sender, &delegator_pubkey, &delegatee_pubkey).len();
     let n_provided_strings = proxy_delegations.len();
+
+    if n_expected_strings == 0
+    {
+        return generic_err!("No proxies selected for this delegation");
+    }
+
     if n_expected_strings != n_provided_strings
     {
         return generic_err!(format!("Provided wrong number of delegation strings, expected {} got {}.",n_expected_strings, n_provided_strings));

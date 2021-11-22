@@ -3,7 +3,7 @@ use cosmwasm_std::{Env, Addr, Response, StdResult, MessageInfo, DepsMut};
 
 use crate::contract::{execute, instantiate, get_next_proxy_task, get_all_fragments};
 use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegation, ProxyTask};
-use crate::state::{get_state, State, get_all_proxies, DataEntry, HashID, get_data_entry, get_all_available_proxy_pubkeys};
+use crate::state::{get_state, State, get_all_proxies, DataEntry, HashID, get_data_entry, get_all_available_proxy_pubkeys, get_delegatee_reencryption_request, get_reencryption_request, get_all_proxy_reencryption_requests, is_proxy_reencryption_request};
 
 fn mock_env_height(signer: &Addr, height: u64) -> (Env, MessageInfo) {
     let mut env = mock_env();
@@ -175,7 +175,6 @@ fn request_reencryption(
 
 mod init {
     use super::*;
-    use crate::state::{get_delegatee_reencryption_request, get_reencryption_request, get_all_proxy_reencryption_requests, is_proxy_reencryption_request};
 
     #[test]
     fn test_new_contract() {

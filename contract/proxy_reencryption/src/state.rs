@@ -12,34 +12,33 @@ static STATE_KEY: &[u8] = b"State";
 // Maps
 
 // Proxy register whitelist
-// Map Addr proxy -> bool
+// Map proxy: Addr -> is_registered: bool
 static IS_PROXY_KEY: &[u8] = b"IsProxy";
 
-// Map Addr proxy -> String proxy_pubkey
+// Map proxy: Addr -> proxy_pubkey: String
 static PROXIES_AVAILABITY_KEY: &[u8] = b"ProxyAvailable";
 
 // Counts number of proxies with the same pubkey
 // Used for selecting proxy pubkeys for delegations
-// Map String proxy_pubkey -> u32 n_addresses
+// Map proxy_pubkey: String -> n_addresses: u32
 static PROXIES_PUBKEYS_KEY: &[u8] = b"ProxyPubkey";
 
-// Map String data_id -> DataEntry data_entry
+// Map data_id: String -> data_entry: DataEntry
 static DATA_ENTRIES_KEY: &[u8] = b"DataEntries";
 
-// Map Addr delegator_addr -> String delegator_pubkey -> String delegatee_pubkey -> String proxy_pubkey -> Option<String> delegation_string
+// Map delegator_addr: Addr -> delegator_pubkey: String -> delegatee_pubkey: String -> proxy_pubkey: String -> delegation_string: Option<String>
 static DELEGATIONS_STORE_KEY: &[u8] = b"DelegationStore";
 
-// Map u64 reencryption_request_id -> ReencryptionRequest request
+// Map reencryption_request_id: u64 -> request: ReencryptionRequest
 static REENCRYPTION_REQUESTS_STORE_KEY: &[u8] = b"ReencryptionRequests";
 
 // Delegatee side to lookup fragments
-// Map HashID data_id -> delegatee_pubkey -> String proxy_pubkey -> u64 reencryption_request_id
+// Map data_id: HashID -> delegatee_pubkey: String -> proxy_pubkey: String -> reencryption_request_id: u64
 static DELEGATEE_REQUESTS_STORE_KEY: &[u8] = b"DelegateeRequests";
 
 // Proxy side to lookup active tasks
-// Map String proxy_pubkey -> u64 reencryption_request_id -> bool is_request
+// Map proxy_pubkey: String -> reencryption_request_id: u64 -> is_request: bool
 static PROXY_REQUESTS_STORE_KEY: &[u8] = b"ProxyRequests";
-
 
 
 // Singleton structures

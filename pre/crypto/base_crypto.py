@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import IO, List, Tuple, Union
+from typing import IO, List, Union
 
-from pre.common import (Address, Capsule, Delegation, EncryptedData,
-                        PrivateKey, PublicKey, ReencryptedFragment)
+from pre.common import Delegation, EncryptedData, PrivateKey, PublicKey
 
 
 class AbstractCrypto(ABC):
@@ -15,10 +14,10 @@ class AbstractCrypto(ABC):
     @abstractmethod
     def generate_delegations(
         self,
-        capsule: Capsule,
+        capsule_bytes: bytes,
         threshold: int,
-        delegatee_public_key: PublicKey,
-        proxies_public_keys: List[PublicKey],
+        delegatee_pubkey_bytes: bytes,
+        proxies_pubkeys_bytes: List[bytes],
         delegator_private_key: PrivateKey,
     ) -> List[Delegation]:
         pass
@@ -26,20 +25,20 @@ class AbstractCrypto(ABC):
     @abstractmethod
     def reencrypt(
         self,
-        capsule: Capsule,
-        delegation: Delegation,
+        capsule_bytes: bytes,
+        delegation_bytes: bytes,
         proxy_private_key: PrivateKey,
-        delegator_public_key: PublicKey,
-        delegatee_public_key: PublicKey,
-    ) -> ReencryptedFragment:
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
+    ) -> bytes:
         pass
 
     @abstractmethod
     def decrypt(
         self,
         encrypted_data: EncryptedData,
-        encrypted_data_fragments: List[ReencryptedFragment],
+        encrypted_data_fragments_bytes: List[bytes],
         delegatee_private_key: PrivateKey,
-        delegator_public_key: PublicKey,
+        delegator_pubkey_bytes: bytes,
     ) -> Union[bytes, IO]:
         pass

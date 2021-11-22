@@ -280,7 +280,6 @@ pub fn set_reencryption_request(storage: &mut dyn Storage, reencryption_request_
 /*
 pub fn remove_reencryption_request(storage: &mut dyn Storage, reencryption_request_id: &u64) -> () {
     let mut store = PrefixedStorage::new(storage, &REENCRYPTION_REQUESTS_STORE_KEY);
-
     store.remove(&reencryption_request_id.to_le_bytes());
 }
 */
@@ -364,5 +363,3 @@ pub fn get_all_proxy_reencryption_requests(storage: &dyn Storage, proxy_pubkey: 
 
     return deserialized_keys;
 }
-
-

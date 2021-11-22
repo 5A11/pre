@@ -1,48 +1,48 @@
-import json
-from abc import ABC, abstractclassmethod, abstractmethod
-from collections import UserDict
-from enum import Enum
-from typing import IO, Any, NamedTuple, Union
+from abc import ABC, abstractmethod
+from typing import Any, Dict, IO, List, NamedTuple, Optional, Union
 
-DataID = str
+
+Primitive = Union[str, int, bool, float]
+_JSONDict = Dict[Any, Any]  # temporary placeholder
+_JSONList = List[Any]  # temporary placeholder
+_JSONType = Optional[Union[Primitive, _JSONDict, _JSONList]]
+# Added Dict[str, _JSONDict] as workaround to not properly resolving recursive types - _JSONDict should be subset of _JSONType
+JSONLike = Union[Dict[str, _JSONType], Dict[str, _JSONDict]]
+
+HashID = str
 Address = str
 
 
-class AbstractSerializable(ABC):
-    @abstractmethod
-    def serialize(self) -> bytes:
-        pass
-
-    @abstractclassmethod
-    def deserialize(self, data: bytes) -> Any:
-        pass
+Capsule = bytes
 
 
-class Capsule(ABC):
-    def serialize(self) -> bytes:
-        pass
-
-    @classmethod
-    def deserialize(cls, data: bytes) -> "Capsule":
-        return cls()
-
-
-class PublicKey(AbstractSerializable):
+class PublicKey(ABC):
     @property
     def address(self) -> Address:
         return ""
 
-    def serialize(self) -> bytes:
-        return b""
+    @abstractmethod
+    def __bytes__(self) -> bytes:
+        pass
 
     @classmethod
-    def deserialize(cls, data: bytes) -> "PublicKey":
-        return PublicKey()
+    @abstractmethod
+    def from_bytes(cls, data: bytes) -> Any:
+        pass
 
 
-class PrivateKey:
+class PrivateKey(ABC):
     @property
     def public_key(self) -> PublicKey:
+        pass
+
+    @abstractmethod
+    def __bytes__(self) -> bytes:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def from_bytes(cls, data: bytes) -> Any:
         pass
 
 
@@ -54,58 +54,32 @@ class LedgerPrivateKey(PrivateKey):
     pass
 
 
-class Delegation(UserDict, AbstractSerializable):
-    def serialize(self) -> bytes:
-        return b""
+class Delegation:
+    proxy_pub_key: bytes
+    delegation_string: bytes
 
-    @classmethod
-    def deserialize(cls, data: bytes) -> "Delegation":
-        return Delegation()
+    def __init__(self, proxy_pub_key: bytes, delegation_string: bytes):
+        self.proxy_pub_key = proxy_pub_key
+        self.delegation_string = delegation_string
 
 
 class EncryptedData(NamedTuple):
     data: Union[bytes, IO]
-    capsule: Capsule
+    capsule: bytes
 
 
-class ReencryptedFragment(AbstractSerializable):
-    def serialize(self) -> bytes:
-        return b""
-
-    @classmethod
-    def deserialize(cls, data: bytes) -> "ReencryptedFragment":
-        return ReencryptedFragment()
+ReencryptedFragment = bytes
 
 
-class ReencryptionRequest(AbstractSerializable):
-    data_id: DataID
-
+class ProxyTask:
     def __init__(
-        self, data_id: DataID, delegation: Delegation, delegatee_public_key: PublicKey
+        self,
+        hash_id: HashID,
+        delegatee_pubkey: bytes,
+        delegator_pubkey: bytes,
+        delegation_string: bytes,
     ):
-        self.data_id = data_id
-        self.delegation = delegation
-        self.delegatee_public_key = delegatee_public_key
-
-    def serialize(self) -> bytes:
-        return json.dumps(
-            {
-                "data_id": self.data_id,
-                "delegation": self.delegation.serialize(),
-                "delegatee_public_key": self.delegatee_public_key.serialize(),
-            }
-        ).encode("utf-8")
-
-    @classmethod
-    def deserialize(cls, data: bytes) -> "ReencryptionRequest":
-        dict_data = json.loads(data.decode("utf-8"))
-        return cls(
-            data_id=dict_data["data_id"],
-            delegation=Delegation.deserialize(dict_data["delegation"]),
-            delegatee_public_key=PublicKey.deserialize(
-                dict_data["delegatee_public_key"]
-            ),
-        )
-
-
-ProxyTask = ReencryptionRequest
+        self.hash_id = hash_id
+        self.delegatee_pubkey = delegatee_pubkey
+        self.delegator_pubkey = delegator_pubkey
+        self.delegation_string = delegation_string

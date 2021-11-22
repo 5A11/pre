@@ -1,25 +1,25 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple
 
-from pre.common import (Address, Capsule, DataID, Delegation, PrivateKey,
-                        ProxyTask, PublicKey, ReencryptedFragment,
-                        ReencryptionRequest)
-from pre.ledger.base_ledger import AbstractLedger
+from pre.common import Address, Delegation, HashID, ProxyTask
+from pre.ledger.base_ledger import AbstractLedger, AbstractLedgerCrypto
 
 
 class BaseAbstractContract(ABC):
-    def __init__(self, contract_address: Address, ledger: AbstractLedger):
-        self.contract_address = contract_address
+    def __init__(self, ledger: AbstractLedger, contract_address: Address):
+        self._contract_address = contract_address
         self.ledger = ledger
+
+    @property
+    def contract_address(self):
+        if not self._contract_address:
+            raise ValueError("Empty contract address!")
+        return self._contract_address
 
 
 class AbstractContractQueries(BaseAbstractContract):
-    def __init__(self, contract_address: Address, ledger: AbstractLedger):
-        self.contract_address = contract_address
-        self.ledger = ledger
-
     @abstractmethod
-    def get_avaiable_proxies(self) -> List[Tuple[Address, PublicKey]]:
+    def get_avaiable_proxies(self) -> List[bytes]:
         pass
 
     @abstractmethod
@@ -27,34 +27,39 @@ class AbstractContractQueries(BaseAbstractContract):
         pass
 
     @abstractmethod
-    def get_next_proxy_task(self, proxy_addr: Address) -> ProxyTask:
+    def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
         pass
 
     @abstractmethod
     def get_fragments_response(
-        self, data_id: DataID, delegatee_pubkey: PublicKey
-    ) -> Tuple[int, List[DataID]]:
+        self, hash_id: HashID, delegatee_pubkey_bytes: bytes
+    ) -> Tuple[int, List[HashID]]:
         pass
 
 
 class AbstractAdminContract(BaseAbstractContract, ABC):
+    @classmethod
     @abstractmethod
     def instantiate_contract(
-        self,
-        admin_private_key: PrivateKey,
+        cls,
+        ledger: AbstractLedger,
+        admin_private_key: AbstractLedgerCrypto,
         admin_addr: Address,
         threshold: int,
         n_max_proxies: int,
         proxies: List[Address],
+        label: str = "PRE",
+    ) -> Address:
+        pass
+
+    @abstractmethod
+    def add_proxy(self, admin_private_key: AbstractLedgerCrypto, proxy_addr: Address):
+        pass
+
+    @abstractmethod
+    def remove_proxy(
+        self, admin_private_key: AbstractLedgerCrypto, proxy_addr: Address
     ):
-        pass
-
-    @abstractmethod
-    def add_proxy(self, admin_private_key: PrivateKey, proxy_addr: Address):
-        pass
-
-    @abstractmethod
-    def remove_proxy(self, admin_private_key: PrivateKey, proxy_addr: Address):
         pass
 
 
@@ -62,16 +67,18 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
     @abstractmethod
     def add_data(
         self,
-        delegator_private_key: PrivateKey,
-        data_id: DataID,
+        delegator_private_key: AbstractLedgerCrypto,
+        delegator_pubkey_bytes: bytes,
+        hash_id: HashID,
     ):
         pass
 
     @abstractmethod
-    def add_delegation(
+    def add_delegations(
         self,
-        delegator_private_key: PrivateKey,
-        delegatee_public_key: PublicKey,
+        delegator_private_key: AbstractLedgerCrypto,
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
         delegations: List[Delegation],
     ):
         pass
@@ -79,22 +86,24 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
     @abstractmethod
     def does_delegation_exist(
         self,
-        delegator_private_key: PrivateKey,
-        delegatee_public_key: PublicKey,
+        delegator_addr: Address,
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
     ) -> bool:
         pass
 
     @abstractmethod
     def request_reencryption(
         self,
-        delegator_private_key: PrivateKey,
-        data_id: DataID,
-        delegatee_public_key: PublicKey,
+        delegator_private_key: AbstractLedgerCrypto,
+        delegator_pubkey_bytes: bytes,
+        hash_id: HashID,
+        delegatee_pubkey_bytes: bytes,
     ):
         pass
 
     @abstractmethod
-    def get_avaiable_proxies(self) -> List[Tuple[Address, PublicKey]]:
+    def get_avaiable_proxies(self) -> List[bytes]:
         pass
 
 
@@ -102,27 +111,28 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
     @abstractmethod
     def proxy_register(
         self,
-        proxy_private_key: PrivateKey,
+        proxy_private_key: AbstractLedgerCrypto,
+        proxy_pubkey_bytes: bytes,
     ):
         pass
 
     @abstractmethod
     def proxy_unregister(
         self,
-        proxy_private_key: PrivateKey,
+        proxy_private_key: AbstractLedgerCrypto,
     ):
         pass
 
     @abstractmethod
-    def get_next_proxy_task(self, proxy_addr: Address) -> ProxyTask:
+    def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
         pass
 
     @abstractmethod
     def provide_reencrypted_fragment(
         self,
-        proxy_private_key: PrivateKey,
-        data_id: DataID,
-        delegatee_public_key: PublicKey,
-        fragment_data_id: DataID,
+        proxy_private_key: AbstractLedgerCrypto,
+        hash_id: HashID,
+        delegatee_pubkey_bytes: bytes,
+        fragment_hash_id: HashID,
     ):
         pass

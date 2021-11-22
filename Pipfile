@@ -6,6 +6,9 @@ name = "pypi"
 [packages]
 cryptography = "*"
 ipfshttpclient = "*"
+cosmpy = "*"
+requests = "*"
+click = "*"
 umbral = "*"
 
 [dev-packages]

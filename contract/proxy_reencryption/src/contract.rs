@@ -127,7 +127,7 @@ fn try_register_proxy(
 ) -> StdResult<Response> {
     ensure_proxy(deps.storage, &info.sender)?;
 
-    if !get_proxy_availability(deps.storage, &info.sender).is_none()
+    if get_proxy_availability(deps.storage, &info.sender).is_some()
     {
         return generic_err!("Proxy already registered");
     }

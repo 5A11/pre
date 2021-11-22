@@ -1,16 +1,9 @@
-from typing import IO, List, Union
-from uuid import uuid4
-
 from pre.api.admin import AdminAPI
 from pre.api.delegatee import DelegateeAPI
 from pre.api.delegator import DelegatorAPI
 from pre.api.proxy import ProxyAPI
 from pre.common import (
-    Capsule,
-    Delegation,
-    EncryptedData,
     PrivateKey,
-    ReencryptedFragment,
 )
 from pre.contract.cosmos_contracts import (
     AdminContract,
@@ -18,21 +11,19 @@ from pre.contract.cosmos_contracts import (
     DelegatorContract,
     ProxyContract,
 )
-from pre.crypto.base_crypto import AbstractCrypto
 from pre.crypto.umbral_crypto import UmbralCrypto, UmbralPrivateKey
 from pre.ledger.cosmos.ledger import CosmosLedger
 from pre.storage.ipfs_storage import IpfsStorage
 
-from tests.utils import (
+from tests.constants import (
     DEFAULT_DENOMINATION,
-    DEFAULT_FETCH_CHAIN_ID,
-    FETCHD_CONFIGURATION,
+    FETCHD_CHAIN_ID,
+    FETCHD_URL,
     FUNDED_FETCHAI_PRIVATE_KEY_1,
-    IPFSDaemon,
+    IPFS_HOST,
+    IPFS_PORT,
     PREFIX,
-    _fetchd_context,
 )
-
 
 def make_priv_key() -> PrivateKey:
     return UmbralPrivateKey.random()
@@ -43,7 +34,7 @@ def test_api():
     if 1:
         THRESHOLD = 1
 
-        ipfs_storage = IpfsStorage()
+        ipfs_storage = IpfsStorage(addr=IPFS_HOST, port=IPFS_PORT)
         ipfs_storage.connect()
 
         umbral_crypto = UmbralCrypto()
@@ -51,9 +42,9 @@ def test_api():
         n_max_proxies = 10
         ledger = CosmosLedger(
             denom=DEFAULT_DENOMINATION,
-            chain_id=DEFAULT_FETCH_CHAIN_ID,
+            chain_id=FETCHD_CHAIN_ID,
             prefix=PREFIX,
-            node_address="http://127.0.0.1:1317",
+            node_address=FETCHD_URL,
             validator_pk=FUNDED_FETCHAI_PRIVATE_KEY_1,
         )
         # create crypto. admin is a validator, so ha some funds

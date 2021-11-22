@@ -1,0 +1,28 @@
+name: End to End PRE TestCase
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  end_to_end:
+
+    continue-on-error: False
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+
+    - name: Start containers
+      run: docker-compose -f "docker/docker-compose.yml" up -d --build
+
+    - name: Run tests
+      run: docker-compose -f "docker/docker-compose.yml" run tests
+
+    - name: Stop containers
+      if: always()
+      run: docker-compose -f "docker/docker-compose.yml" down

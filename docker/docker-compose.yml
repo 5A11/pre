@@ -32,7 +32,7 @@ services:
 
 networks:
   localnet:
-    name: colearn-local
+    name: pre-local
     driver: bridge
     ipam:
       driver: default

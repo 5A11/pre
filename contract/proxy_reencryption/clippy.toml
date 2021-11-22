@@ -1,0 +1,2 @@
+# reference https://github.com/rust-lang/rust-clippy
+enum-variant-size-threshold = 300

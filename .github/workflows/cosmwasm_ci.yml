@@ -12,6 +12,7 @@ env:
 
 jobs:
   code_quality:
+    if: ${{ false }}  # disable for now
 
     runs-on: ubuntu-latest
 
@@ -52,6 +53,7 @@ jobs:
         cargo test --verbose
   
   code_coverage:
+    if: ${{ false }}  # disable for now
 
     runs-on: ubuntu-latest
 

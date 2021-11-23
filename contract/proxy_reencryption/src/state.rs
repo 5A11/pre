@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Storage, StdResult, to_vec, Order, from_slice};
+use cosmwasm_std::{Addr, Storage, StdResult, to_vec, Order, from_slice, Uint128};
 use cosmwasm_storage::{singleton, singleton_read, Singleton, PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -45,12 +45,19 @@ static PROXY_REQUESTS_STORE_KEY: &[u8] = b"ProxyRequests";
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct State {
     pub admin: Addr,
+
     // n_selected proxies will be between threshold and n_max_proxies
     pub threshold: u32,
     pub n_max_proxies: u32,
 
     // Total number of re-encryption requests
     pub next_request_id: u64,
+
+    // Staking
+    pub stake_denom: String,
+    pub minimum_proxy_stake_amount: Uint128,
+    pub minimum_request_stake_amount: Uint128,
+    pub request_timeout_height: u64,
 }
 
 // Store structures
@@ -66,6 +73,9 @@ pub struct ReencryptionRequest {
     pub delegatee_pubkey: String,
     pub fragment: Option<HashID>,
     pub proxy_address: Option<Addr>,
+
+    pub timeout_height: u64,
+    pub stake_amount: Uint128,
 }
 
 // Getters and setters

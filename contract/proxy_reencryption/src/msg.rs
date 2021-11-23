@@ -1,6 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use cosmwasm_std::{Addr};
+use cosmwasm_std::{Addr, Uint128, Uint64};
 use crate::state::{DataEntry, HashID};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -25,6 +25,13 @@ pub struct InstantiateMsg
     // Maximum proxies you can select for delegation = Number of active proxies if None
     pub n_max_proxies: Option<u32>,
     pub proxies: Option<Vec<Addr>>,
+
+    // Staking
+    pub stake_denom: String,
+    pub minimum_proxy_stake_amount: Option<Uint128>,
+    pub minimum_request_stake_amount: Option<Uint128>,
+    pub request_timeout_height: Option<Uint64>,
+
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]

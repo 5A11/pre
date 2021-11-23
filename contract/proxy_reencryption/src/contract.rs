@@ -1,10 +1,12 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, GetAvailableProxiesResponse, ProxyDelegation, GetDataIDResponse, GetFragmentsResponse, GetThresholdResponse, GetNextProxyTaskResponse, GetDoesDelegationExistRepsonse, GetSelectedProxiesForDelegationResponse, ProxyTask};
 use crate::state::{get_state, set_state, State, get_is_proxy, set_is_proxy, set_proxy_availability, remove_proxy_availability, DataEntry, set_data_entry, set_delegation_string, get_proxy_availability, get_all_proxies_from_delegation, set_reencryption_request, get_delegation_string, get_data_entry, HashID, get_all_available_proxy_pubkeys, increase_available_proxy_pubkeys, decrease_available_proxy_pubkeys, is_delegation_empty, get_delegatee_reencryption_request, remove_proxy_reencryption_request, get_reencryption_request, ReencryptionRequest, add_delegatee_reencryption_request, add_proxy_reencryption_request, get_all_proxy_reencryption_requests, get_all_delegatee_reencryption_requests};
 
-use cosmwasm_std::{
-    StdError, attr, to_binary, Addr, Env, Response,
-    StdResult, DepsMut, Deps, MessageInfo, Storage, Binary,
-};
+use cosmwasm_std::{StdError, attr, to_binary, Addr, Env, Response, StdResult, DepsMut, Deps, MessageInfo, Storage, Binary, Uint128, Uint64};
+
+pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 100;
+pub const DEFAULT_MINIMUM_REQUEST_STAKE_AMOUNT: u128 = 100;
+pub const DEFAULT_REQUEST_TIMEOUT_HEIGHT: u64 = 100;
+
 
 macro_rules! generic_err {
     ($val:expr) => {
@@ -23,6 +25,10 @@ pub fn instantiate(
         n_max_proxies: msg.n_max_proxies.unwrap_or(u32::MAX),
         threshold: msg.threshold.unwrap_or(1),
         next_request_id: 0,
+        stake_denom:msg.stake_denom,
+        minimum_proxy_stake_amount: msg.minimum_proxy_stake_amount.unwrap_or(Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT)),
+        minimum_request_stake_amount: msg.minimum_request_stake_amount.unwrap_or(Uint128::new(DEFAULT_MINIMUM_REQUEST_STAKE_AMOUNT)),
+        request_timeout_height: msg.request_timeout_height.unwrap_or(Uint64::new(DEFAULT_REQUEST_TIMEOUT_HEIGHT)).u64(),
     };
 
     if state.threshold == 0
@@ -369,11 +375,23 @@ fn try_add_delegation(
 
 fn try_request_reencryption(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     data_id: &HashID,
     delegatee_pubkey: &String,
 ) -> StdResult<Response> {
+
+    let state = get_state(deps.storage)?;
+
+    if info.funds.len() != 1 || info.funds[0].denom != state.stake_denom
+    {
+        return generic_err!(format!("Expected 1 Coin with denom {}",state.stake_denom));
+    }
+
+    if info.funds[0].amount < state.minimum_request_stake_amount
+    {
+        return generic_err!(format!("Required at least {} {} to create request.",state.minimum_request_stake_amount, state.stake_denom));
+    }
 
     // Only data owner can request reencryption
     ensure_data_owner(deps.storage, &data_id, &info.sender)?;
@@ -396,6 +414,8 @@ fn try_request_reencryption(
         data_id: data_id.clone(),
         fragment: None,
         proxy_address: None,
+        timeout_height: env.block.height + state.request_timeout_height,
+        stake_amount: Uint128::new(info.funds[0].amount.u128()/proxy_pubkeys.len() as u128)
     };
 
     for proxy_pubkey in proxy_pubkeys

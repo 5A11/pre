@@ -1,5 +1,5 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, GetAvailableProxiesResponse, ProxyDelegation, GetDataIDResponse, GetFragmentsResponse, GetThresholdResponse, GetNextProxyTaskResponse, GetDoesDelegationExistRepsonse, GetSelectedProxiesForDelegationResponse, ProxyTask};
-use crate::state::{get_state, set_state, State, get_is_proxy, set_is_proxy, set_proxy_availability, remove_proxy_availability, DataEntry, set_data_entry, set_delegation_string, get_proxy_availability, get_all_proxies_from_delegation, set_reencryption_request, get_delegation_string, get_data_entry, HashID, get_all_available_proxy_pubkeys, is_delegation_empty, get_delegatee_reencryption_request, remove_proxy_reencryption_request, get_reencryption_request, ReencryptionRequest, add_delegatee_reencryption_request, add_proxy_reencryption_request, get_all_proxy_reencryption_requests, get_all_delegatee_reencryption_requests, remove_proxy_pubkey, get_proxy_pubkey, set_proxy_pubkey};
+use crate::state::{get_state, set_state, State, get_is_proxy, set_is_proxy, set_proxy_address, remove_proxy_address, DataEntry, set_data_entry, set_delegation_string, get_proxy_address, get_all_proxies_from_delegation, set_reencryption_request, get_delegation_string, get_data_entry, HashID, get_all_available_proxy_pubkeys, is_delegation_empty, get_delegatee_reencryption_request, remove_proxy_reencryption_request, get_reencryption_request, ReencryptionRequest, add_delegatee_reencryption_request, add_proxy_reencryption_request, get_all_proxy_reencryption_requests, get_all_delegatee_reencryption_requests, remove_proxy_pubkey, get_proxy_pubkey, set_proxy_pubkey};
 
 use cosmwasm_std::{
     StdError, attr, to_binary, Addr, Env, Response,
@@ -132,12 +132,12 @@ fn try_register_proxy(
         return generic_err!("Proxy already registered.");
     }
 
-    if get_proxy_availability(deps.storage, &proxy_pubkey).is_some()
+    if get_proxy_address(deps.storage, &proxy_pubkey).is_some()
     {
         return generic_err!("Pubkey already used.");
     }
 
-    set_proxy_availability(deps.storage, &proxy_pubkey, &info.sender);
+    set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
     set_proxy_pubkey(deps.storage, &info.sender, &proxy_pubkey);
 
     // Return response
@@ -170,7 +170,7 @@ fn try_unregister_proxy(
         None => generic_err!("Proxy not registered")
     }?;
 
-    remove_proxy_availability(deps.storage, &proxy_pubkey);
+    remove_proxy_address(deps.storage, &proxy_pubkey);
     remove_proxy_pubkey(deps.storage, &info.sender);
 
     // Return response

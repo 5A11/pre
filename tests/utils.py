@@ -11,13 +11,12 @@ import pytest
 
 import docker as docker
 
-from tests.docker_image import DockerImage, FetchLedgerDockerImage
-
-from constants import (
+from tests.constants import (
     DEFAULT_FETCH_DOCKER_IMAGE_TAG,
     DEFAULT_FETCH_LEDGER_ADDR,
     DEFAULT_FETCH_LEDGER_RPC_PORT,
 )
+from tests.docker_image import DockerImage, FetchLedgerDockerImage
 
 
 logger = logging.getLogger(__name__)

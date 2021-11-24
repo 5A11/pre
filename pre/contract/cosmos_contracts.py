@@ -277,3 +277,10 @@ class ProxyContract(AbstractProxyContract):
         )
         if error_code != 0:
             raise ValueError(f"Contract execution failed: {error_code} {res}")
+
+
+class CosmosContract:  # pylint: disable=too-few-public-methods
+    ADMIN__CONTRACT = AdminContract
+    DELEGATOR_CONTRACT = DelegatorContract
+    QUERIES_CONTRACT = ContractQueries
+    PROXY_CONTRACT = ProxyContract

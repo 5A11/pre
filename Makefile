@@ -1,6 +1,6 @@
 lint:
-	black pre
-	isort pre
-	flake8 pre
-	mypy pre --disable-error-code import
-	pylint pre
+	black pre apps
+	isort pre apps
+	flake8 pre apps
+	mypy pre apps --disable-error-code import
+	pylint pre apps

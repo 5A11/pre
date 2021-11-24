@@ -19,7 +19,7 @@ class CosmosCrypto(AbstractLedgerCrypto):
 
     def __init__(
         self,
-        private_key: Optional[PrivateKey] = None,
+        private_key: PrivateKey,
         prefix: Optional[str] = None,
         account_number: Optional[int] = None,
     ):
@@ -28,24 +28,19 @@ class CosmosCrypto(AbstractLedgerCrypto):
         self.account_number = account_number
 
     def get_address(self) -> str:
-        if self.private_key is None:
-            raise RuntimeError("Private key not set")
         return str(Address(self.private_key, prefix=self.prefix))
 
     def get_pubkey_as_str(self) -> str:
-        if self.private_key is None:
-            raise RuntimeError("Private key not set")
         return self.private_key.public_key
 
     def get_pubkey_as_bytes(self) -> bytes:
-        if self.private_key is None:
-            raise RuntimeError("Private key not set")
         return self.private_key.public_key_bytes
 
     def save_key_to_file(self, filename: str):
         Path(filename).write_text(self.as_str())
 
     def as_str(self) -> str:
-        if self.private_key is None:
-            raise RuntimeError("Private key not set")
         return self.private_key.private_key_hex
+
+    def __bytes__(self) -> bytes:
+        return self.private_key.private_key_bytes

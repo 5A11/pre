@@ -15,13 +15,11 @@ static STATE_KEY: &[u8] = b"State";
 // Map proxy: Addr -> is_registered: bool
 static IS_PROXY_KEY: &[u8] = b"IsProxy";
 
-// Map proxy: Addr -> proxy_pubkey: String
-static PROXIES_AVAILABITY_KEY: &[u8] = b"ProxyAvailable";
+// Map proxy_pubkey: String -> proxy: Addr
+static ACTIVE_PROXIES_ADDRESSES_KEY: &[u8] = b"ProxyAddresses";
 
-// Counts number of proxies with the same pubkey
-// Used for selecting proxy pubkeys for delegations
-// Map proxy_pubkey: String -> n_addresses: u32
-static PROXIES_PUBKEYS_KEY: &[u8] = b"ProxyPubkey";
+// Map proxy: Addr -> proxy_pubkey: String
+static ACTIVE_PROXIES_PUBKEYS_KEY: &[u8] = b"ProxyPubkeys";
 
 // Map data_id: String -> data_entry: DataEntry
 static DATA_ENTRIES_KEY: &[u8] = b"DataEntries";
@@ -72,7 +70,6 @@ pub struct ReencryptionRequest {
     pub data_id: HashID,
     pub delegatee_pubkey: String,
     pub fragment: Option<HashID>,
-    pub proxy_address: Option<Addr>,
 
     pub timeout_height: u64,
     pub stake_amount: Uint128,
@@ -127,20 +124,44 @@ pub fn get_all_proxies(storage: &dyn Storage) -> Vec<Addr> {
 }
 
 // PROXIES_AVAILABITY
-pub fn set_proxy_availability(storage: &mut dyn Storage, proxy_addr: &Addr, pub_key: &String) -> () {
-    let mut storage = PrefixedStorage::new(storage, PROXIES_AVAILABITY_KEY);
+pub fn set_proxy_address(storage: &mut dyn Storage, pub_key: &String, proxy_addr: &Addr) -> () {
+    let mut storage = PrefixedStorage::new(storage, ACTIVE_PROXIES_ADDRESSES_KEY);
+
+    storage.set( pub_key.as_bytes(), proxy_addr.as_bytes());
+}
+
+pub fn remove_proxy_address(storage: &mut dyn Storage, pub_key: &String) -> () {
+    let mut storage = PrefixedStorage::new(storage, ACTIVE_PROXIES_ADDRESSES_KEY);
+
+    storage.remove(pub_key.as_bytes());
+}
+
+pub fn get_proxy_address(storage: &dyn Storage, pub_key: &String) -> Option<Addr> {
+    let store = ReadonlyPrefixedStorage::new(storage, ACTIVE_PROXIES_ADDRESSES_KEY);
+
+    let res = store.get(pub_key.as_bytes());
+    match res
+    {
+        None => None,
+        Some(res) => Some(Addr::unchecked(std::str::from_utf8(&res).unwrap()))
+    }
+}
+
+// PROXIES_PUBKEYS
+pub fn set_proxy_pubkey(storage: &mut dyn Storage, proxy_addr: &Addr, pub_key: &String) -> () {
+    let mut storage = PrefixedStorage::new(storage, ACTIVE_PROXIES_PUBKEYS_KEY);
 
     storage.set(proxy_addr.as_bytes(), pub_key.as_bytes());
 }
 
-pub fn remove_proxy_availability(storage: &mut dyn Storage, proxy_addr: &Addr) -> () {
-    let mut storage = PrefixedStorage::new(storage, PROXIES_AVAILABITY_KEY);
+pub fn remove_proxy_pubkey(storage: &mut dyn Storage, proxy_addr: &Addr) -> () {
+    let mut storage = PrefixedStorage::new(storage, ACTIVE_PROXIES_PUBKEYS_KEY);
 
     storage.remove(proxy_addr.as_bytes());
 }
 
-pub fn get_proxy_availability(storage: &dyn Storage, proxy_addr: &Addr) -> Option<String> {
-    let store = ReadonlyPrefixedStorage::new(storage, PROXIES_AVAILABITY_KEY);
+pub fn get_proxy_pubkey(storage: &dyn Storage, proxy_addr: &Addr) -> Option<String> {
+    let store = ReadonlyPrefixedStorage::new(storage, ACTIVE_PROXIES_PUBKEYS_KEY);
 
     let res = store.get(proxy_addr.as_bytes());
     match res
@@ -150,65 +171,19 @@ pub fn get_proxy_availability(storage: &dyn Storage, proxy_addr: &Addr) -> Optio
     }
 }
 
-
-// PROXIES_PUBKEYS_KEY
-
-
 pub fn get_all_available_proxy_pubkeys(storage: &dyn Storage) -> Vec<String> {
-    let store = ReadonlyPrefixedStorage::new(storage, PROXIES_PUBKEYS_KEY);
+    let store = ReadonlyPrefixedStorage::new(storage, ACTIVE_PROXIES_PUBKEYS_KEY);
 
     let mut deserialized_keys: Vec<String> = Vec::new();
 
     for pair in store.range(None, None, Order::Ascending)
     {
         // Deserialize keys with inverse operation to &string.as_bytes()
-        deserialized_keys.push(std::str::from_utf8(&pair.0).unwrap().to_string());
+        deserialized_keys.push(std::str::from_utf8(&pair.1).unwrap().to_string());
     }
 
     return deserialized_keys;
 }
-
-
-pub fn increase_available_proxy_pubkeys(storage: &mut dyn Storage, proxy_pubkey: &String) -> () {
-    let mut store = PrefixedStorage::new(storage, PROXIES_PUBKEYS_KEY);
-
-
-    match store.get(proxy_pubkey.as_bytes())
-    {
-        None => { store.set(proxy_pubkey.as_bytes(), &1_u32.to_le_bytes()) }
-        Some(n) => { store.set(proxy_pubkey.as_bytes(), &(u32::from_le_bytes(n.try_into().unwrap()) + 1).to_le_bytes()) }
-    }
-}
-
-pub fn decrease_available_proxy_pubkeys(storage: &mut dyn Storage, proxy_pubkey: &String) -> () {
-    let mut store = PrefixedStorage::new(storage, PROXIES_PUBKEYS_KEY);
-
-    match store.get(proxy_pubkey.as_bytes())
-    {
-        None => { panic!("Number of pubkeys is already 0") }
-        Some(res) =>
-            {
-                let n: u32 = u32::from_le_bytes(res.try_into().unwrap());
-                if n == 1
-                {
-                    store.remove(proxy_pubkey.as_bytes())
-                } else {
-                    store.set(proxy_pubkey.as_bytes(), &(n - 1).to_le_bytes())
-                }
-            }
-    }
-}
-
-pub fn get_n_available_proxy_pubkeys(storage: &dyn Storage, proxy_pubkey: &String) -> u32 {
-    let store = ReadonlyPrefixedStorage::new(storage, PROXIES_PUBKEYS_KEY);
-
-    match store.get(proxy_pubkey.as_bytes())
-    {
-        None => 0,
-        Some(n) => u32::from_le_bytes(n.try_into().unwrap()),
-    }
-}
-
 
 // DATA_ENTRIES
 pub fn set_data_entry(storage: &mut dyn Storage, data_id: &HashID, data_entry: &DataEntry) -> () {
@@ -286,13 +261,6 @@ pub fn set_reencryption_request(storage: &mut dyn Storage, reencryption_request_
 
     store.set(&reencryption_request_id.to_le_bytes(), &to_vec(reencryption_request).unwrap());
 }
-
-/*
-pub fn remove_reencryption_request(storage: &mut dyn Storage, reencryption_request_id: &u64) -> () {
-    let mut store = PrefixedStorage::new(storage, &REENCRYPTION_REQUESTS_STORE_KEY);
-    store.remove(&reencryption_request_id.to_le_bytes());
-}
-*/
 
 pub fn get_reencryption_request(storage: &dyn Storage, reencryption_request_id: &u64) -> Option<ReencryptionRequest> {
     let store = ReadonlyPrefixedStorage::new(storage, &REENCRYPTION_REQUESTS_STORE_KEY);

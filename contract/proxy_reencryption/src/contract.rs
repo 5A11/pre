@@ -1,5 +1,5 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, GetAvailableProxiesResponse, ProxyDelegation, GetDataIDResponse, GetFragmentsResponse, GetThresholdResponse, GetNextProxyTaskResponse, GetDoesDelegationExistRepsonse, GetSelectedProxiesForDelegationResponse, ProxyTask};
-use crate::state::{get_state, set_state, State, get_is_proxy, set_is_proxy, set_proxy_availability, remove_proxy_availability, DataEntry, set_data_entry, set_delegation_string, get_proxy_availability, get_all_proxies_from_delegation, set_reencryption_request, get_delegation_string, get_data_entry, HashID, get_all_available_proxy_pubkeys, increase_available_proxy_pubkeys, decrease_available_proxy_pubkeys, is_delegation_empty, get_delegatee_reencryption_request, remove_proxy_reencryption_request, get_reencryption_request, ReencryptionRequest, add_delegatee_reencryption_request, add_proxy_reencryption_request, get_all_proxy_reencryption_requests, get_all_delegatee_reencryption_requests};
+use crate::state::{get_state, set_state, State, get_is_proxy, set_is_proxy, set_proxy_address, remove_proxy_address, DataEntry, set_data_entry, set_delegation_string, get_proxy_address, get_all_proxies_from_delegation, set_reencryption_request, get_delegation_string, get_data_entry, HashID, get_all_available_proxy_pubkeys, is_delegation_empty, get_delegatee_reencryption_request, remove_proxy_reencryption_request, get_reencryption_request, ReencryptionRequest, add_delegatee_reencryption_request, add_proxy_reencryption_request, get_all_proxy_reencryption_requests, get_all_delegatee_reencryption_requests, remove_proxy_pubkey, get_proxy_pubkey, set_proxy_pubkey};
 
 use cosmwasm_std::{StdError, attr, to_binary, Addr, Env, Response, StdResult, DepsMut, Deps, MessageInfo, Storage, Binary, Uint128, Uint64};
 
@@ -133,13 +133,18 @@ fn try_register_proxy(
 ) -> StdResult<Response> {
     ensure_proxy(deps.storage, &info.sender)?;
 
-    if get_proxy_availability(deps.storage, &info.sender).is_some()
+    if get_proxy_pubkey(deps.storage, &info.sender).is_some()
     {
-        return generic_err!("Proxy already registered");
+        return generic_err!("Proxy already registered.");
     }
 
-    set_proxy_availability(deps.storage, &info.sender, &proxy_pubkey);
-    increase_available_proxy_pubkeys(deps.storage, &proxy_pubkey);
+    if get_proxy_address(deps.storage, &proxy_pubkey).is_some()
+    {
+        return generic_err!("Pubkey already used.");
+    }
+
+    set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
+    set_proxy_pubkey(deps.storage, &info.sender, &proxy_pubkey);
 
     // Return response
     let res = Response {
@@ -165,14 +170,14 @@ fn try_unregister_proxy(
 ) -> StdResult<Response> {
     ensure_proxy(deps.storage, &info.sender)?;
 
-    let proxy_pubkey = match get_proxy_availability(deps.storage, &info.sender)
+    let proxy_pubkey = match get_proxy_pubkey(deps.storage, &info.sender)
     {
         Some(pubkey) => Ok(pubkey),
         None => generic_err!("Proxy not registered")
     }?;
 
-    decrease_available_proxy_pubkeys(deps.storage, &proxy_pubkey);
-    remove_proxy_availability(deps.storage, &info.sender);
+    remove_proxy_address(deps.storage, &proxy_pubkey);
+    remove_proxy_pubkey(deps.storage, &info.sender);
 
     // Return response
     let res = Response {
@@ -199,7 +204,7 @@ fn try_provide_reencrypted_fragment(
     delegatee_pubkey: &String,
     fragment: &HashID,
 ) -> StdResult<Response> {
-    let proxy_pubkey = match get_proxy_availability(deps.storage, &info.sender)
+    let proxy_pubkey = match get_proxy_pubkey(deps.storage, &info.sender)
     {
         Some(pubkey) => Ok(pubkey),
         None => generic_err!("Proxy not registered")
@@ -216,12 +221,11 @@ fn try_provide_reencrypted_fragment(
 
     if request.fragment.is_some()
     {
-        return generic_err!(format!("Fragment already provided by {}.", request.proxy_address.unwrap()));
+        return generic_err!("Fragment already provided.");
     }
 
     // Add fragment to fragments store
     request.fragment = Some(fragment.clone());
-    request.proxy_address = Some(info.sender.clone());
     set_reencryption_request(deps.storage, &request_id, &request);
 
     // Remove request as it's completed
@@ -413,7 +417,6 @@ fn try_request_reencryption(
         delegatee_pubkey: delegatee_pubkey.clone(),
         data_id: data_id.clone(),
         fragment: None,
-        proxy_address: None,
         timeout_height: env.block.height + state.request_timeout_height,
         stake_amount: Uint128::new(info.funds[0].amount.u128()/proxy_pubkeys.len() as u128)
     };

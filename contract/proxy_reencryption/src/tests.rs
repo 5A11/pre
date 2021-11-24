@@ -264,9 +264,7 @@ mod init {
         assert_eq!(available_proxy_pubkeys.len(), 1);
         assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
-        // Register proxy with same pubkey
-        assert!(register_proxy(deps.as_mut(), &proxy2, &proxy_pubkey).is_ok());
-        // Already registered
+        // Register different proxy with existing pubkey
         assert!(register_proxy(deps.as_mut(), &proxy2, &proxy_pubkey).is_err());
 
         // Number of available pubkeys remains the same
@@ -280,18 +278,7 @@ mod init {
         // Already unregistered
         assert!(unregister_proxy(deps.as_mut(), &proxy1).is_err());
 
-        // Number of available pubkeys remains the same
-        let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage);
-        assert_eq!(available_proxy_pubkeys.len(), 1);
-        assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
-
-        // Only proxy can remove pubkeys
-        assert!(unregister_proxy(deps.as_mut(), &creator).is_err());
-        assert!(unregister_proxy(deps.as_mut(), &proxy2).is_ok());
-        // Already unregistered
-        assert!(unregister_proxy(deps.as_mut(), &proxy2).is_err());
-
-        // All proxies with this pubkey unregistered
+        // All proxies unregistered
         assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).len(), 0);
     }
 
@@ -478,7 +465,6 @@ mod init {
 
         let request = get_reencryption_request(deps.as_mut().storage, &0u64).unwrap();
         assert_eq!(request.fragment, Some(proxy_fragment));
-        assert_eq!(request.proxy_address, Some(proxy));
     }
 
     #[test]

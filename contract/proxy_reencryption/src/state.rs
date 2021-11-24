@@ -252,13 +252,6 @@ pub fn set_reencryption_request(storage: &mut dyn Storage, reencryption_request_
     store.set(&reencryption_request_id.to_le_bytes(), &to_vec(reencryption_request).unwrap());
 }
 
-/*
-pub fn remove_reencryption_request(storage: &mut dyn Storage, reencryption_request_id: &u64) -> () {
-    let mut store = PrefixedStorage::new(storage, &REENCRYPTION_REQUESTS_STORE_KEY);
-    store.remove(&reencryption_request_id.to_le_bytes());
-}
-*/
-
 pub fn get_reencryption_request(storage: &dyn Storage, reencryption_request_id: &u64) -> Option<ReencryptionRequest> {
     let store = ReadonlyPrefixedStorage::new(storage, &REENCRYPTION_REQUESTS_STORE_KEY);
 

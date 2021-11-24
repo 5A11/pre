@@ -451,7 +451,6 @@ mod init {
 
         let request = get_reencryption_request(deps.as_mut().storage, &0u64).unwrap();
         assert_eq!(request.fragment, Some(proxy_fragment));
-        assert_eq!(request.proxy_address, Some(proxy));
     }
 
     #[test]

@@ -215,12 +215,11 @@ fn try_provide_reencrypted_fragment(
 
     if request.fragment.is_some()
     {
-        return generic_err!(format!("Fragment already provided by {}.", request.proxy_address.unwrap()));
+        return generic_err!("Fragment already provided.");
     }
 
     // Add fragment to fragments store
     request.fragment = Some(fragment.clone());
-    request.proxy_address = Some(info.sender.clone());
     set_reencryption_request(deps.storage, &request_id, &request);
 
     // Remove request as it's completed
@@ -400,7 +399,6 @@ fn try_request_reencryption(
         delegatee_pubkey: delegatee_pubkey.clone(),
         data_id: data_id.clone(),
         fragment: None,
-        proxy_address: None,
     };
 
     for proxy_pubkey in proxy_pubkeys

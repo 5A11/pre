@@ -63,7 +63,6 @@ pub struct ReencryptionRequest {
     pub data_id: HashID,
     pub delegatee_pubkey: String,
     pub fragment: Option<HashID>,
-    pub proxy_address: Option<Addr>,
 }
 
 // Getters and setters

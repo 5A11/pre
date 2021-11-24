@@ -38,6 +38,10 @@ static DELEGATEE_REQUESTS_STORE_KEY: &[u8] = b"DelegateeRequests";
 // Map proxy_pubkey: String -> reencryption_request_id: u64 -> is_request: bool
 static PROXY_REQUESTS_STORE_KEY: &[u8] = b"ProxyRequests";
 
+// Staking
+// Map proxy: Addr -> stake: Uint128
+static PROXIES_STAKE_KEY: &[u8] = b"ProxyStake";
+
 
 // Singleton structures
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -55,7 +59,6 @@ pub struct State {
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Uint128,
     pub minimum_request_stake_amount: Uint128,
-    pub request_timeout_height: u64,
 }
 
 // Store structures
@@ -71,8 +74,7 @@ pub struct ReencryptionRequest {
     pub delegatee_pubkey: String,
     pub fragment: Option<HashID>,
 
-    pub timeout_height: u64,
-    pub stake_amount: Uint128,
+    pub reward_stake_amount: Uint128,
 }
 
 // Getters and setters
@@ -127,7 +129,7 @@ pub fn get_all_proxies(storage: &dyn Storage) -> Vec<Addr> {
 pub fn set_proxy_address(storage: &mut dyn Storage, pub_key: &String, proxy_addr: &Addr) -> () {
     let mut storage = PrefixedStorage::new(storage, ACTIVE_PROXIES_ADDRESSES_KEY);
 
-    storage.set( pub_key.as_bytes(), proxy_addr.as_bytes());
+    storage.set(pub_key.as_bytes(), proxy_addr.as_bytes());
 }
 
 pub fn remove_proxy_address(storage: &mut dyn Storage, pub_key: &String) -> () {
@@ -339,4 +341,28 @@ pub fn get_all_proxy_reencryption_requests(storage: &dyn Storage, proxy_pubkey: 
     }
 
     return deserialized_keys;
+}
+
+
+// PROXIES_STAKE
+pub fn set_proxy_stake(storage: &mut dyn Storage, proxy_addr: &Addr, stake: &u128) -> () {
+    let mut storage = PrefixedStorage::new(storage, PROXIES_STAKE_KEY);
+
+    if stake == &0
+    {
+        storage.remove(proxy_addr.as_bytes());
+    } else {
+        storage.set(proxy_addr.as_bytes(), &stake.to_le_bytes());
+    }
+}
+
+pub fn get_proxy_stake(storage: &dyn Storage, proxy_addr: &Addr) -> u128 {
+    let store = ReadonlyPrefixedStorage::new(storage, PROXIES_STAKE_KEY);
+
+    let res = store.get(proxy_addr.as_bytes());
+    match res
+    {
+        None => 0,
+        Some(res) => u128::from_le_bytes(res.try_into().unwrap())
+    }
 }

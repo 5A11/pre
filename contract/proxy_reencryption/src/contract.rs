@@ -1,11 +1,10 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, GetAvailableProxiesResponse, ProxyDelegation, GetDataIDResponse, GetFragmentsResponse, GetThresholdResponse, GetNextProxyTaskResponse, GetDoesDelegationExistRepsonse, GetSelectedProxiesForDelegationResponse, ProxyTask};
-use crate::state::{get_state, set_state, State, get_is_proxy, set_is_proxy, set_proxy_address, remove_proxy_address, DataEntry, set_data_entry, set_delegation_string, get_proxy_address, get_all_proxies_from_delegation, set_reencryption_request, get_delegation_string, get_data_entry, HashID, get_all_available_proxy_pubkeys, is_delegation_empty, get_delegatee_reencryption_request, remove_proxy_reencryption_request, get_reencryption_request, ReencryptionRequest, add_delegatee_reencryption_request, add_proxy_reencryption_request, get_all_proxy_reencryption_requests, get_all_delegatee_reencryption_requests, remove_proxy_pubkey, get_proxy_pubkey, set_proxy_pubkey};
+use crate::state::{get_state, set_state, State, get_is_proxy, set_is_proxy, set_proxy_address, remove_proxy_address, DataEntry, set_data_entry, set_delegation_string, get_proxy_address, get_all_proxies_from_delegation, set_reencryption_request, get_delegation_string, get_data_entry, HashID, get_all_available_proxy_pubkeys, is_delegation_empty, get_delegatee_reencryption_request, remove_proxy_reencryption_request, get_reencryption_request, ReencryptionRequest, add_delegatee_reencryption_request, add_proxy_reencryption_request, get_all_proxy_reencryption_requests, get_all_delegatee_reencryption_requests, remove_proxy_pubkey, get_proxy_pubkey, set_proxy_pubkey, set_proxy_stake, get_proxy_stake};
 
-use cosmwasm_std::{StdError, attr, to_binary, Addr, Env, Response, StdResult, DepsMut, Deps, MessageInfo, Storage, Binary, Uint128, Uint64};
+use cosmwasm_std::{StdError, attr, to_binary, Addr, Env, Response, StdResult, DepsMut, Deps, MessageInfo, Storage, Binary, Uint128, Coin, BankMsg, CosmosMsg};
 
 pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 100;
 pub const DEFAULT_MINIMUM_REQUEST_STAKE_AMOUNT: u128 = 100;
-pub const DEFAULT_REQUEST_TIMEOUT_HEIGHT: u64 = 100;
 
 
 macro_rules! generic_err {
@@ -25,10 +24,9 @@ pub fn instantiate(
         n_max_proxies: msg.n_max_proxies.unwrap_or(u32::MAX),
         threshold: msg.threshold.unwrap_or(1),
         next_request_id: 0,
-        stake_denom:msg.stake_denom,
+        stake_denom: msg.stake_denom,
         minimum_proxy_stake_amount: msg.minimum_proxy_stake_amount.unwrap_or(Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT)),
         minimum_request_stake_amount: msg.minimum_request_stake_amount.unwrap_or(Uint128::new(DEFAULT_MINIMUM_REQUEST_STAKE_AMOUNT)),
-        request_timeout_height: msg.request_timeout_height.unwrap_or(Uint64::new(DEFAULT_REQUEST_TIMEOUT_HEIGHT)).u64(),
     };
 
     if state.threshold == 0
@@ -131,6 +129,11 @@ fn try_register_proxy(
     info: MessageInfo,
     proxy_pubkey: String,
 ) -> StdResult<Response> {
+    let state = get_state(deps.storage)?;
+
+    ensure_stake(&state, &info.funds, &state.minimum_proxy_stake_amount.u128())?;
+
+    // Check if proxy is on whitelist
     ensure_proxy(deps.storage, &info.sender)?;
 
     if get_proxy_pubkey(deps.storage, &info.sender).is_some()
@@ -145,6 +148,8 @@ fn try_register_proxy(
 
     set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
     set_proxy_pubkey(deps.storage, &info.sender, &proxy_pubkey);
+    set_proxy_stake(deps.storage, &info.sender, &info.funds[0].amount.u128());
+
 
     // Return response
     let res = Response {
@@ -168,6 +173,8 @@ fn try_unregister_proxy(
     _env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
+    let state = get_state(deps.storage)?;
+
     ensure_proxy(deps.storage, &info.sender)?;
 
     let proxy_pubkey = match get_proxy_pubkey(deps.storage, &info.sender)
@@ -180,7 +187,7 @@ fn try_unregister_proxy(
     remove_proxy_pubkey(deps.storage, &info.sender);
 
     // Return response
-    let res = Response {
+    let mut res = Response {
         submessages: vec![],
         messages: vec![],
         attributes: vec![
@@ -192,6 +199,16 @@ fn try_unregister_proxy(
         ],
         data: None,
     };
+
+    let stake = get_proxy_stake(deps.storage, &info.sender);
+
+    res.messages.push(CosmosMsg::Bank(BankMsg::Send {
+        to_address: info.sender.to_string(),
+        amount: vec![Coin::new(stake, state.stake_denom)]
+    }));
+
+    set_proxy_stake(deps.storage, &info.sender, &0);
+
     return Ok(res);
 }
 
@@ -204,6 +221,8 @@ fn try_provide_reencrypted_fragment(
     delegatee_pubkey: &String,
     fragment: &HashID,
 ) -> StdResult<Response> {
+    let state = get_state(deps.storage)?;
+
     let proxy_pubkey = match get_proxy_pubkey(deps.storage, &info.sender)
     {
         Some(pubkey) => Ok(pubkey),
@@ -226,13 +245,12 @@ fn try_provide_reencrypted_fragment(
 
     // Add fragment to fragments store
     request.fragment = Some(fragment.clone());
-    set_reencryption_request(deps.storage, &request_id, &request);
 
     // Remove request as it's completed
     remove_proxy_reencryption_request(deps.storage, &proxy_pubkey, &request_id);
 
     // Return response
-    let res = Response {
+    let mut res = Response {
         submessages: vec![],
         messages: vec![],
         attributes: vec![
@@ -243,6 +261,17 @@ fn try_provide_reencrypted_fragment(
         ],
         data: None,
     };
+
+    // Retrieve stake
+    res.messages.push(CosmosMsg::Bank(BankMsg::Send {
+        to_address: info.sender.to_string(),
+        amount: vec![Coin::new(request.reward_stake_amount.u128() , state.stake_denom)]
+    }));
+    request.reward_stake_amount = Uint128::new(0);
+
+    // Update reencryption request
+    set_reencryption_request(deps.storage, &request_id, &request);
+
     Ok(res)
 }
 
@@ -379,13 +408,13 @@ fn try_add_delegation(
 
 fn try_request_reencryption(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     data_id: &HashID,
     delegatee_pubkey: &String,
 ) -> StdResult<Response> {
+    let mut state = get_state(deps.storage)?;
 
-    let state = get_state(deps.storage)?;
 
     if info.funds.len() != 1 || info.funds[0].denom != state.stake_denom
     {
@@ -402,8 +431,6 @@ fn try_request_reencryption(
 
     let data_entry: DataEntry = get_data_entry(deps.storage, &data_id).unwrap();
 
-    let mut state = get_state(deps.storage)?;
-
     // Get selected proxies for current delegation
     let proxy_pubkeys = get_all_proxies_from_delegation(deps.storage, &info.sender, &data_entry.delegator_pubkey, &delegatee_pubkey);
 
@@ -412,13 +439,16 @@ fn try_request_reencryption(
         return generic_err!("Delegation doesn't exist.");
     }
 
+    // Ensure more than minimum_request_stake_amount * number_of_proxies of stake provided
+    ensure_stake(&state, &info.funds, &(state.minimum_request_stake_amount.u128() * proxy_pubkeys.len() as u128))?;
+
     let new_request = ReencryptionRequest
     {
         delegatee_pubkey: delegatee_pubkey.clone(),
         data_id: data_id.clone(),
         fragment: None,
-        timeout_height: env.block.height + state.request_timeout_height,
-        stake_amount: Uint128::new(info.funds[0].amount.u128()/proxy_pubkeys.len() as u128)
+        // Per proxy stake amount
+        reward_stake_amount: Uint128::new(info.funds[0].amount.u128() / proxy_pubkeys.len() as u128),
     };
 
     for proxy_pubkey in proxy_pubkeys
@@ -609,3 +639,18 @@ pub fn get_all_fragments(storage: &dyn Storage, data_id: &HashID, delegatee_pubk
     }
     return fragments;
 }
+
+pub fn ensure_stake(state: &State, funds: &Vec<Coin>, required_stake: &u128) -> StdResult<()>
+{
+    if funds.len() != 1 || funds[0].denom != state.stake_denom
+    {
+        return generic_err!(format!("Expected 1 Coin with denom {}",state.stake_denom));
+    }
+
+    if funds[0].amount < state.minimum_request_stake_amount
+    {
+        return generic_err!(format!("Required at least {} {}.",required_stake, state.stake_denom));
+    }
+    Ok(())
+}
+

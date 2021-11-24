@@ -5,7 +5,7 @@ use crate::contract::{execute, instantiate, get_next_proxy_task, get_all_fragmen
 use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegation, ProxyTask};
 use crate::state::{get_state, State, get_all_proxies, DataEntry, HashID, get_data_entry, get_all_available_proxy_pubkeys, get_delegatee_reencryption_request, get_reencryption_request, get_all_proxy_reencryption_requests, is_proxy_reencryption_request};
 
-fn mock_env_height(signer: &Addr, height: u64, coins: Vec<Coin>) -> (Env, MessageInfo) {
+fn mock_env_height(signer: &Addr, height: u64, coins: &Vec<Coin>) -> (Env, MessageInfo) {
     let mut env = mock_env();
     env.block.height = height;
     let info = mock_info(signer.as_str(), &coins);
@@ -36,7 +36,7 @@ fn init_contract(
         minimum_request_stake_amount: minimum_request_stake_amount.clone(),
         request_timeout_height: request_timeout_height.clone(),
     };
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &vec!());
     return instantiate(deps, env.0, env.1, init_msg);
 }
 
@@ -45,7 +45,7 @@ fn add_proxy(
     creator: &Addr,
     proxy_addr: &Addr) -> StdResult<Response>
 {
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &vec!());
 
     let msg = ExecuteMsg::AddProxy {
         proxy_addr: proxy_addr.clone(),
@@ -59,7 +59,7 @@ fn remove_proxy(
     creator: &Addr,
     proxy_addr: &Addr) -> StdResult<Response>
 {
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &vec!());
 
     let msg = ExecuteMsg::RemoveProxy {
         proxy_addr: proxy_addr.clone(),
@@ -71,9 +71,10 @@ fn remove_proxy(
 fn register_proxy(
     deps: DepsMut,
     creator: &Addr,
+    stake: &Vec<Coin>,
     proxy_pubkey: &String) -> StdResult<Response>
 {
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &stake);
 
     let msg = ExecuteMsg::RegisterProxy { proxy_pubkey: proxy_pubkey.clone() };
 
@@ -84,7 +85,7 @@ fn unregister_proxy(
     deps: DepsMut,
     creator: &Addr) -> StdResult<Response>
 {
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &vec!());
 
     let msg = ExecuteMsg::UnregisterProxy {};
 
@@ -98,7 +99,7 @@ fn provide_reencrypted_fragment(
     delegatee_pubkey: &String,
     fragment: &HashID) -> StdResult<Response>
 {
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &vec!());
 
     let msg = ExecuteMsg::ProvideReencryptedFragment {
         data_id: data_id.clone(),
@@ -116,7 +117,7 @@ fn add_data(
     data_id: &HashID,
     delegator_pubkey: &String) -> StdResult<Response>
 {
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &vec!());
 
     let msg = ExecuteMsg::AddData {
         data_id: data_id.clone(),
@@ -134,7 +135,7 @@ fn add_delegation(
     delegatee_pubkey: &String,
     proxy_delegations: &Vec<ProxyDelegation>) -> StdResult<Response>
 {
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &vec!());
 
     let msg = ExecuteMsg::AddDelegation {
         delegator_pubkey: delegator_pubkey.clone(),
@@ -152,7 +153,7 @@ fn request_proxies_for_delegation(
     delegator_pubkey: &String,
     delegatee_pubkey: &String) -> StdResult<Response>
 {
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &vec!());
 
     let msg = ExecuteMsg::RequestProxiesForDelegation {
         delegator_pubkey: delegator_pubkey.clone(),
@@ -169,7 +170,7 @@ fn request_reencryption(
     data_id: &HashID,
     delegatee_pubkey: &String) -> StdResult<Response>
 {
-    let env = mock_env_height(&creator, 450, vec!());
+    let env = mock_env_height(&creator, 450, &vec!());
 
     let msg = ExecuteMsg::RequestReencryption {
         data_id: data_id.clone(),
@@ -217,7 +218,7 @@ mod init {
         let proxy = Addr::unchecked("proxy".to_string());
         let denom = "atestfet".to_string();
 
-        assert!(init_contract(deps.as_mut(), &creator, &None, &Some(admin.clone()), &None, &None,&denom, &None, &None, &None).is_ok());
+        assert!(init_contract(deps.as_mut(), &creator, &None, &Some(admin.clone()), &None, &None, &denom, &None, &None, &None).is_ok());
 
         let all_proxies = get_all_proxies(&deps.storage);
         assert_eq!(all_proxies.len(), 0);
@@ -245,27 +246,34 @@ mod init {
         let proxy1 = Addr::unchecked("proxy1".to_string());
         let proxy2 = Addr::unchecked("proxy2".to_string());
         let denom = "atestfet".to_string();
+        let minimum_stake = 100u128;
+        let min_stake_coins = vec![Coin::new(minimum_stake, denom.clone())];
+        let less_than_min_stake_coins = vec![Coin::new(minimum_stake-1, denom.clone())];
 
         let proxy_pubkey: String = String::from("proxy_pubkey");
 
         let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
 
-        assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &Some(proxies.clone()),&denom, &None, &None, &None).is_ok());
+        assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &Some(proxies.clone()), &denom, &Some(Uint128::new(minimum_stake)), &Some(Uint128::new(minimum_stake)), &None).is_ok());
 
         assert_eq!(get_all_available_proxy_pubkeys(&deps.storage).len(), 0);
 
         // Only proxy can add pubkeys
-        assert!(register_proxy(deps.as_mut(), &creator, &proxy_pubkey).is_err());
-        assert!(register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey).is_ok());
+        assert!(register_proxy(deps.as_mut(), &creator, &min_stake_coins, &proxy_pubkey).is_err());
+
+        // Not enough stake
+        assert!(register_proxy(deps.as_mut(), &proxy1, &less_than_min_stake_coins, &proxy_pubkey).is_err());
+
+        assert!(register_proxy(deps.as_mut(), &proxy1, &min_stake_coins, &proxy_pubkey).is_ok());
         // Already registered
-        assert!(register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey).is_err());
+        assert!(register_proxy(deps.as_mut(), &proxy1, &min_stake_coins, &proxy_pubkey).is_err());
 
         let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage);
         assert_eq!(available_proxy_pubkeys.len(), 1);
         assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
         // Register different proxy with existing pubkey
-        assert!(register_proxy(deps.as_mut(), &proxy2, &proxy_pubkey).is_err());
+        assert!(register_proxy(deps.as_mut(), &proxy2, &min_stake_coins, &proxy_pubkey).is_err());
 
         // Number of available pubkeys remains the same
         let available_proxy_pubkeys = get_all_available_proxy_pubkeys(&deps.storage);
@@ -301,7 +309,7 @@ mod init {
         };
 
         /*************** Initialise *************/
-        assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &None,&denom, &None, &None, &None).is_ok());
+        assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &None, &denom, &None, &None, &None).is_ok());
 
         /*************** Add data and delegations by delegator *************/
         // Add data by delegator
@@ -315,6 +323,8 @@ mod init {
     fn test_select_proxies_add_delegation_and_request_reencryption() {
         let mut deps = mock_dependencies(&[]);
         let denom = "atestfet".to_string();
+        let minimum_stake = 100u128;
+        let min_stake_coins = vec![Coin::new(minimum_stake, denom.clone())];
 
         // Addresses
         let creator = Addr::unchecked("creator".to_string());
@@ -336,12 +346,12 @@ mod init {
         };
 
         /*************** Initialise *************/
-        assert!(init_contract(deps.as_mut(), &creator, &None, &None, &Some(1), &Some(vec![proxy1.clone(), proxy2.clone()]),&denom, &None, &None, &None).is_ok());
+        assert!(init_contract(deps.as_mut(), &creator, &None, &None, &Some(1), &Some(vec![proxy1.clone(), proxy2.clone()]), &denom, &Some(Uint128::new(minimum_stake)), &Some(Uint128::new(minimum_stake)), &None).is_ok());
 
         /*************** Register proxies *************/
         // Proxies register -> submits pubkeys
-        assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey).is_ok());
-        assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey).is_ok());
+        assert!(register_proxy(deps.as_mut(), &proxy1, &min_stake_coins, &proxy1_pubkey).is_ok());
+        assert!(register_proxy(deps.as_mut(), &proxy2, &min_stake_coins, &proxy2_pubkey).is_ok());
 
 
         /*************** Add data and delegations by delegator *************/
@@ -403,6 +413,8 @@ mod init {
     fn test_provide_reencrypted_fragment() {
         let mut deps = mock_dependencies(&[]);
         let denom = "atestfet".to_string();
+        let minimum_stake = 100u128;
+        let min_stake_coins = vec![Coin::new(minimum_stake, denom.clone())];
 
         // Addresses
         let creator = Addr::unchecked("creator".to_string());
@@ -424,11 +436,11 @@ mod init {
         };
 
         /*************** Initialise *************/
-        assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &Some(vec![proxy.clone()]),&denom, &None, &None, &None).is_ok());
+        assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &Some(vec![proxy.clone()]), &denom, &Some(Uint128::new(minimum_stake)), &Some(Uint128::new(minimum_stake)), &None).is_ok());
 
         /*************** Register proxies *************/
         // Proxies register -> submits pubkeys
-        assert!(register_proxy(deps.as_mut(), &proxy, &proxy_pubkey).is_ok());
+        assert!(register_proxy(deps.as_mut(), &proxy, &min_stake_coins, &proxy_pubkey).is_ok());
 
 
         /*************** Add data and delegations by delegator *************/
@@ -471,6 +483,8 @@ mod init {
     fn test_contract_lifecycle() {
         let mut deps = mock_dependencies(&[]);
         let denom = "atestfet".to_string();
+        let minimum_stake = 100u128;
+        let min_stake_coins = vec![Coin::new(minimum_stake, denom.clone())];
 
         // Addresses
         let creator = Addr::unchecked("creator".to_string());
@@ -494,12 +508,21 @@ mod init {
 
         /*************** Initialise *************/
         let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
-        assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &Some(proxies.clone()),&denom, &None, &None, &None).is_ok());
+        assert!(init_contract(deps.as_mut(),
+                              &creator,
+                              &None,
+                              &None,
+                              &None,
+                              &Some(proxies.clone()),
+                              &denom,
+                              &Some(Uint128::new(minimum_stake)),
+                              &Some(Uint128::new(minimum_stake)),
+                              &None).is_ok());
 
         /*************** Register proxies *************/
         // Proxies register -> submits pubkeys
-        assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey).is_ok());
-        assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey).is_ok());
+        assert!(register_proxy(deps.as_mut(), &proxy1, &min_stake_coins, &proxy1_pubkey).is_ok());
+        assert!(register_proxy(deps.as_mut(), &proxy2, &min_stake_coins, &proxy2_pubkey).is_ok());
 
 
         /*************** Add data and delegations by delegator *************/

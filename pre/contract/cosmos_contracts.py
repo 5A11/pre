@@ -14,7 +14,7 @@ from pre.ledger.cosmos.ledger import CosmosLedger
 from pre.utils.loggers import get_logger
 
 
-CONTRACT_WASM_FILE = str(Path(__file__).parent / "./cw_proxy_reencryption.wasm")
+CONTRACT_WASM_FILE = str(Path(__file__).parent.parent.parent / "contract" / "./cw_proxy_reencryption.wasm")
 
 _logger = get_logger(__name__)
 
@@ -28,6 +28,22 @@ class ContractQueries(AbstractContractQueries):
 
     def get_avaiable_proxies(self) -> List[bytes]:
         state_msg: Dict = {"get_available_proxies": {}}
+        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+        return [b64decode(i) for i in json_res["proxy_pubkeys"]]
+
+    def get_selected_proxies_for_delegation(
+        self,
+        delegator_addr: Address,
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
+    ) -> List[bytes]:
+        state_msg: Dict = {
+            "get_selected_proxies_for_delegation": {
+                "delegator_addr": delegator_addr,
+                "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
+                "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
+            }
+        }
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
         return [b64decode(i) for i in json_res["proxy_pubkeys"]]
 
@@ -195,6 +211,43 @@ class DelegatorContract(AbstractDelegatorContract):
             ledger=self.ledger, contract_address=self.contract_address
         ).does_delegation_exist(
             delegator_addr, delegator_pubkey_bytes, delegatee_pubkey_bytes
+        )
+
+    def get_selected_proxies_for_delegation(
+        self,
+        delegator_addr: Address,
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
+    ) -> List[bytes]:
+        return ContractQueries(
+            ledger=self.ledger, contract_address=self.contract_address
+        ).get_selected_proxies_for_delegation(
+            delegator_addr, delegator_pubkey_bytes, delegatee_pubkey_bytes
+        )
+
+    def request_proxies_for_delegation(
+        self,
+        delegator_private_key: AbstractLedgerCrypto,
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
+    ) -> List[bytes]:
+        submit_msg = {
+            "request_proxies_for_delegation": {
+                "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
+                "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
+            }
+        }
+        res, error_code = self.ledger.send_execute_msg(
+            delegator_private_key, self.contract_address, submit_msg
+        )
+        if error_code != 0:
+            raise ValueError(f"Contract execution failed: {error_code} {res}")
+
+        # FIXME(LR) parse `res`` instead
+        return self.get_selected_proxies_for_delegation(
+            delegator_private_key.get_address(),
+            delegator_pubkey_bytes,
+            delegatee_pubkey_bytes,
         )
 
     def request_reencryption(

@@ -27,6 +27,15 @@ class AbstractContractQueries(BaseAbstractContract):
         pass
 
     @abstractmethod
+    def get_selected_proxies_for_delegation(
+        self,
+        delegator_addr: Address,
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
+    ) -> List[bytes]:
+        pass
+
+    @abstractmethod
     def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
         pass
 
@@ -84,12 +93,30 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         pass
 
     @abstractmethod
-    def does_delegation_exist(
+    def does_delegation_exist(  # FIXME(LR) duplicate of get_selected_proxies_for_delegation
         self,
         delegator_addr: Address,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> bool:
+        pass
+
+    @abstractmethod
+    def get_selected_proxies_for_delegation(
+        self,
+        delegator_addr: Address,
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
+    ) -> List[bytes]:
+        pass
+
+    @abstractmethod
+    def request_proxies_for_delegation(
+        self,
+        delegator_private_key: AbstractLedgerCrypto,
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
+    ) -> List[bytes]:
         pass
 
     @abstractmethod

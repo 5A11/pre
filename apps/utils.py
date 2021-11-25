@@ -1,71 +1,42 @@
 from pathlib import Path
-from typing import Dict
 
 import click
 import yaml
 
-from apps.defaults import CRYPTO_CLASS, LEDGER_CLASS, STORAGE_CLASS
 from pre.common import AbstractConfig
 
 
-ledger_config_file_option = click.option()
-ledger_private_key_option = click.option()
-crypto_private_key_option = click.option()
+def file_argument_with_rewrite(*args, **kwargs):
+    if not args:
+        raise ValueError("Argument name not specified!")
 
+    def deco(func):
+        def check_rewrite(ctx: click.Context, param, value):
+            rewrite = ctx.params.pop("rewrite")
+            if Path(value).exists() and not rewrite:
+                click.echo(
+                    f"File `{value}` exists, please use --rewrite option to allow file rewrite"
+                )
+                ctx.exit(1)
+            return value
 
-def _make_api_instance(
-    api_cls,
-    contract_class,
-    ledger_private_key: Path,
-    encryption_private_key: Path,
-    ipfs_config: Dict,
-    ledger_config: Dict,
-    contract_address: str,
-):
+        required = kwargs.pop("required", True)
+        func = click.option(
+            "--rewrite", is_flag=True, is_eager=True, expose_value=True
+        )(func)
+        func = click.argument(
+            *args,
+            type=click.Path(
+                file_okay=True, dir_okay=False, writable=True, path_type=Path
+            ),
+            required=required,
+            expose_value=True,
+            callback=check_rewrite,
+            **kwargs,
+        )(func)
+        return func
 
-    storage = STORAGE_CLASS(**ipfs_config)
-    storage.connect()
-
-    ledger = LEDGER_CLASS(**ledger_config)
-    if ledger_private_key is None:
-        ledger_crypto = None
-    else:
-        ledger_crypto = ledger.load_crypto_from_file(ledger_private_key)
-
-    contract = contract_class(ledger=ledger, contract_address=contract_address)
-
-    epk = CRYPTO_CLASS.load_key(encryption_private_key.read_bytes())
-    api_instance = api_cls(
-        epk,
-        ledger_crypto=ledger_crypto,
-        contract=contract,
-        storage=storage,
-        crypto=CRYPTO_CLASS(),
-    )
-    return api_instance
-
-
-def write_private_key_file_argument(func):
-    def check_rewrite(ctx: click.Context, param, value):
-        rewrite = ctx.params.pop("rewrite")
-        if Path(value).exists() and not rewrite:
-            click.echo(
-                f"File `{value}` exists, please use --rewrite option to allow file rewrite"
-            )
-            ctx.exit(1)
-        return value
-
-    func = click.option("--rewrite", is_flag=True, is_eager=True, expose_value=True)(
-        func
-    )
-    func = click.argument(
-        "private-key-file",
-        type=click.Path(file_okay=True, dir_okay=False, writable=True, path_type=Path),
-        required=True,
-        expose_value=True,
-        callback=check_rewrite,
-    )(func)
-    return func
+    return deco
 
 
 file_exists_type = click.Path(

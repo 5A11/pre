@@ -45,8 +45,8 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         ledger: AbstractLedger,
         admin_private_key: AbstractLedgerCrypto,
         admin_addr: Address,
-        threshold: int,
-        n_max_proxies: int,
+        threshold: Optional[int],
+        n_max_proxies: Optional[int],
         proxies: List[Address],
         label: str = "PRE",
     ) -> Address:

@@ -280,7 +280,7 @@ class ProxyContract(AbstractProxyContract):
 
 
 class CosmosContract:  # pylint: disable=too-few-public-methods
-    ADMIN__CONTRACT = AdminContract
+    ADMIN_CONTRACT = AdminContract
     DELEGATOR_CONTRACT = DelegatorContract
     QUERIES_CONTRACT = ContractQueries
     PROXY_CONTRACT = ProxyContract

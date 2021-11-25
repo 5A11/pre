@@ -1,11 +1,8 @@
 import time
-from pathlib import Path
-from typing import Dict, cast
 
 import click
 
-from apps.defaults import CONTRACT_CLASS, LEDGER_CLASS, STORAGE_CLASS
-from apps.utils import _make_api_instance, config_option, private_key_file_option
+from apps.conf import AppConf
 from pre.api.proxy import ProxyAPI
 
 
@@ -20,95 +17,67 @@ def cli():
     pass
 
 
-def common_options(func):
-    func = private_key_file_option("--ledger-private-key", "--lpk", required=True)(func)
-    func = config_option("--ledger-config", LEDGER_CLASS.CONFIG_CLASS, required=False)(
-        func
-    )
-    func = config_option("--ipfs-config", STORAGE_CLASS.CONFIG_CLASS, required=False)(
-        func
-    )
-    func = private_key_file_option("--encryption-private-key", "--epk", required=True)(
-        func
-    )
-    func = click.option("--contract-address", type=str, required=True)(func)
-    return func
-
-
 @cli.command(name="register")
-@common_options
-def register(
-    ledger_private_key: Path,
-    encryption_private_key: Path,
-    ipfs_config: Dict,
-    ledger_config: Dict,
-    contract_address: str,
-):
-    proxy_api = cast(
-        ProxyAPI,
-        _make_api_instance(
-            ProxyAPI,
-            CONTRACT_CLASS.PROXY_CONTRACT,
-            ledger_private_key,
-            encryption_private_key,
-            ipfs_config,
-            ledger_config,
-            contract_address,
-        ),
+@AppConf.deco(
+    AppConf.opt_ledger_private_key,
+    AppConf.opt_encryption_private_key,
+    AppConf.opt_storage_config,
+    AppConf.opt_ledger_config,
+    AppConf.opt_contract_address,
+    expose_app_config=True,
+)
+def register(app_config: AppConf):
+    proxy_api = ProxyAPI(
+        app_config.get_cryto_key(),
+        app_config.get_ledger_crypto(),
+        contract=app_config.get_proxy_contract(),
+        storage=app_config.get_storage_instance(),
+        crypto=app_config.get_crypto_instance(),
     )
     proxy_api.register()
     click.echo("Proxy was registered")
 
 
 @cli.command(name="unregister")
-@common_options
-def unregister(
-    ledger_private_key: Path,
-    encryption_private_key: Path,
-    ipfs_config: Dict,
-    ledger_config: Dict,
-    contract_address: str,
-):
-    proxy_api = cast(
-        ProxyAPI,
-        _make_api_instance(
-            ProxyAPI,
-            CONTRACT_CLASS.PROXY_CONTRACT,
-            ledger_private_key,
-            encryption_private_key,
-            ipfs_config,
-            ledger_config,
-            contract_address,
-        ),
+@AppConf.deco(
+    AppConf.opt_ledger_private_key,
+    AppConf.opt_encryption_private_key,
+    AppConf.opt_storage_config,
+    AppConf.opt_ledger_config,
+    AppConf.opt_contract_address,
+    expose_app_config=True,
+)
+def unregister(app_config: AppConf):
+    proxy_api = ProxyAPI(
+        app_config.get_cryto_key(),
+        app_config.get_ledger_crypto(),
+        contract=app_config.get_proxy_contract(),
+        storage=app_config.get_storage_instance(),
+        crypto=app_config.get_crypto_instance(),
     )
     proxy_api.unregister()
     click.echo("Proxy was unregistered")
 
 
 @cli.command(name="run")
-@common_options
+@AppConf.deco(
+    AppConf.opt_ledger_private_key,
+    AppConf.opt_encryption_private_key,
+    AppConf.opt_storage_config,
+    AppConf.opt_ledger_config,
+    AppConf.opt_contract_address,
+    expose_app_config=True,
+)
 @click.option(
     "--run-once-and-exit", is_flag=True, hidden=True, help="for test purposes"
 )
-def run(
-    ledger_private_key: Path,
-    encryption_private_key: Path,
-    ipfs_config: Dict,
-    ledger_config: Dict,
-    contract_address: str,
-    run_once_and_exit: bool,
-):
-    proxy_api = cast(
-        ProxyAPI,
-        _make_api_instance(
-            ProxyAPI,
-            CONTRACT_CLASS.PROXY_CONTRACT,
-            ledger_private_key,
-            encryption_private_key,
-            ipfs_config,
-            ledger_config,
-            contract_address,
-        ),
+def run(run_once_and_exit: bool, app_config: AppConf):
+    proxy_api = ProxyAPI(
+        app_config.get_cryto_key(),
+        app_config.get_ledger_crypto(),
+        contract=app_config.get_proxy_contract(),
+        storage=app_config.get_storage_instance(),
+        crypto=app_config.get_crypto_instance(),
     )
     try:
         try:

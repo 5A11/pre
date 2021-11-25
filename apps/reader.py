@@ -1,10 +1,10 @@
 from pathlib import Path
-from typing import Dict, Optional, cast
+from typing import Optional, cast
 
 import click
 
-from apps.defaults import CONTRACT_CLASS, LEDGER_CLASS, STORAGE_CLASS
-from apps.utils import _make_api_instance, config_option, private_key_file_option
+from apps.conf import AppConf
+from apps.utils import file_argument_with_rewrite
 from pre.api.delegatee import DelegateeAPI
 
 
@@ -16,44 +16,26 @@ def cli():
     pass
 
 
-def common_options(func):
-    func = config_option("--ledger-config", LEDGER_CLASS.CONFIG_CLASS, required=False)(
-        func
-    )
-    func = config_option("--ipfs-config", STORAGE_CLASS.CONFIG_CLASS, required=False)(
-        func
-    )
-    func = private_key_file_option("--encryption-private-key", "--epk", required=True)(
-        func
-    )
-    func = click.option("--contract-address", type=str, required=True)(func)
-    return func
-
-
 @cli.command(name="get-data-status")
-@common_options
+@AppConf.deco(
+    AppConf.opt_encryption_private_key,
+    AppConf.opt_storage_config,
+    AppConf.opt_ledger_config,
+    AppConf.opt_contract_address,
+    expose_app_config=True,
+)
 @click.argument("hash_id", type=str, required=True)
 @click.pass_context
 def get_data_status(
     ctx: click.Context,
-    encryption_private_key: Path,
-    ipfs_config: Dict,
-    ledger_config: Dict,
-    contract_address: str,
+    app_config: AppConf,
     hash_id: str,
 ):
-    ledger_private_key = None
-    delegatee_api = cast(
-        DelegateeAPI,
-        _make_api_instance(
-            DelegateeAPI,
-            CONTRACT_CLASS.QUERIES_CONTRACT,
-            ledger_private_key,
-            encryption_private_key,
-            ipfs_config,
-            ledger_config,
-            contract_address,
-        ),
+    delegatee_api = DelegateeAPI(
+        encryption_private_key=app_config.get_cryto_key(),
+        contract=app_config.get_query_contract(),
+        storage=app_config.get_storage_instance(),
+        crypto=app_config.get_crypto_instance(),
     )
     is_ready, _, _ = delegatee_api.is_data_ready(hash_id)
     if is_ready:
@@ -65,45 +47,31 @@ def get_data_status(
 
 
 @cli.command(name="get-data")
-@common_options
+@AppConf.deco(
+    AppConf.opt_encryption_private_key,
+    AppConf.opt_storage_config,
+    AppConf.opt_ledger_config,
+    AppConf.opt_contract_address,
+    expose_app_config=True,
+)
 @click.argument("hash_id", type=str, required=True)
 @click.argument("owner-publickey", type=str, required=True)
-@click.argument(
-    "data_file_name",
-    type=click.Path(file_okay=True, dir_okay=False, path_type=Path),
-    required=False,
-)
-@click.option("--rewrite", is_flag=True)
-@click.pass_context
+@file_argument_with_rewrite("data-file-name", required=False)
 def get_data(
-    ctx: click.Context,
-    encryption_private_key: Path,
-    ipfs_config: Dict,
-    ledger_config: Dict,
-    contract_address: str,
+    app_config: AppConf,
     hash_id: str,
     owner_publickey: str,
     data_file_name: Optional[Path],
-    rewrite: bool,
 ):
-    ledger_private_key = None
     data_file_name = data_file_name or Path(hash_id)
 
-    if data_file_name.exists() and not rewrite:
-        raise ValueError(f"{data_file_name} file is exist! please use --rewrite option")
-
-    delegatee_api = cast(
-        DelegateeAPI,
-        _make_api_instance(
-            DelegateeAPI,
-            CONTRACT_CLASS.QUERIES_CONTRACT,
-            ledger_private_key,
-            encryption_private_key,
-            ipfs_config,
-            ledger_config,
-            contract_address,
-        ),
+    delegatee_api = DelegateeAPI(
+        encryption_private_key=app_config.get_cryto_key(),
+        contract=app_config.get_query_contract(),
+        storage=app_config.get_storage_instance(),
+        crypto=app_config.get_crypto_instance(),
     )
+
     delegator_pubkey_bytes = bytes.fromhex(owner_publickey)
     data = delegatee_api.read_data(hash_id, delegator_pubkey_bytes)
     data_file_name.write_bytes(cast(bytes, data))

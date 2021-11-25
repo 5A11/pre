@@ -42,3 +42,13 @@ class AbstractCrypto(ABC):
         delegator_pubkey_bytes: bytes,
     ) -> Union[bytes, IO]:
         pass
+
+    @classmethod
+    @abstractmethod
+    def make_new_key(cls) -> PrivateKey:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def load_key(cls, data: bytes) -> PrivateKey:
+        pass

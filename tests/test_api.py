@@ -25,6 +25,7 @@ from tests.constants import (
     PREFIX,
 )
 
+
 def make_priv_key() -> PrivateKey:
     return UmbralPrivateKey.random()
 

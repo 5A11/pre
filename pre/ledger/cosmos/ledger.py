@@ -5,7 +5,7 @@ import time
 from enum import Enum
 from os import urandom
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import requests
 from cosmpy.auth.rest_client import AuthRestClient
@@ -47,6 +47,12 @@ from cosmpy.tx.rest_client import TxRestClient
 from google.protobuf.any_pb2 import Any as ProtoAny
 from google.protobuf.json_format import MessageToDict
 
+from pre.common import (
+    AbstractConfig,
+    get_defaults,
+    types_from_annotations,
+    validate_with_types,
+)
 from pre.ledger.cosmos.crypto import CosmosCrypto
 from pre.utils.loggers import get_logger
 
@@ -73,8 +79,37 @@ class BroadcastException(Exception):
     pass
 
 
+class CosmosLedgerConfig(AbstractConfig):
+    DEFAULT_FETCH_CHAIN_ID = "stargateworld-3"
+    DEFAULT_DENOMINATION = "atestfet"
+    PREFIX = "fetch"
+    FETCHD_URL = "http://127.0.0.1:1317"
+
+    @classmethod
+    def validate(cls, data: Dict) -> Dict:
+        types = types_from_annotations(CosmosLedger.__init__)
+        new_data = cls.make_default()
+        new_data.update(data)
+        return validate_with_types(new_data, types)
+
+    @classmethod
+    def make_default(cls) -> Dict:
+        defaults = get_defaults(CosmosLedger.__init__)
+        defaults.update(
+            dict(
+                denom=cls.DEFAULT_DENOMINATION,
+                chain_id=cls.DEFAULT_FETCH_CHAIN_ID,
+                prefix=cls.PREFIX,
+                node_address=cls.FETCHD_URL,
+            )
+        )
+        return defaults
+
+
 # Class that provides interface to communicate with CosmWasm/Fetch blockchain
 class CosmosLedger:
+    CONFIG_CLASS = CosmosLedgerConfig
+
     def __init__(
         self,
         denom: str,

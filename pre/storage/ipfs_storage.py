@@ -5,11 +5,39 @@ import ipfshttpclient  # type: ignore
 from ipfshttpclient.client import Client  # type: ignore
 from ipfshttpclient.http_common import ReadableStreamWrapper  # type: ignore
 
-from pre.common import Capsule, EncryptedData, HashID, ReencryptedFragment
+from pre.common import (
+    AbstractConfig,
+    Capsule,
+    EncryptedData,
+    HashID,
+    ReencryptedFragment,
+)
 from pre.storage.base_storage import AbstractStorage
 
 
+class IpfsStorageConfig(AbstractConfig):
+    @classmethod
+    def validate(cls, data: Dict):
+        config_dict = cls.make_default()
+        config_dict["addr"] = data.get("addr") or config_dict["addr"]
+        config_dict["port"] = data.get("port") or config_dict["port"]
+
+        if not isinstance(config_dict["addr"], str):
+            raise ValueError("ipfs storage parameter `addr` has to be a string")
+
+        if not isinstance(config_dict["port"], int):
+            raise ValueError("ipfs storage parameter `port` has to be a string")
+
+        return config_dict
+
+    @classmethod
+    def make_default(cls) -> Dict:
+        return {"addr": "localhost", "port": 5001}
+
+
 class IpfsStorage(AbstractStorage):
+    CONFIG_CLASS = IpfsStorageConfig
+
     def __init__(
         self,
         addr: Optional[str] = None,

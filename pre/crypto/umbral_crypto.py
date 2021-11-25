@@ -43,7 +43,7 @@ class UmbralPrivateKey(PrivateKey):
         return UmbralPublicKey(self._key.public_key())
 
     def __bytes__(self) -> bytes:
-        return bytes(self._key)
+        return self._key.to_secret_bytes()
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "UmbralPrivateKey":
@@ -240,3 +240,11 @@ class UmbralCrypto(AbstractCrypto):
             verified_cfrags=cfrags,
             ciphertext=encrypted_data.data,
         )
+
+    @classmethod
+    def make_new_key(cls) -> UmbralPrivateKey:
+        return UmbralPrivateKey.random()
+
+    @classmethod
+    def load_key(cls, data: bytes) -> UmbralPrivateKey:
+        return UmbralPrivateKey.from_bytes(data)

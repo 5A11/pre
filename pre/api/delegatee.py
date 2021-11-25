@@ -1,4 +1,4 @@
-from typing import IO, Union
+from typing import IO, List, Tuple, Union
 
 from pre.common import HashID, PrivateKey
 from pre.contract.base_contract import AbstractContractQueries
@@ -15,20 +15,26 @@ class DelegateeAPI:
         contract: AbstractContractQueries,
         storage: AbstractStorage,
         crypto: AbstractCrypto,
+        **_
     ):
         self._encryption_private_key = encryption_private_key
         self._contract = contract
         self._storage = storage
         self._crypto = crypto
 
-    def read_data(
-        self, hash_id: HashID, delegator_pubkey_bytes: bytes
-    ) -> Union[bytes, IO]:
+    def is_data_ready(self, hash_id: HashID) -> Tuple[bool, int, List[HashID]]:
         threshold, fragments_ids = self._contract.get_fragments_response(
             hash_id=hash_id,
             delegatee_pubkey_bytes=bytes(self._encryption_private_key.public_key),
         )
-        if threshold > len(fragments_ids):
+        is_ready = len(fragments_ids) >= threshold
+        return is_ready, threshold, fragments_ids
+
+    def read_data(
+        self, hash_id: HashID, delegator_pubkey_bytes: bytes
+    ) -> Union[bytes, IO]:
+        is_ready, _, fragments_ids = self.is_data_ready(hash_id)
+        if not is_ready:
             raise ValueError("Data is not ready!")
 
         encrypted_fragments = [

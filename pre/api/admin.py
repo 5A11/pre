@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Type
 
 from pre.common import Address
 from pre.contract.base_contract import AbstractAdminContract
@@ -28,8 +28,10 @@ class AdminAPI:
         n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
         label: str = "PRE",
+        contract_cls: Optional[Type[AbstractAdminContract]] = None,
     ) -> Address:
-        contract_address = AdminContract.instantiate_contract(
+        contract_cls = contract_cls or cls.CONTRACT_CLASS
+        contract_address = contract_cls.instantiate_contract(
             ledger,
             ledger_crypto,
             admin_address,

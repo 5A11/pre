@@ -4,24 +4,6 @@ from typing import Any
 from pre.common import Address
 
 
-class AbstractLedger:
-    @abstractmethod
-    def sign_tx(self, *args, **kwargs) -> Any:
-        pass
-
-    @abstractmethod
-    def broadcast_tx(self, *args, **kwargs) -> Any:
-        pass
-
-    @abstractmethod
-    def generate_tx(self, *args, **kwargs) -> Any:
-        pass
-
-    @abstractmethod
-    def get_balance(self, address: Address, *args, **kwargs) -> Any:
-        pass
-
-
 class AbstractLedgerCrypto(ABC):
     @abstractmethod
     def get_address(self) -> str:
@@ -41,4 +23,32 @@ class AbstractLedgerCrypto(ABC):
 
     @abstractmethod
     def as_str(self) -> str:
+        pass
+
+    @abstractmethod
+    def __bytes__(self) -> bytes:
+        pass
+
+
+class AbstractLedger:
+    @abstractmethod
+    def sign_tx(self, *args, **kwargs) -> Any:
+        pass
+
+    @abstractmethod
+    def broadcast_tx(self, *args, **kwargs) -> Any:
+        pass
+
+    @abstractmethod
+    def generate_tx(self, *args, **kwargs) -> Any:
+        pass
+
+    @abstractmethod
+    def get_balance(self, address: Address, *args, **kwargs) -> Any:
+        pass
+
+    @abstractmethod
+    def load_crypto_from_file(
+        self, keyfile_path: str, **kwargs
+    ) -> AbstractLedgerCrypto:
         pass

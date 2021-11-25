@@ -2,7 +2,7 @@
 ignore-patterns=.*_pb2.py
 
 [MESSAGES CONTROL]
-disable=C0114,C0115,C0116,C0301
+disable=C0114,C0115,C0116,C0301, R0801
 
 # See here for more options: https://www.codeac.io/documentation/pylint-configuration.html
 ## Eventually resolve these:

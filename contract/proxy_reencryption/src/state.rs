@@ -12,28 +12,33 @@ static STATE_KEY: &[u8] = b"State";
 // Maps
 
 // Proxy register whitelist
-// Map Addr proxy -> bool
+// Map proxy: Addr -> is_registered: bool
 static IS_PROXY_KEY: &[u8] = b"IsProxy";
 
-// Map Addr proxy -> String proxy_pubkey
+// Map proxy: Addr -> proxy_pubkey: String
 static PROXIES_AVAILABITY_KEY: &[u8] = b"ProxyAvailable";
 
 // Counts number of proxies with the same pubkey
 // Used for selecting proxy pubkeys for delegations
-// Map String proxy_pubkey -> u32 n_addresses
+// Map proxy_pubkey: String -> n_addresses: u32
 static PROXIES_PUBKEYS_KEY: &[u8] = b"ProxyPubkey";
 
-// Map String data_id -> DataEntry data_entry
+// Map data_id: String -> data_entry: DataEntry
 static DATA_ENTRIES_KEY: &[u8] = b"DataEntries";
 
-// Map Addr delegator_addr -> String delegator_pubkey -> String delegatee_pubkey -> String proxy_pubkey -> Option<String> delegation_string
+// Map delegator_addr: Addr -> delegator_pubkey: String -> delegatee_pubkey: String -> proxy_pubkey: String -> delegation_string: Option<String>
 static DELEGATIONS_STORE_KEY: &[u8] = b"DelegationStore";
 
-// Map String proxy_pubkey -> ReencryptionRequest reencryption_request -> bool is_reencryption_request
+// Map reencryption_request_id: u64 -> request: ReencryptionRequest
 static REENCRYPTION_REQUESTS_STORE_KEY: &[u8] = b"ReencryptionRequests";
 
-// Map String data_id -> String delegatee_pubkey -> String proxy_pubkey -> HashID reencrypted_cap_fragment
-static FRAGMENTS_STORE_KEY: &[u8] = b"Fragments";
+// Delegatee side to lookup fragments
+// Map data_id: HashID -> delegatee_pubkey: String -> proxy_pubkey: String -> reencryption_request_id: u64
+static DELEGATEE_REQUESTS_STORE_KEY: &[u8] = b"DelegateeRequests";
+
+// Proxy side to lookup active tasks
+// Map proxy_pubkey: String -> reencryption_request_id: u64 -> is_request: bool
+static PROXY_REQUESTS_STORE_KEY: &[u8] = b"ProxyRequests";
 
 
 // Singleton structures
@@ -43,6 +48,9 @@ pub struct State {
     // n_selected proxies will be between threshold and n_max_proxies
     pub threshold: u32,
     pub n_max_proxies: u32,
+
+    // Total number of re-encryption requests
+    pub next_request_id: u64,
 }
 
 // Store structures
@@ -52,22 +60,13 @@ pub struct DataEntry {
     pub delegator_addr: Addr,
 }
 
-
-// Other structures
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ReencryptionRequest {
     pub data_id: HashID,
     pub delegatee_pubkey: String,
+    pub fragment: Option<HashID>,
+    pub proxy_address: Option<Addr>,
 }
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct ProxyTask {
-    pub data_id: HashID,
-    pub delegatee_pubkey: String,
-    pub delegator_pubkey: String,
-    pub delegation_string: String,
-}
-
 
 // Getters and setters
 
@@ -271,81 +270,95 @@ pub fn is_delegation_empty(storage: &dyn Storage, delegator_addr: &Addr, delegat
     return true;
 }
 
+// REENCRYPTION_REQUESTS_STORE_KEY
+pub fn set_reencryption_request(storage: &mut dyn Storage, reencryption_request_id: &u64, reencryption_request: &ReencryptionRequest) -> () {
+    let mut store = PrefixedStorage::new(storage, &REENCRYPTION_REQUESTS_STORE_KEY);
 
-// FRAGMENTS_STORE
-pub fn set_fragment(storage: &mut dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String, reencrypted_cap_fragment: &HashID) -> () {
-    let mut store = PrefixedStorage::multilevel(storage, &[FRAGMENTS_STORE_KEY, data_id.as_bytes(), delegatee_pubkey.as_bytes()]);
-
-    store.set(proxy_pubkey.as_bytes(), reencrypted_cap_fragment.as_bytes());
+    store.set(&reencryption_request_id.to_le_bytes(), &to_vec(reencryption_request).unwrap());
 }
 
-pub fn remove_fragment(storage: &mut dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String) -> () {
-    let mut store = PrefixedStorage::multilevel(storage, &[FRAGMENTS_STORE_KEY, data_id.as_bytes(), delegatee_pubkey.as_bytes()]);
+/*
+pub fn remove_reencryption_request(storage: &mut dyn Storage, reencryption_request_id: &u64) -> () {
+    let mut store = PrefixedStorage::new(storage, &REENCRYPTION_REQUESTS_STORE_KEY);
+    store.remove(&reencryption_request_id.to_le_bytes());
+}
+*/
 
-    store.remove(proxy_pubkey.as_bytes());
+pub fn get_reencryption_request(storage: &dyn Storage, reencryption_request_id: &u64) -> Option<ReencryptionRequest> {
+    let store = ReadonlyPrefixedStorage::new(storage, &REENCRYPTION_REQUESTS_STORE_KEY);
+
+    match store.get(&reencryption_request_id.to_le_bytes())
+    {
+        None => None,
+        Some(data) => Some(from_slice(&data).unwrap())
+    }
 }
 
-pub fn get_fragment(storage: &dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String) -> Option<HashID> {
-    let store = ReadonlyPrefixedStorage::multilevel(storage, &[FRAGMENTS_STORE_KEY, data_id.as_bytes(), delegatee_pubkey.as_bytes()]);
+// DELEGATEE_REQUESTS_STORE
+pub fn add_delegatee_reencryption_request(storage: &mut dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String, reencryption_request_id: &u64) -> () {
+    let mut store = PrefixedStorage::multilevel(storage, &[DELEGATEE_REQUESTS_STORE_KEY, data_id.as_bytes(), delegatee_pubkey.as_bytes()]);
+
+    store.set(&proxy_pubkey.as_bytes(), &reencryption_request_id.to_le_bytes());
+}
+
+pub fn get_delegatee_reencryption_request(storage: &mut dyn Storage, data_id: &HashID, delegatee_pubkey: &String, proxy_pubkey: &String) -> Option<u64> {
+    let store = ReadonlyPrefixedStorage::multilevel(storage, &[DELEGATEE_REQUESTS_STORE_KEY, data_id.as_bytes(), delegatee_pubkey.as_bytes()]);
 
     match store.get(proxy_pubkey.as_bytes())
     {
         None => None,
-        Some(data) => Some(String::from_utf8(data).unwrap())
+        Some(data) => Some(u64::from_le_bytes(data.try_into().unwrap()))
     }
 }
 
-pub fn get_all_fragments(storage: &dyn Storage, data_id: &HashID, delegatee_pubkey: &String) -> Vec<HashID> {
-    let store = ReadonlyPrefixedStorage::multilevel(storage, &[FRAGMENTS_STORE_KEY, data_id.as_bytes(), delegatee_pubkey.as_bytes()]);
+pub fn get_all_delegatee_reencryption_requests(storage: &dyn Storage, data_id: &HashID, delegatee_pubkey: &String) -> Vec<u64> {
+    let store = ReadonlyPrefixedStorage::multilevel(storage, &[DELEGATEE_REQUESTS_STORE_KEY, data_id.as_bytes(), delegatee_pubkey.as_bytes()]);
 
-    let mut deserialized_values: Vec<HashID> = Vec::new();
+    let mut deserialized_keys: Vec<u64> = Vec::new();
 
     for pair in store.range(None, None, Order::Ascending)
     {
         // Deserialize keys with inverse operation to to_vec
-        deserialized_values.push(std::str::from_utf8(&pair.1).unwrap().to_string());
+        deserialized_keys.push(u64::from_le_bytes(pair.1.try_into().unwrap()));
     }
 
-    return deserialized_values;
+    return deserialized_keys;
 }
 
-
-// REENCRYPTION_REQUESTS_STORE
-pub fn add_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> () {
-    let mut store = PrefixedStorage::multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
+// PROXY_REQUESTS_STORE_KEY
+pub fn add_proxy_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request_id: &u64) -> () {
+    let mut store = PrefixedStorage::multilevel(storage, &[PROXY_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
 
     // Any value in store means true - &[1]
-    store.set(&to_vec(reencryption_request).unwrap(), &[1]);
+    store.set(&reencryption_request_id.to_le_bytes(), &[1]);
 }
 
-pub fn remove_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> () {
-    let mut store = PrefixedStorage::multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
+pub fn remove_proxy_reencryption_request(storage: &mut dyn Storage, proxy_pubkey: &String, reencryption_request_id: &u64) -> () {
+    let mut store = PrefixedStorage::multilevel(storage, &[PROXY_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
 
-    store.remove(&to_vec(reencryption_request).unwrap());
+    store.remove(&reencryption_request_id.to_le_bytes());
 }
 
-pub fn is_reencryption_request(storage: &dyn Storage, proxy_pubkey: &String, reencryption_request: &ReencryptionRequest) -> bool {
-    let store = ReadonlyPrefixedStorage::multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
+pub fn is_proxy_reencryption_request(storage: &dyn Storage, proxy_pubkey: &String, reencryption_request_id: &u64) -> bool {
+    let store = ReadonlyPrefixedStorage::multilevel(storage, &[PROXY_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
 
-    match store.get(&to_vec(reencryption_request).unwrap())
+    match store.get(&reencryption_request_id.to_le_bytes())
     {
         None => false,
         Some(_) => true
     }
 }
 
-pub fn get_all_reencryption_requests(storage: &dyn Storage, proxy_pubkey: &String) -> Vec<ReencryptionRequest> {
-    let store = ReadonlyPrefixedStorage::multilevel(storage, &[REENCRYPTION_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
+pub fn get_all_proxy_reencryption_requests(storage: &dyn Storage, proxy_pubkey: &String) -> Vec<u64> {
+    let store = ReadonlyPrefixedStorage::multilevel(storage, &[PROXY_REQUESTS_STORE_KEY, proxy_pubkey.as_bytes()]);
 
-    let mut deserialized_keys: Vec<ReencryptionRequest> = Vec::new();
+    let mut deserialized_keys: Vec<u64> = Vec::new();
 
     for pair in store.range(None, None, Order::Ascending)
     {
         // Deserialize keys with inverse operation to to_vec
-        deserialized_keys.push(from_slice(&pair.0).unwrap());
+        deserialized_keys.push(u64::from_le_bytes(pair.0.try_into().unwrap()));
     }
 
     return deserialized_keys;
 }
-
-

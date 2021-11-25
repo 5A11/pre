@@ -1,9 +1,9 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{Env, Addr, Response, StdResult, MessageInfo, DepsMut};
 
-use crate::contract::{execute, instantiate, get_next_proxy_task};
-use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegation};
-use crate::state::{get_state, State, get_all_proxies, DataEntry, ProxyTask, ReencryptionRequest, get_all_reencryption_requests, HashID, get_data_entry, get_all_fragments, get_all_available_proxy_pubkeys, is_reencryption_request};
+use crate::contract::{execute, instantiate, get_next_proxy_task, get_all_fragments};
+use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegation, ProxyTask};
+use crate::state::{get_state, State, get_all_proxies, DataEntry, HashID, get_data_entry, get_all_available_proxy_pubkeys, get_delegatee_reencryption_request, get_reencryption_request, get_all_proxy_reencryption_requests, is_proxy_reencryption_request};
 
 fn mock_env_height(signer: &Addr, height: u64) -> (Env, MessageInfo) {
     let mut env = mock_env();
@@ -197,6 +197,7 @@ mod init {
         assert_eq!(&state.admin, &creator);
         assert_eq!(state.n_max_proxies, u32::MAX);
         assert_eq!(&state.threshold, &1u32);
+        assert_eq!(&state.next_request_id, &0u64);
     }
 
     #[test]
@@ -226,7 +227,6 @@ mod init {
         let all_proxies = get_all_proxies(&deps.storage);
         assert_eq!(all_proxies.len(), 0);
     }
-
 
     #[test]
     fn test_register_unregister_proxy() {
@@ -393,7 +393,9 @@ mod init {
         assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee_pubkey).is_err());
 
         // Check if request was created
-        assert!(is_reencryption_request(deps.as_mut().storage, &proxy1_pubkey, &ReencryptionRequest { data_id: data_id, delegatee_pubkey: delegatee_pubkey }));
+        assert_eq!(get_delegatee_reencryption_request(deps.as_mut().storage, &data_id, &delegatee_pubkey, &proxy1_pubkey), Some(0u64));
+
+        assert_eq!(get_state(deps.as_mut().storage).unwrap().next_request_id, 1u64);
     }
 
 
@@ -443,15 +445,11 @@ mod init {
         assert!(add_delegation(deps.as_mut(), &delegator, &delegator_pubkey, &delegatee_pubkey, &proxy_delegations).is_ok());
 
         /*************** Request re-encryption *************/
-        let reencryption_request = ReencryptionRequest
-        {
-            data_id: data_id.clone(),
-            delegatee_pubkey: delegatee_pubkey.clone(),
-        };
-        assert!(request_reencryption(deps.as_mut(), &delegator, &reencryption_request.data_id, &reencryption_request.delegatee_pubkey).is_ok());
+        assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee_pubkey).is_ok());
 
         /*************** Provide reencrypted fragment *************/
-        assert!(is_reencryption_request(deps.as_mut().storage, &proxy_pubkey, &reencryption_request));
+        assert_eq!(get_delegatee_reencryption_request(deps.as_mut().storage, &data_id, &delegatee_pubkey, &proxy_pubkey).unwrap(), 0u64);
+        assert!(is_proxy_reencryption_request(deps.as_mut().storage, &proxy_pubkey, &0u64));
 
         let proxy_fragment: HashID = String::from("PR1_FRAG1");
         // Provide unwanted fragment
@@ -461,9 +459,13 @@ mod init {
         // Fragment already provided
         assert!(provide_reencrypted_fragment(deps.as_mut(), &proxy, &data_id, &delegatee_pubkey, &proxy_fragment).is_err());
 
-        assert!(!is_reencryption_request(deps.as_mut().storage, &proxy_pubkey, &reencryption_request));
-    }
+        // This entry is removed when proxy task is done
+        assert!(!is_proxy_reencryption_request(deps.as_mut().storage, &proxy_pubkey, &0u64));
 
+        let request = get_reencryption_request(deps.as_mut().storage, &0u64).unwrap();
+        assert_eq!(request.fragment, Some(proxy_fragment));
+        assert_eq!(request.proxy_address, Some(proxy));
+    }
 
     #[test]
     fn test_contract_lifecycle() {
@@ -525,34 +527,23 @@ mod init {
 
         /*************** Request reencryption by delegator *************/
 
-        // Request reencryption
-        let reencryption_request1 = ReencryptionRequest
-        {
-            data_id: data_id.clone(),
-            delegatee_pubkey: delegatee1_pubkey.clone(),
-        };
-        assert!(request_reencryption(deps.as_mut(), &delegator, &reencryption_request1.data_id, &reencryption_request1.delegatee_pubkey).is_ok());
+        assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee1_pubkey).is_ok());
 
         // Check number of requests
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(), 1);
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(), 1);
+        assert_eq!(get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(), 1);
+        assert_eq!(get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(), 1);
 
 
-        let reencryption_request2 = ReencryptionRequest
-        {
-            data_id: data_id.clone(),
-            delegatee_pubkey: delegatee2_pubkey.clone(),
-        };
-        assert!(request_reencryption(deps.as_mut(), &delegator, &reencryption_request2.data_id, &reencryption_request2.delegatee_pubkey).is_ok());
+        assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee2_pubkey).is_ok());
 
 
         // Check number of requests
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(), 2);
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(), 2);
+        assert_eq!(get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(), 2);
+        assert_eq!(get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(), 2);
 
 
         /*************** Process reencryption by proxies *************/
-        let all_requests = get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey);
+        let all_requests = get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey);
         assert_eq!(all_requests.len(), 2);
 
         // Check if proxy got task 1
@@ -570,8 +561,8 @@ mod init {
         assert!(provide_reencrypted_fragment(deps.as_mut(), &proxy1, &data_id, &delegatee1_pubkey, &proxy1_fragment1).is_ok());
 
         // Check numbers of requests
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(), 1);
-        assert_eq!(get_all_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(), 2);
+        assert_eq!(get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(), 1);
+        assert_eq!(get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(), 2);
 
         // Check available fragments
         assert_eq!(

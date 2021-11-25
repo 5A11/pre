@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr};
-use crate::state::{DataEntry, ProxyTask, HashID};
+use crate::state::{DataEntry, HashID};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyDelegation {
@@ -9,6 +9,13 @@ pub struct ProxyDelegation {
     pub delegation_string: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct ProxyTask {
+    pub data_id: HashID,
+    pub delegatee_pubkey: String,
+    pub delegator_pubkey: String,
+    pub delegation_string: String,
+}
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg

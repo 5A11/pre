@@ -9,7 +9,7 @@ RUN apt update && apt install binaryen -y
 
 COPY ./contract/ ./
 
-RUN mkdir cosmwasm && cd cosmwasm && ../compile.sh ../proxy_reencryption
+RUN ./compile.sh ./proxy_reencryption
 
 # ##################################
 
@@ -27,6 +27,6 @@ RUN pip3 install --no-cache-dir -r ./requirements.txt
 COPY ./ ./
 RUN pip3 install --no-cache-dir -e .
 
-COPY --from=builder-contract /build/cosmwasm/ ./cosmwasm
+COPY --from=builder-contract /build/ ./contract
 
 ENTRYPOINT [ "./scripts/run_tests.sh" ]

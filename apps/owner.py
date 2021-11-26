@@ -11,24 +11,29 @@ PROG_NAME = "owner"
 
 
 @click.group(name=PROG_NAME)
-def cli():
-    pass
-
-
-@cli.command(name="add-data")
 @AppConf.deco(
     AppConf.opt_ledger_private_key,
     AppConf.opt_encryption_private_key,
     AppConf.opt_storage_config,
     AppConf.opt_ledger_config,
     AppConf.opt_contract_address,
+    AppConf.opt_do_fund,
+    AppConf.opt_threshold,
     expose_app_config=True,
 )
+@click.pass_context
+def cli(ctx, app_config: AppConf):
+    ctx.ensure_object(dict)
+    ctx.obj[AppConf.ctx_key] = app_config
+
+@cli.command(name="add-data")
 @click.argument("data_file", type=file_exists_type, required=True)
+@click.pass_context
 def add_data(
-    app_config: AppConf,
+    ctx,
     data_file: Path,
 ):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
     delegator_api = DelegatorAPI(
         encryption_private_key=app_config.get_cryto_key(),
         ledger_crypto=app_config.get_ledger_crypto(),
@@ -36,6 +41,12 @@ def add_data(
         storage=app_config.get_storage_instance(),
         crypto=app_config.get_crypto_instance(),
     )
+
+    if app_config.do_fund:
+        addr = delegator_api._ledger_crypto.get_address()
+        click.echo(f"funding {addr}")
+        ledger = app_config.get_ledger_instance()
+        ledger.ensure_funds([addr])
 
     data = data_file.read_bytes()
     hash_id = delegator_api.add_data(data)
@@ -43,25 +54,19 @@ def add_data(
 
 
 @cli.command(name="grant-access")
-@AppConf.deco(
-    AppConf.opt_ledger_private_key,
-    AppConf.opt_encryption_private_key,
-    AppConf.opt_storage_config,
-    AppConf.opt_ledger_config,
-    AppConf.opt_contract_address,
-    expose_app_config=True,
-)
-@click.option("--threshold", type=int, required=False, default=1)
-@click.option("--proxies", type=str, required=False, default="")
+#@click.option("--threshold", type=int, required=False, default=1)
+#@click.option("--proxies", type=str, required=False, default="")
 @click.argument("hash_id", type=str, required=True)
-@click.argument("reader-publickey", type=str, required=True)
+@click.argument("reader-public-key", type=str, required=True)
+@click.pass_context
 def grant_access(
-    app_config: AppConf,
-    threshold: int,
-    proxies: str,
+    ctx,
+    #threshold: int,
+    #proxies: str,
     hash_id: str,
-    reader_publickey: str,
+    reader_public_key: str,
 ):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
     delegator_api = DelegatorAPI(
         encryption_private_key=app_config.get_cryto_key(),
         ledger_crypto=app_config.get_ledger_crypto(),
@@ -69,18 +74,17 @@ def grant_access(
         storage=app_config.get_storage_instance(),
         crypto=app_config.get_crypto_instance(),
     )
+    click.echo(f"owner public key: {bytes(delegator_api._encryption_private_key.public_key).hex()}")
 
-    delegatee_pubkey_bytes = bytes.fromhex(reader_publickey)
-    proxies_list = [bytes.fromhex(i) for i in proxies.split(",") if i]
+    delegatee_pubkey_bytes = bytes.fromhex(reader_public_key)
 
     delegator_api.grant_access(
         hash_id=hash_id,
         delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-        threshold=threshold,
-        proxies_list=proxies_list,
+        threshold=app_config.threshold
     )
 
-    click.echo(f"Access to hash_id {hash_id} granted to {reader_publickey}")
+    click.echo(f"Access to hash_id {hash_id} granted to {reader_public_key}")
 
 
 if __name__ == "__main__":

@@ -13,20 +13,25 @@ DEFAULT_SLEEP_TIME = 5
 
 
 @click.group(name=PROG_NAME)
-def cli():
-    pass
-
-
-@cli.command(name="register")
 @AppConf.deco(
     AppConf.opt_ledger_private_key,
     AppConf.opt_encryption_private_key,
     AppConf.opt_storage_config,
     AppConf.opt_ledger_config,
     AppConf.opt_contract_address,
+    AppConf.opt_do_fund,
     expose_app_config=True,
 )
-def register(app_config: AppConf):
+@click.pass_context
+def cli(ctx, app_config: AppConf):
+    ctx.ensure_object(dict)
+    ctx.obj[AppConf.ctx_key] = app_config
+
+
+@cli.command(name="register")
+@click.pass_context
+def register(ctx):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
     proxy_api = ProxyAPI(
         app_config.get_cryto_key(),
         app_config.get_ledger_crypto(),
@@ -34,20 +39,21 @@ def register(app_config: AppConf):
         storage=app_config.get_storage_instance(),
         crypto=app_config.get_crypto_instance(),
     )
+
+    if app_config.do_fund:
+        addr = proxy_api._ledger_crypto.get_address()
+        click.echo(f"funding {addr}")
+        ledger = app_config.get_ledger_instance()
+        ledger.ensure_funds([addr])
+    
     proxy_api.register()
-    click.echo("Proxy was registered")
+    click.echo("Proxy registered")
 
 
 @cli.command(name="unregister")
-@AppConf.deco(
-    AppConf.opt_ledger_private_key,
-    AppConf.opt_encryption_private_key,
-    AppConf.opt_storage_config,
-    AppConf.opt_ledger_config,
-    AppConf.opt_contract_address,
-    expose_app_config=True,
-)
-def unregister(app_config: AppConf):
+@click.pass_context
+def unregister(ctx):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
     proxy_api = ProxyAPI(
         app_config.get_cryto_key(),
         app_config.get_ledger_crypto(),
@@ -60,18 +66,12 @@ def unregister(app_config: AppConf):
 
 
 @cli.command(name="run")
-@AppConf.deco(
-    AppConf.opt_ledger_private_key,
-    AppConf.opt_encryption_private_key,
-    AppConf.opt_storage_config,
-    AppConf.opt_ledger_config,
-    AppConf.opt_contract_address,
-    expose_app_config=True,
-)
 @click.option(
     "--run-once-and-exit", is_flag=True, hidden=True, help="for test purposes"
 )
-def run(run_once_and_exit: bool, app_config: AppConf):
+@click.pass_context
+def run(ctx, run_once_and_exit: bool):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
     proxy_api = ProxyAPI(
         app_config.get_cryto_key(),
         app_config.get_ledger_crypto(),
@@ -79,15 +79,23 @@ def run(run_once_and_exit: bool, app_config: AppConf):
         storage=app_config.get_storage_instance(),
         crypto=app_config.get_crypto_instance(),
     )
+
+    if app_config.do_fund:
+        addr = proxy_api._ledger_crypto.get_address()
+        click.echo(f"funding {addr}")
+        ledger = app_config.get_ledger_instance()
+        ledger.ensure_funds([addr])
+    
     try:
         try:
             proxy_api.register()
-            click.echo("Proxy was registered")
+            click.echo("Proxy registered")
         except ValueError as exc:
             if "Generic error: Proxy already registered" in str(exc):
                 click.echo("Proxy was registered already")
             else:
                 raise
+        click.echo(f"Waiting for reencryption requests...")
         while True:
             task = proxy_api.get_next_reencryption_request()
             if not task:

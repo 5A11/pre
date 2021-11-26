@@ -1,3 +1,5 @@
 umbral
 cryptography
 ipfshttpclient
+click
+pyyaml

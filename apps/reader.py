@@ -53,13 +53,11 @@ def get_data_status(
 
 @cli.command(name="get-data")
 @click.argument("hash_id", type=str, required=True)
-@click.argument("owner-public-key", type=str, required=True)
 @file_argument_with_rewrite("output", required=False)
 @click.pass_context
 def get_data(
     ctx: click.Context,
     hash_id: str,
-    owner_public_key: str,
     output: Optional[Path],
 ):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
@@ -72,8 +70,12 @@ def get_data(
         crypto=app_config.get_crypto_instance(),
     )
 
-    delegator_pubkey_bytes = bytes.fromhex(owner_public_key)
-    data = delegatee_api.read_data(hash_id, delegator_pubkey_bytes)
+    
+    data_entry = delegatee_api._contract.get_data_entry(hash_id)
+    if not data_entry:
+        raise ValueError("Couldn't query data entry of data id from contract")
+
+    data = delegatee_api.read_data(hash_id, data_entry.pubkey)
     data_file_name.write_bytes(cast(bytes, data))
     click.echo(f"Data {hash_id} decrypted and stored at {data_file_name}")
 

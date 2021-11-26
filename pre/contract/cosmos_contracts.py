@@ -8,13 +8,16 @@ from pre.contract.base_contract import (
     AbstractContractQueries,
     AbstractDelegatorContract,
     AbstractProxyContract,
+    DataEntry,
 )
 from pre.ledger.base_ledger import AbstractLedgerCrypto
 from pre.ledger.cosmos.ledger import CosmosLedger
 from pre.utils.loggers import get_logger
 
 
-CONTRACT_WASM_FILE = str(Path(__file__).parent.parent.parent / "contract" / "./cw_proxy_reencryption.wasm")
+CONTRACT_WASM_FILE = str(
+    Path(__file__).parent.parent.parent / "contract" / "./cw_proxy_reencryption.wasm"
+)
 
 _logger = get_logger(__name__)
 
@@ -46,6 +49,17 @@ class ContractQueries(AbstractContractQueries):
         }
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
         return [b64decode(i) for i in json_res["proxy_pubkeys"]]
+
+    def get_data_entry(self, data_id: HashID) -> Optional[DataEntry]:
+        state_msg: Dict = {"get_data_i_d": {"data_id": data_id}}
+        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+        print(json_res)
+        if json_res["data_entry"]:
+            return DataEntry(
+                pubkey=b64decode(json_res["data_entry"]["delegator_pubkey"]),
+                addr=json_res["data_entry"]["delegator_addr"],
+            )
+        return None
 
     def get_threshold(self) -> int:
         state_msg: Dict = {"get_threshold": {}}

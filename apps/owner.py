@@ -75,7 +75,7 @@ def grant_access(
         storage=app_config.get_storage_instance(),
         crypto=app_config.get_crypto_instance(),
     )
-    click.echo(f"owner public key: {bytes(delegator_api._encryption_private_key.public_key).hex()}")
+    #click.echo(f"owner public key: {bytes(delegator_api._encryption_private_key.public_key).hex()}")
 
     delegatee_pubkey_bytes = bytes.fromhex(reader_public_key)
 

@@ -49,7 +49,6 @@ Take note of `$READER_PUBKEY`
 ```bash
 docker-compose run owner --contract-address $CONTRACT_ADDR grant-access $DATA_ID $READER_PUBKEY
 ```
-Take note of `$OWNER_PUBKEY`
 
 ### reencrypt data by proxies
 First proxy
@@ -62,7 +61,7 @@ Second proxy will automatically process reencryption request.
 ### get data
 ```bash
 docker-compose run reader --contract-address $CONTRACT_ADDR get-data-status $DATA_ID
-docker-compose run reader --contract-address $CONTRACT_ADDR get-data $DATA_ID $OWNER_PUBKEY /data/ff.txt
+docker-compose run reader --contract-address $CONTRACT_ADDR get-data $DATA_ID /data/ff.txt
 cat ff.txt
 ```
 ## testing

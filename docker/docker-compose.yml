@@ -98,7 +98,7 @@ services:
       - ./:/data/:rw
     #entrypoint: python3 /workdir/apps/reader.py
     entrypoint: >
-      python3 apps/proxy.py
+      python3 apps/reader.py
         --fund
         --ledger-config ${LEDGER_CONFIG}
         --ipfs-config ${IPFS_CONFIG}

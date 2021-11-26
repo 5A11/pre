@@ -42,11 +42,12 @@ def add_data(
         crypto=app_config.get_crypto_instance(),
     )
 
-    if app_config.do_fund:
-        addr = delegator_api._ledger_crypto.get_address()
-        click.echo(f"funding {addr}")
+    if app_config.do_fund :
         ledger = app_config.get_ledger_instance()
-        ledger.ensure_funds([addr])
+        addr = delegator_api._ledger_crypto.get_address()
+        if not ledger.get_balance(addr):
+            click.echo(f"funding {addr}")
+            ledger.ensure_funds([addr])
 
     data = data_file.read_bytes()
     hash_id = delegator_api.add_data(data)

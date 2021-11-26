@@ -2,5 +2,5 @@ chain_id: stargateworld-3
 denom: atestfet
 node_address: https://rest-stargateworld.fetch.ai:443
 prefix: fetch
-faucel_url: https://faucet-stargateworld.t-v2-london-c.fetch-ai.com
+faucet_url: https://faucet-stargateworld.t-v2-london-c.fetch-ai.com
 #funding: https://faucet-stargateworld.t-v2-london-c.fetch-ai.com

@@ -41,10 +41,11 @@ def register(ctx):
     )
 
     if app_config.do_fund:
-        addr = proxy_api._ledger_crypto.get_address()
-        click.echo(f"funding {addr}")
         ledger = app_config.get_ledger_instance()
-        ledger.ensure_funds([addr])
+        addr = proxy_api._ledger_crypto.get_address()
+        if not ledger.get_balance(addr):
+            click.echo(f"funding {addr}")
+            ledger.ensure_funds([addr])
     
     proxy_api.register()
     click.echo("Proxy registered")
@@ -81,10 +82,11 @@ def run(ctx, run_once_and_exit: bool):
     )
 
     if app_config.do_fund:
-        addr = proxy_api._ledger_crypto.get_address()
-        click.echo(f"funding {addr}")
         ledger = app_config.get_ledger_instance()
-        ledger.ensure_funds([addr])
+        addr = proxy_api._ledger_crypto.get_address()
+        if not ledger.get_balance(addr):
+            click.echo(f"funding {addr}")
+            ledger.ensure_funds([addr])
     
     try:
         try:

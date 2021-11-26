@@ -62,7 +62,7 @@ Second proxy will automatically process reencryption request.
 ### get data
 ```bash
 docker-compose run reader --contract-address $CONTRACT_ADDR get-data-status $DATA_ID
-docker-compose run reader --contract-address $CONTRACT_ADDR get-data $DATA_ID $OWNER_PUBKEY ff.txt
+docker-compose run reader --contract-address $CONTRACT_ADDR get-data $DATA_ID $OWNER_PUBKEY /data/ff.txt
 cat ff.txt
 ```
 ## testing

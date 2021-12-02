@@ -6,6 +6,8 @@ use cosmwasm_std::{
     StdResult, DepsMut, Deps, MessageInfo, Storage, Binary,
 };
 
+use umbral_pre::{PublicKey, KeyFrag, CapsuleFrag};
+
 macro_rules! generic_err {
     ($val:expr) => {
         Err(StdError::generic_err($val))
@@ -212,6 +214,8 @@ fn try_provide_reencrypted_fragment(
     {
         return generic_err!(format!("Fragment already provided by {}.", request.proxy_address.unwrap()));
     }
+
+    // check fragement correctness
 
     // Add fragment to fragments store
     request.fragment = Some(fragment.clone());

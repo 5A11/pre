@@ -3,7 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use cw_proxy_reencryption::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, GetAvailableProxiesResponse, GetDataIDResponse, GetFragmentsResponse, GetThresholdResponse, GetNextProxyTaskResponse};
+use cw_proxy_reencryption::msg::{
+    ExecuteMsg, GetAvailableProxiesResponse, GetDataIDResponse, GetFragmentsResponse,
+    GetNextProxyTaskResponse, GetThresholdResponse, InstantiateMsg, QueryMsg,
+};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -20,4 +23,3 @@ fn main() {
     export_schema(&schema_for!(GetThresholdResponse), &out_dir);
     export_schema(&schema_for!(GetNextProxyTaskResponse), &out_dir);
 }
-

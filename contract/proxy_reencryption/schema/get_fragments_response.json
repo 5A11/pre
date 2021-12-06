@@ -3,20 +3,20 @@
   "title": "GetFragmentsResponse",
   "type": "object",
   "required": [
-    "fragments"
+    "fragments",
+    "threshold"
   ],
   "properties": {
     "fragments": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/Binary"
+        "type": "string"
       }
-    }
-  },
-  "definitions": {
-    "Binary": {
-      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
-      "type": "string"
+    },
+    "threshold": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
     }
   }
 }

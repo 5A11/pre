@@ -1,7 +1,7 @@
+use crate::state::DataEntry;
+use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use cosmwasm_std::{Addr};
-use crate::state::{DataEntry, HashID};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyDelegation {
@@ -11,15 +11,14 @@ pub struct ProxyDelegation {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyTask {
-    pub data_id: HashID,
+    pub data_id: String,
     pub delegatee_pubkey: String,
     pub delegator_pubkey: String,
     pub delegation_string: String,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InstantiateMsg
-{
+pub struct InstantiateMsg {
     pub threshold: Option<u32>,
     pub admin: Option<Addr>,
     // Maximum proxies you can select for delegation = Number of active proxies if None
@@ -31,48 +30,40 @@ pub struct InstantiateMsg
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     // Admin actions
-    AddProxy
-    {
+    AddProxy {
         proxy_addr: Addr,
     },
-    RemoveProxy
-    {
+    RemoveProxy {
         proxy_addr: Addr,
     },
 
     // Proxy actions
-    RegisterProxy
-    {
-    proxy_pubkey: String
+    RegisterProxy {
+        proxy_pubkey: String,
     },
     UnregisterProxy {},
-    ProvideReencryptedFragment
-    {
-        data_id: HashID,
+    ProvideReencryptedFragment {
+        data_id: String,
         delegatee_pubkey: String,
-        fragment: HashID,
+        fragment: String,
     },
 
     // Delegator actions
-    AddData
-    {
-        data_id: HashID,
+    AddData {
+        data_id: String,
         delegator_pubkey: String,
     },
-    RequestProxiesForDelegation
-    {
+    RequestProxiesForDelegation {
         delegator_pubkey: String,
         delegatee_pubkey: String,
     },
-    AddDelegation
-    {
+    AddDelegation {
         delegator_pubkey: String,
         delegatee_pubkey: String,
         proxy_delegations: Vec<ProxyDelegation>,
     },
-    RequestReencryption
-    {
-        data_id: HashID,
+    RequestReencryption {
+        data_id: String,
         delegatee_pubkey: String,
     },
 }
@@ -81,19 +72,33 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetAvailableProxies {},
-    GetDataID { data_id: HashID },
-    GetFragments { data_id: HashID, delegatee_pubkey: String },
+    GetDataID {
+        data_id: String,
+    },
+    GetFragments {
+        data_id: String,
+        delegatee_pubkey: String,
+    },
     GetThreshold {},
-    GetNextProxyTask { proxy_pubkey: String },
-    GetDoesDelegationExist { delegator_addr: Addr, delegator_pubkey: String, delegatee_pubkey: String },
-    GetSelectedProxiesForDelegation {delegator_addr: Addr, delegator_pubkey: String, delegatee_pubkey: String}
+    GetNextProxyTask {
+        proxy_pubkey: String,
+    },
+    GetDoesDelegationExist {
+        delegator_addr: Addr,
+        delegator_pubkey: String,
+        delegatee_pubkey: String,
+    },
+    GetSelectedProxiesForDelegation {
+        delegator_addr: Addr,
+        delegator_pubkey: String,
+        delegatee_pubkey: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetAvailableProxiesResponse {
     pub proxy_pubkeys: Vec<String>,
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetDataIDResponse {
@@ -102,7 +107,7 @@ pub struct GetDataIDResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetFragmentsResponse {
-    pub fragments: Vec<HashID>,
+    pub fragments: Vec<String>,
     pub threshold: u32,
 }
 
@@ -113,15 +118,15 @@ pub struct GetThresholdResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetNextProxyTaskResponse {
-    pub proxy_task: Option<ProxyTask>
+    pub proxy_task: Option<ProxyTask>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetDoesDelegationExistRepsonse {
-    pub delegation_exists: bool
+    pub delegation_exists: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetSelectedProxiesForDelegationResponse {
-    pub proxy_pubkeys: Vec<String>
+    pub proxy_pubkeys: Vec<String>,
 }

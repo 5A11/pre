@@ -48,6 +48,8 @@ pub enum ExecuteMsg {
         fragment: String,
     },
 
+    DeactivateProxy {}, // Switch to leaving state
+
     // Delegator actions
     AddData {
         data_id: String,

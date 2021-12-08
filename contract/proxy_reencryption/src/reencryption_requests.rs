@@ -21,6 +21,7 @@ pub struct ReencryptionRequest {
     pub data_id: String,
     pub delegatee_pubkey: String,
     pub fragment: Option<String>,
+    pub delegation_string: String,
 }
 
 // REENCRYPTION_REQUESTS_STORE_KEY

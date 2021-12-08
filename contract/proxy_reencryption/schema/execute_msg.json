@@ -105,6 +105,18 @@
     {
       "type": "object",
       "required": [
+        "deactivate_proxy"
+      ],
+      "properties": {
+        "deactivate_proxy": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "add_data"
       ],
       "properties": {

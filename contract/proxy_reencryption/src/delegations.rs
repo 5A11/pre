@@ -1,11 +1,11 @@
-use cosmwasm_std::{from_slice, to_vec, Addr, Order, Storage};
+use cosmwasm_std::{from_slice, to_vec, Order, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
 // To get all proxies from 1 delegation
-// Map delegator_addr: Addr -> delegator_pubkey: String -> delegatee_pubkey: String -> proxy_pubkey: String -> delegation_id: u64
+// Map delegator_pubkey: String -> delegatee_pubkey: String -> proxy_pubkey: String -> delegation_id: u64
 static DELEGATIONS_ID_STORE_KEY: &[u8] = b"DelegationIDStore";
 
 // To get all delegations for proxy
@@ -17,7 +17,6 @@ static DELEGATIONS_STORE_KEY: &[u8] = b"DelegationsStore";
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct Delegation {
-    pub delegator_addr: Addr,
     pub delegator_pubkey: String,
     pub delegatee_pubkey: String,
     pub delegation_string: Option<String>,
@@ -26,7 +25,6 @@ pub struct Delegation {
 // DELEGATIONS_ID_STORE_KEY
 pub fn set_delegation_id(
     storage: &mut dyn Storage,
-    delegator_addr: &Addr,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
     proxy_pubkey: &str,
@@ -36,7 +34,6 @@ pub fn set_delegation_id(
         storage,
         &[
             DELEGATIONS_ID_STORE_KEY,
-            delegator_addr.as_bytes(),
             delegator_pubkey.as_bytes(),
             delegatee_pubkey.as_bytes(),
         ],
@@ -47,7 +44,6 @@ pub fn set_delegation_id(
 
 pub fn remove_delegation_id(
     storage: &mut dyn Storage,
-    delegator_addr: &Addr,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
     proxy_pubkey: &str,
@@ -56,7 +52,6 @@ pub fn remove_delegation_id(
         storage,
         &[
             DELEGATIONS_ID_STORE_KEY,
-            delegator_addr.as_bytes(),
             delegator_pubkey.as_bytes(),
             delegatee_pubkey.as_bytes(),
         ],
@@ -67,7 +62,6 @@ pub fn remove_delegation_id(
 
 pub fn get_delegation_id(
     storage: &dyn Storage,
-    delegator_addr: &Addr,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
     proxy_pubkey: &str,
@@ -76,7 +70,6 @@ pub fn get_delegation_id(
         storage,
         &[
             DELEGATIONS_ID_STORE_KEY,
-            delegator_addr.as_bytes(),
             delegator_pubkey.as_bytes(),
             delegatee_pubkey.as_bytes(),
         ],
@@ -89,7 +82,6 @@ pub fn get_delegation_id(
 
 pub fn get_all_proxies_from_delegation(
     storage: &dyn Storage,
-    delegator_addr: &Addr,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
 ) -> Vec<String> {
@@ -97,7 +89,6 @@ pub fn get_all_proxies_from_delegation(
         storage,
         &[
             DELEGATIONS_ID_STORE_KEY,
-            delegator_addr.as_bytes(),
             delegator_pubkey.as_bytes(),
             delegatee_pubkey.as_bytes(),
         ],
@@ -115,7 +106,6 @@ pub fn get_all_proxies_from_delegation(
 
 pub fn is_delegation_empty(
     storage: &dyn Storage,
-    delegator_addr: &Addr,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
 ) -> bool {
@@ -123,7 +113,6 @@ pub fn is_delegation_empty(
         storage,
         &[
             DELEGATIONS_ID_STORE_KEY,
-            delegator_addr.as_bytes(),
             delegator_pubkey.as_bytes(),
             delegatee_pubkey.as_bytes(),
         ],

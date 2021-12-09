@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple
+from dataclasses import dataclass
 
 from pre.common import Address, Delegation, HashID, ProxyTask
 from pre.ledger.base_ledger import AbstractLedger, AbstractLedgerCrypto
@@ -16,6 +17,10 @@ class BaseAbstractContract(ABC):
             raise ValueError("Empty contract address!")
         return self._contract_address
 
+@dataclass
+class DataEntry:
+    pubkey: bytes
+    addr: Address
 
 class AbstractContractQueries(BaseAbstractContract):
     @abstractmethod
@@ -24,6 +29,10 @@ class AbstractContractQueries(BaseAbstractContract):
 
     @abstractmethod
     def get_threshold(self) -> int:
+        pass
+
+    @abstractmethod
+    def get_data_entry(self, data_id: HashID) -> Optional[DataEntry]:
         pass
 
     @abstractmethod

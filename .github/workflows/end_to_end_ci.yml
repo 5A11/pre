@@ -1,4 +1,4 @@
-name: End to End PRE TestCase
+name: End to End PRE CI
 
 on:
   push:
@@ -7,9 +7,9 @@ on:
     branches: [ master ]
 
 jobs:
-  end_to_end:
+  local_tests:
 
-    continue-on-error: False
+    continue-on-error: True
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -26,3 +26,76 @@ jobs:
     - name: Stop containers
       if: always()
       run: docker-compose -f "docker/docker-compose.yml" down
+  
+  integration:
+
+    if: ${{ false }}  # disable for now
+    continue-on-error: True
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+
+    - name: Build images
+      run: docker-compose -f "docker/docker-compose.yml" build admin owner proxy reader
+
+    - name: Deploy contract
+      run: > 
+        docker-compose -f "docker/docker-compose.yml" run admin > logs;
+        cat logs;
+        export CONTRACT_ADDR=$(
+          cat logs |
+          grep 'Contract address is ' |
+          awk -F'Contract address is ' '{ print $2 }'
+        );
+        echo "[OK] Contract Address [${CONTRACT_ADDR}]";
+        echo "CONTRACT_ADDR=${CONTRACT_ADDR}" >> $GITHUB_ENV
+    
+    - name: Add data element
+      run: > 
+        echo $RANDOM | md5sum | head -c 20 > original_data.txt; ls; cat original_data.txt;
+        docker-compose -f "docker/docker-compose.yml" run owner --contract-address $CONTRACT_ADDR add-data /data/original_data.txt > logs;
+        cat logs;
+        export DATA_ID=$(
+          cat logs |
+          grep 'hash_id is ' |
+          awk -F'hash_id is ' '{ print $2 }'
+        );
+        echo "[OK] Data id [${DATA_ID}]";
+        echo "DATA_ID=${DATA_ID}" >>  $GITHUB_ENV
+    
+    - name: Run proxies
+      run: |
+        docker-compose -f "docker/docker-compose.yml" run proxy --contract-address  $CONTRACT_ADDR register
+        PROXY_INDEX=2 docker-compose run proxy --contract-address $CONTRACT_ADDR run &
+
+    - name: Get reader public key
+      run: >
+        docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONTRACT_ADDR get-data-status $DATA_ID > logs;
+        cat logs;
+        export READER_PUBKEY=$(
+          cat logs |
+          grep 'reader public key: ' |
+          awk -F'reader public key: ' '{ print $2 }'
+        );
+        echo "[OK] Reader Public key [${READER_PUBKEY}]";
+        echo "READER_PUBKEY=${READER_PUBKEY}" >>  $GITHUB_ENV
+    
+    - name: Grant access to data
+      run: >
+        docker-compose -f "docker/docker-compose.yml" run owner --contract-address $CONTRACT_ADDR grant-access $DATA_ID $READER_PUBKEY
+    
+    - name: Reencrypt data
+      run: >
+        docker-compose run proxy --contract-address $CONTRACT_ADDR run --run-once-and-exit
+    
+    - name: Read data
+      run: |
+        docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONTRACT_ADDR get-data-status $DATA_ID
+        docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONTRACT_ADDR get-data $DATA_ID /data/decrypted_data.txt
+        diff original_data.txt decrypted_data.txt
+
+
+

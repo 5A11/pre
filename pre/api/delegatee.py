@@ -15,7 +15,7 @@ class DelegateeAPI:
         contract: AbstractContractQueries,
         storage: AbstractStorage,
         crypto: AbstractCrypto,
-        **_
+        **_ #FIXME rm
     ):
         self._encryption_private_key = encryption_private_key
         self._contract = contract

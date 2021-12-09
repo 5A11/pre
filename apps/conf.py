@@ -23,12 +23,15 @@ from pre.storage.ipfs_storage import IpfsStorage
 
 
 class AppConf:
+    ctx_key = "app_config"
     class Params(Enum):
         LEDGER_CONFIG = "ledger_config"
         STORAGE_CONFIG = "ipfs_config"
         LEDGER_PRIVATE_KEY = "ledger_private_key"
         ENCRYPTION_PRIVATE_KEY = "encryption_private_key"
         CONTRACT_ADDRESS = "contract_address"
+        DO_FUND = "fund"
+        THRESHOLD = "threshold"
 
     CRYPTO_CLASS = UmbralCrypto
     STORAGE_CLASS = IpfsStorage
@@ -106,6 +109,29 @@ class AppConf:
         )
 
     @classmethod
+    def opt_do_fund(cls):
+        return (
+            click.option(
+                "--fund",
+                cls.Params.DO_FUND.value,
+                is_flag=True,
+            ),
+            cls.Params.DO_FUND.value,
+        )
+
+    @classmethod
+    def opt_threshold(cls):
+        return (
+            click.option(
+                "--threshold",
+                cls.Params.THRESHOLD.value,
+                type=int,
+                required=False,
+            ),
+            cls.Params.THRESHOLD.value,
+        )
+
+    @classmethod
     def deco(cls, *options, expose_app_config=False):
         def deco_(fn):
             enabled_options = []
@@ -138,6 +164,14 @@ class AppConf:
     @property
     def contract_address(self):
         return self._get_option(self.Params.CONTRACT_ADDRESS.value)
+
+    @property
+    def do_fund(self):
+        return self._get_option(self.Params.DO_FUND.value)
+
+    @property
+    def threshold(self):
+        return self._get_option(self.Params.THRESHOLD.value)
 
     @property
     def storage_config(self):

@@ -10,20 +10,26 @@ PROG_NAME = "admin"
 
 
 @click.group(name=PROG_NAME)
-def cli():
-    pass
+@AppConf.deco(
+    AppConf.opt_ledger_private_key,
+    AppConf.opt_ledger_config,
+    AppConf.opt_do_fund,
+    expose_app_config=True,
+)
+@click.pass_context
+def cli(ctx, app_config: AppConf):
+    ctx.ensure_object(dict)
+    ctx.obj[AppConf.ctx_key] = app_config
 
 
 @cli.command("instantiate-contract")
-@AppConf.deco(
-    AppConf.opt_ledger_private_key, AppConf.opt_ledger_config, expose_app_config=True
-)
 @click.option("--admin-address", type=str, required=False)
 @click.option("--threshold", type=int, required=False, default=1)
 @click.option("--n-max-proxies", type=int, required=False, default=10)
 @click.option("--proxies", type=str, required=False)
+@click.pass_context
 def instantiate_contract(
-    app_config: AppConf,
+    ctx,
     threshold,
     n_max_proxies,
     admin_address: Optional[str] = None,
@@ -31,6 +37,7 @@ def instantiate_contract(
 ):
     # TODO: admin address validation
     # TODO: proxy address validation
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
     ledger = app_config.get_ledger_instance()
     ledger_crypto = app_config.get_ledger_crypto()
 
@@ -51,6 +58,12 @@ def instantiate_contract(
     click.echo("instantiate contract with options:")
     for k, v in kwargs.items():
         click.echo(f" * {k}: {v}")
+
+    if app_config.do_fund:
+        ledger = app_config.get_ledger_instance()
+        if not ledger.get_balance(admin_address):
+            click.echo(f"funding {admin_address}")
+            ledger.ensure_funds([admin_address])
 
     contract_addr = AdminAPI.instantiate_contract(
         ledger_crypto,

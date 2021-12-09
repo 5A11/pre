@@ -15,6 +15,9 @@ static PROXY_DELEGATIONS_STORE_KEY: &[u8] = b"ProxyDelegationsStore";
 // Map delegation_id: u64 -> delegation: Delegation
 static DELEGATIONS_STORE_KEY: &[u8] = b"DelegationsStore";
 
+// Map  Map delegator_pubkey: String -> delegatee_pubkey: String -> is_used: bool
+static IS_DELEGATION_USED: &[u8] = b"IsDelegationUsed";
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct Delegation {
     pub delegator_pubkey: String,
@@ -104,28 +107,6 @@ pub fn get_all_proxies_from_delegation(
     deserialized_keys
 }
 
-pub fn is_delegation_empty(
-    storage: &dyn Storage,
-    delegator_pubkey: &str,
-    delegatee_pubkey: &str,
-) -> bool {
-    let store = ReadonlyPrefixedStorage::multilevel(
-        storage,
-        &[
-            DELEGATIONS_ID_STORE_KEY,
-            delegator_pubkey.as_bytes(),
-            delegatee_pubkey.as_bytes(),
-        ],
-    );
-
-    let is_empty: bool = store
-        .range(None, None, Order::Ascending)
-        .peekable()
-        .peek()
-        .is_none();
-    is_empty
-}
-
 // DELEGATIONS_STORE_KEY
 pub fn set_delegation(storage: &mut dyn Storage, delegation_id: &u64, delegation: &Delegation) {
     let mut store = PrefixedStorage::new(storage, DELEGATIONS_STORE_KEY);
@@ -190,4 +171,34 @@ pub fn get_all_proxy_delegations(storage: &dyn Storage, proxy_pubkey: &str) -> V
     }
 
     deserialized_keys
+}
+
+// IS_DELEGATION_USED
+pub fn set_is_delegation_used(
+    storage: &mut dyn Storage,
+    delegator_pubkey: &str,
+    delegatee_pubkey: &str,
+    is_delegation_used: bool,
+) {
+    let mut store =
+        PrefixedStorage::multilevel(storage, &[IS_DELEGATION_USED, delegator_pubkey.as_bytes()]);
+
+    // Any value in store means true - &[1]
+    match is_delegation_used {
+        true => store.set(delegatee_pubkey.as_bytes(), &[1]),
+        false => store.remove(delegatee_pubkey.as_bytes()),
+    }
+}
+
+pub fn get_is_delegation_used(
+    storage: &dyn Storage,
+    delegator_pubkey: &str,
+    delegatee_pubkey: &str,
+) -> bool {
+    let store = ReadonlyPrefixedStorage::multilevel(
+        storage,
+        &[IS_DELEGATION_USED, delegator_pubkey.as_bytes()],
+    );
+
+    store.get(delegatee_pubkey.as_bytes()).is_some()
 }

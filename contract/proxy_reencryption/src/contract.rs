@@ -14,8 +14,9 @@ use crate::state::{
 
 use crate::delegations::{
     add_proxy_delegation, get_all_proxies_from_delegation, get_all_proxy_delegations,
-    get_delegation, get_delegation_id, is_delegation_empty, remove_delegation,
-    remove_delegation_id, remove_proxy_delegation, set_delegation, set_delegation_id, Delegation,
+    get_delegation, get_delegation_id, get_is_delegation_used, remove_delegation,
+    remove_delegation_id, remove_proxy_delegation, set_delegation, set_delegation_id,
+    set_is_delegation_used, Delegation,
 };
 use crate::reencryption_requests::{
     add_delegatee_reencryption_request, add_proxy_reencryption_request,
@@ -315,6 +316,41 @@ fn try_provide_reencrypted_fragment(
     // Remove request as it's completed
     remove_proxy_reencryption_request(deps.storage, &proxy_pubkey, &request_id);
 
+    let state = get_state(deps.storage)?;
+
+    // Check if threshold amount of fragments is provided:
+    let delegatee_request_ids =
+        get_all_delegatee_reencryption_requests(deps.storage, data_id, delegatee_pubkey);
+
+    let mut n_completed_requests = 0;
+    for i_request_id in &delegatee_request_ids {
+        let i_request = get_reencryption_request(deps.storage, i_request_id).unwrap();
+        if i_request.fragment.is_some() {
+            n_completed_requests += 1;
+        }
+    }
+
+    // Delete incomplete requests if more than threshold fragments provided
+    if n_completed_requests >= state.threshold {
+        for i_request_id in delegatee_request_ids {
+            let i_request = get_reencryption_request(deps.storage, &i_request_id).unwrap();
+            if i_request.fragment.is_none() {
+                remove_delegatee_reencryption_request(
+                    deps.storage,
+                    data_id,
+                    delegatee_pubkey,
+                    &i_request.proxy_pubkey,
+                );
+                remove_proxy_reencryption_request(
+                    deps.storage,
+                    &i_request.proxy_pubkey,
+                    &i_request_id,
+                );
+                remove_reencryption_request(deps.storage, &i_request_id);
+            }
+        }
+    }
+
     // Return response
     let res = Response {
         submessages: vec![],
@@ -376,7 +412,7 @@ fn try_request_proxies_for_delegation(
 
     ensure_delegator(deps.storage, delegator_pubkey, &info.sender)?;
 
-    if !is_delegation_empty(deps.storage, delegator_pubkey, delegatee_pubkey) {
+    if get_is_delegation_used(deps.storage, delegator_pubkey, delegatee_pubkey) {
         return generic_err!("Delegation already exist");
     }
 
@@ -388,6 +424,7 @@ fn try_request_proxies_for_delegation(
         delegatee_pubkey: delegatee_pubkey.to_string(),
         delegation_string: None,
     };
+    set_is_delegation_used(deps.storage, delegator_pubkey, delegatee_pubkey, true);
 
     for proxy_pubkey in selected_proxy_pubkeys {
         set_delegation(deps.storage, &state.next_delegation_id, &delegation);
@@ -705,7 +742,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             delegator_pubkey,
             delegatee_pubkey,
         } => Ok(to_binary(&GetDoesDelegationExistRepsonse {
-            delegation_exists: !is_delegation_empty(
+            delegation_exists: get_is_delegation_used(
                 deps.storage,
                 &delegator_pubkey,
                 &delegatee_pubkey,

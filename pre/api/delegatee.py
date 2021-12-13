@@ -1,6 +1,6 @@
 from typing import IO, List, Tuple, Union
 
-from pre.common import HashID, PrivateKey
+from pre.common import HashID, PrivateKey, ReencryptionRequestState
 from pre.contract.base_contract import AbstractContractQueries
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.storage.base_storage import AbstractStorage
@@ -23,12 +23,12 @@ class DelegateeAPI:
         self._crypto = crypto
 
     def is_data_ready(self, hash_id: HashID) -> Tuple[bool, int, List[HashID]]:
-        threshold, fragments_ids = self._contract.get_fragments_response(
+        response = self._contract.get_fragments_response(
             hash_id=hash_id,
             delegatee_pubkey_bytes=bytes(self._encryption_private_key.public_key),
         )
-        is_ready = len(fragments_ids) >= threshold
-        return is_ready, threshold, fragments_ids
+        is_ready = response.reencryption_request_state == ReencryptionRequestState.granted
+        return is_ready, response.threshold, response.fragments
 
     def read_data(
         self, hash_id: HashID, delegator_pubkey_bytes: bytes

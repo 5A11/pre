@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetSelectedProxiesForDelegationResponse",
+  "type": "object",
+  "required": [
+    "proxy_pubkeys"
+  ],
+  "properties": {
+    "proxy_pubkeys": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

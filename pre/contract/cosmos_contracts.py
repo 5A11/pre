@@ -1,8 +1,9 @@
 from base64 import b64decode, b64encode
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-from pre.common import Address, Delegation, HashID, ProxyTask
+from pre.common import Address, Delegation, HashID, ProxyTask, DelegationState, GetFragmentsResponse, \
+    ReencryptionRequestState
 from pre.contract.base_contract import (
     AbstractAdminContract,
     AbstractContractQueries,
@@ -36,13 +37,11 @@ class ContractQueries(AbstractContractQueries):
 
     def get_selected_proxies_for_delegation(
         self,
-        delegator_addr: Address,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> List[bytes]:
         state_msg: Dict = {
             "get_selected_proxies_for_delegation": {
-                "delegator_addr": delegator_addr,
                 "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
                 "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
             }
@@ -57,7 +56,6 @@ class ContractQueries(AbstractContractQueries):
         if json_res["data_entry"]:
             return DataEntry(
                 pubkey=b64decode(json_res["data_entry"]["delegator_pubkey"]),
-                addr=json_res["data_entry"]["delegator_addr"],
             )
         return None
 
@@ -85,7 +83,7 @@ class ContractQueries(AbstractContractQueries):
 
     def get_fragments_response(
         self, hash_id: HashID, delegatee_pubkey_bytes: bytes
-    ) -> Tuple[int, List[HashID]]:
+    ) -> GetFragmentsResponse:
         state_msg: Dict = {
             "get_fragments": {
                 "data_id": hash_id,
@@ -93,23 +91,26 @@ class ContractQueries(AbstractContractQueries):
             }
         }
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
-        return json_res["threshold"], json_res["fragments"]
 
-    def does_delegation_exist(
+        return GetFragmentsResponse(
+            reencryption_request_state=ReencryptionRequestState[json_res["reencryption_request_state"]],
+            fragments=json_res["fragments"],
+            threshold = json_res["threshold"],
+        )
+
+    def get_delegation_state(
         self,
-        delegator_addr: Address,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
-    ) -> bool:
+    ) -> DelegationState:
         state_msg: Dict = {
-            "get_does_delegation_exist": {
-                "delegator_addr": delegator_addr,
+            "get_delegation_state": {
                 "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
                 "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
             }
         }
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
-        return json_res["delegation_exists"]
+        return DelegationState[json_res["delegation_state"]]
 
 
 class AdminContract(AbstractAdminContract):
@@ -215,28 +216,26 @@ class DelegatorContract(AbstractDelegatorContract):
         if error_code != 0:
             raise ValueError(f"Contract execution failed: {error_code} {res}")
 
-    def does_delegation_exist(
+    def get_delegation_state(
         self,
-        delegator_addr: Address,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> bool:
         return ContractQueries(
             ledger=self.ledger, contract_address=self.contract_address
-        ).does_delegation_exist(
-            delegator_addr, delegator_pubkey_bytes, delegatee_pubkey_bytes
+        ).get_delegation_state(
+            delegator_pubkey_bytes, delegatee_pubkey_bytes
         )
 
     def get_selected_proxies_for_delegation(
         self,
-        delegator_addr: Address,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> List[bytes]:
         return ContractQueries(
             ledger=self.ledger, contract_address=self.contract_address
         ).get_selected_proxies_for_delegation(
-            delegator_addr, delegator_pubkey_bytes, delegatee_pubkey_bytes
+            delegator_pubkey_bytes, delegatee_pubkey_bytes
         )
 
     def request_proxies_for_delegation(
@@ -259,7 +258,6 @@ class DelegatorContract(AbstractDelegatorContract):
 
         # FIXME(LR) parse `res`` instead
         return self.get_selected_proxies_for_delegation(
-            delegator_private_key.get_address(),
             delegator_pubkey_bytes,
             delegatee_pubkey_bytes,
         )

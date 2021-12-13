@@ -1,6 +1,6 @@
 from typing import IO, List, Optional, Protocol, Tuple, Union, cast
 
-from pre.common import Capsule, HashID, PrivateKey
+from pre.common import Capsule, HashID, PrivateKey, DelegationState
 from pre.contract.base_contract import AbstractDelegatorContract
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.ledger.base_ledger import AbstractLedgerCrypto
@@ -53,7 +53,6 @@ class DelegatorAPI:
         delegatee_pubkey_bytes: bytes,
     ) -> List[bytes]:
         return self._contract.get_selected_proxies_for_delegation(
-            self._ledger_crypto.get_address(),
             self._encryption_public_key,
             delegatee_pubkey_bytes,
         )
@@ -97,11 +96,10 @@ class DelegatorAPI:
         threshold: int,
         capsule: Optional[Capsule] = None,
     ):
-        if not self._contract.does_delegation_exist(
-            delegator_addr=self._ledger_crypto.get_address(),
+        if self._contract.get_delegation_state(
             delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-        ):
+        ) == DelegationState.non_existing:
             if not capsule:
                 capsule = self._storage.get_capsule(hash_id)
             self._set_delegation(
@@ -109,6 +107,7 @@ class DelegatorAPI:
                 capsule_bytes=capsule,
                 threshold=threshold,
             )
+        # DelegationState.Active
         self._contract.request_reencryption(
             delegator_private_key=self._ledger_crypto,
             delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),

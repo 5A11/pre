@@ -1,4 +1,5 @@
-use cosmwasm_std::{from_slice, to_vec, Order, Storage};
+use crate::state::get_state;
+use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,14 @@ pub struct ReencryptionRequest {
     pub delegatee_pubkey: String,
     pub fragment: Option<String>,
     pub delegation_string: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ReencryptionRequestState {
+    Inaccessible,
+    Ready,
+    Granted,
 }
 
 // REENCRYPTION_REQUESTS_STORE_KEY
@@ -195,4 +204,98 @@ pub fn get_all_proxy_reencryption_requests(storage: &dyn Storage, proxy_pubkey: 
     }
 
     deserialized_keys
+}
+
+pub fn get_reencryption_request_state(
+    storage: &dyn Storage,
+    data_id: &str,
+    delegatee_pubkey: &str,
+) -> ReencryptionRequestState {
+    let state = get_state(storage).unwrap();
+
+    // Check if threshold amount of fragments is provided:
+    let delegatee_request_ids =
+        get_all_delegatee_reencryption_requests(storage, data_id, delegatee_pubkey);
+
+    if delegatee_request_ids.is_empty() {
+        return ReencryptionRequestState::Inaccessible;
+    }
+
+    let mut n_completed_requests = 0;
+    for i_request_id in &delegatee_request_ids {
+        let i_request = get_reencryption_request(storage, i_request_id).unwrap();
+        if i_request.fragment.is_some() {
+            n_completed_requests += 1;
+        }
+    }
+
+    if n_completed_requests >= state.threshold {
+        ReencryptionRequestState::Granted
+    } else {
+        ReencryptionRequestState::Ready
+    }
+}
+
+// Delete all unfinished current proxy re-encryption requests
+pub fn remove_proxy_reencryption_requests(
+    storage: &mut dyn Storage,
+    proxy_pubkey: &str,
+) -> StdResult<()> {
+    let state = get_state(storage)?;
+
+    for re_request_id in get_all_proxy_reencryption_requests(storage, proxy_pubkey) {
+        let re_request = get_reencryption_request(storage, &re_request_id).unwrap();
+
+        let all_related_requests_ids = get_all_delegatee_reencryption_requests(
+            storage,
+            &re_request.data_id,
+            &re_request.delegatee_pubkey,
+        );
+
+        if all_related_requests_ids.len() < (state.threshold as usize + 1) {
+            // Delete other proxies related requests because request cannot be completed without this proxy
+
+            for i_re_request_id in all_related_requests_ids {
+                resolve_proxy_reencryption_requests(storage, &i_re_request_id);
+            }
+        } else {
+            // Delete only current proxy unfinished request
+            resolve_proxy_reencryption_requests(storage, &re_request_id);
+        }
+    }
+
+    Ok(())
+}
+
+// High level methods
+
+// Delete re-encryption request
+pub fn resolve_proxy_reencryption_requests(storage: &mut dyn Storage, re_request_id: &u64) {
+    let re_request = get_reencryption_request(storage, re_request_id).unwrap();
+
+    remove_delegatee_reencryption_request(
+        storage,
+        &re_request.data_id,
+        &re_request.delegatee_pubkey,
+        &re_request.proxy_pubkey,
+    );
+    remove_proxy_reencryption_request(storage, &re_request.proxy_pubkey, re_request_id);
+    remove_reencryption_request(storage, re_request_id);
+}
+
+pub fn get_all_fragments(
+    storage: &dyn Storage,
+    data_id: &str,
+    delegatee_pubkey: &str,
+) -> Vec<String> {
+    let mut fragments: Vec<String> = Vec::new();
+    for request_id in get_all_delegatee_reencryption_requests(storage, data_id, delegatee_pubkey) {
+        let request = get_reencryption_request(storage, &request_id).unwrap();
+
+        match request.fragment {
+            None => continue,
+            Some(fragment) => fragments.push(fragment.clone()),
+        }
+    }
+    fragments
 }

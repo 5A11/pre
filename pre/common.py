@@ -1,5 +1,6 @@
 import typing
 from abc import ABC, abstractmethod
+from enum import Enum
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, IO, List, NamedTuple, Optional, Union
 
@@ -103,6 +104,31 @@ class ProxyTask:
         return f"{self.hash_id}: delegator: {self.delegator_pubkey.hex()} delegatee: {self.delegatee_pubkey.hex()}"
 
 
+class DelegationState(Enum):
+    non_existing = 1
+    waiting_for_delegation_strings = 2
+    active = 3
+
+
+class ReencryptionRequestState(Enum):
+    inaccessible = 1
+    ready = 2
+    granted = 3
+
+
+@dataclass
+class GetFragmentsResponse:
+    reencryption_request_state: ReencryptionRequestState
+    fragments: List[HashID]
+    threshold: int
+
+
+@dataclass
+class DataEntry:
+    pubkey: bytes
+    addr: Address
+
+
 def types_from_annotations(func: Callable) -> Dict:
     types = {}
     for name, type_ in func.__annotations__.items():
@@ -130,3 +156,4 @@ def get_defaults(func: Callable) -> Dict:
     varnames = func.__code__.co_varnames
     defaults = func.__defaults__  # type: ignore
     return dict(zip(varnames[-len(defaults) :], defaults))
+

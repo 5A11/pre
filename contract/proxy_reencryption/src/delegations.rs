@@ -1,4 +1,4 @@
-use cosmwasm_std::{from_slice, to_vec, Order, Storage};
+use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,14 +15,19 @@ static PROXY_DELEGATIONS_STORE_KEY: &[u8] = b"ProxyDelegationsStore";
 // Map delegation_id: u64 -> delegation: Delegation
 static DELEGATIONS_STORE_KEY: &[u8] = b"DelegationsStore";
 
-// Map  Map delegator_pubkey: String -> delegatee_pubkey: String -> is_used: bool
-static IS_DELEGATION_USED: &[u8] = b"IsDelegationUsed";
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct Delegation {
     pub delegator_pubkey: String,
     pub delegatee_pubkey: String,
     pub delegation_string: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DelegationState {
+    NonExisting,
+    WaitingForDelegationStrings,
+    Active,
 }
 
 // DELEGATIONS_ID_STORE_KEY
@@ -107,6 +112,28 @@ pub fn get_all_proxies_from_delegation(
     deserialized_keys
 }
 
+pub fn is_delegation_empty(
+    storage: &dyn Storage,
+    delegator_pubkey: &str,
+    delegatee_pubkey: &str,
+) -> bool {
+    let store = ReadonlyPrefixedStorage::multilevel(
+        storage,
+        &[
+            DELEGATIONS_ID_STORE_KEY,
+            delegator_pubkey.as_bytes(),
+            delegatee_pubkey.as_bytes(),
+        ],
+    );
+
+    let is_empty: bool = store
+        .range(None, None, Order::Ascending)
+        .peekable()
+        .peek()
+        .is_none();
+    is_empty
+}
+
 // DELEGATIONS_STORE_KEY
 pub fn set_delegation(storage: &mut dyn Storage, delegation_id: &u64, delegation: &Delegation) {
     let mut store = PrefixedStorage::new(storage, DELEGATIONS_STORE_KEY);
@@ -173,32 +200,62 @@ pub fn get_all_proxy_delegations(storage: &dyn Storage, proxy_pubkey: &str) -> V
     deserialized_keys
 }
 
-// IS_DELEGATION_USED
-pub fn set_is_delegation_used(
-    storage: &mut dyn Storage,
-    delegator_pubkey: &str,
-    delegatee_pubkey: &str,
-    is_delegation_used: bool,
-) {
-    let mut store =
-        PrefixedStorage::multilevel(storage, &[IS_DELEGATION_USED, delegator_pubkey.as_bytes()]);
+// High level methods
 
-    // Any value in store means true - &[1]
-    match is_delegation_used {
-        true => store.set(delegatee_pubkey.as_bytes(), &[1]),
-        false => store.remove(delegatee_pubkey.as_bytes()),
-    }
-}
-
-pub fn get_is_delegation_used(
+pub fn get_delegation_state(
     storage: &dyn Storage,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
-) -> bool {
-    let store = ReadonlyPrefixedStorage::multilevel(
-        storage,
-        &[IS_DELEGATION_USED, delegator_pubkey.as_bytes()],
-    );
+) -> DelegationState {
+    let mut delegation_state: DelegationState = DelegationState::NonExisting;
 
-    store.get(delegatee_pubkey.as_bytes()).is_some()
+    if !is_delegation_empty(storage, delegator_pubkey, delegatee_pubkey) {
+        let proxy_pubkey =
+            &get_all_proxies_from_delegation(storage, delegator_pubkey, delegatee_pubkey)[0];
+        let delegation_id =
+            get_delegation_id(storage, delegator_pubkey, delegatee_pubkey, proxy_pubkey).unwrap();
+        let delegation = get_delegation(storage, &delegation_id).unwrap();
+
+        if delegation.delegation_string.is_none() {
+            // Delegation string provided
+            delegation_state = DelegationState::WaitingForDelegationStrings;
+        } else {
+            // Delegation string not provided
+            delegation_state = DelegationState::Active;
+        }
+    }
+    delegation_state
+}
+
+pub fn remove_proxy_delegations(storage: &mut dyn Storage, proxy_pubkey: &str) -> StdResult<()> {
+    // Delete all proxy delegations -- Make proxy inactive / stop requests factory
+    for delegation_id in get_all_proxy_delegations(storage, proxy_pubkey) {
+        let delegation = get_delegation(storage, &delegation_id).unwrap();
+
+        let all_delegation_proxies = get_all_proxies_from_delegation(
+            storage,
+            &delegation.delegator_pubkey,
+            &delegation.delegatee_pubkey,
+        );
+        // Delete entire delegation = delete each proxy delegation in delegation
+        for i_proxy_pubkey in all_delegation_proxies {
+            let i_delegation_id = get_delegation_id(
+                storage,
+                &delegation.delegator_pubkey,
+                &delegation.delegatee_pubkey,
+                &i_proxy_pubkey,
+            )
+            .unwrap();
+
+            remove_delegation(storage, &i_delegation_id);
+            remove_delegation_id(
+                storage,
+                &delegation.delegator_pubkey,
+                &delegation.delegatee_pubkey,
+                &i_proxy_pubkey,
+            );
+            remove_proxy_delegation(storage, &i_proxy_pubkey, &i_delegation_id);
+        }
+    }
+    Ok(())
 }

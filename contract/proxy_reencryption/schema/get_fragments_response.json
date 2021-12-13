@@ -4,6 +4,7 @@
   "type": "object",
   "required": [
     "fragments",
+    "reencryption_request_state",
     "threshold"
   ],
   "properties": {
@@ -13,10 +14,23 @@
         "type": "string"
       }
     },
+    "reencryption_request_state": {
+      "$ref": "#/definitions/ReencryptionRequestState"
+    },
     "threshold": {
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "ReencryptionRequestState": {
+      "type": "string",
+      "enum": [
+        "inaccessible",
+        "ready",
+        "granted"
+      ]
     }
   }
 }

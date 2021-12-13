@@ -1,5 +1,5 @@
 use crate::msg::{
-    ExecuteMsg, GetAvailableProxiesResponse, GetDataIDResponse, GetDoesDelegationExistRepsonse,
+    ExecuteMsg, GetAvailableProxiesResponse, GetDataIDResponse, GetDelegationStateRepsonse,
     GetFragmentsResponse, GetNextProxyTaskResponse, GetSelectedProxiesForDelegationResponse,
     GetThresholdResponse, InstantiateMsg, ProxyDelegation, ProxyTask, QueryMsg,
 };
@@ -13,17 +13,14 @@ use crate::state::{
 };
 
 use crate::delegations::{
-    add_proxy_delegation, get_all_proxies_from_delegation, get_all_proxy_delegations,
-    get_delegation, get_delegation_id, get_is_delegation_used, remove_delegation,
-    remove_delegation_id, remove_proxy_delegation, set_delegation, set_delegation_id,
-    set_is_delegation_used, Delegation,
+    add_proxy_delegation, get_all_proxies_from_delegation, get_delegation, get_delegation_id,
+    get_delegation_state, remove_proxy_delegations, set_delegation, set_delegation_id, Delegation,
 };
 use crate::reencryption_requests::{
-    add_delegatee_reencryption_request, add_proxy_reencryption_request,
-    get_all_delegatee_reencryption_requests, get_all_proxy_reencryption_requests,
-    get_delegatee_reencryption_request, get_reencryption_request,
-    remove_delegatee_reencryption_request, remove_proxy_reencryption_request,
-    remove_reencryption_request, set_reencryption_request, ReencryptionRequest,
+    add_delegatee_reencryption_request, add_proxy_reencryption_request, get_all_fragments,
+    get_all_proxy_reencryption_requests, get_delegatee_reencryption_request,
+    get_reencryption_request, get_reencryption_request_state, remove_proxy_reencryption_request,
+    remove_proxy_reencryption_requests, set_reencryption_request, ReencryptionRequest,
 };
 use cosmwasm_std::{
     attr, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
@@ -121,27 +118,11 @@ fn try_remove_proxy(
 
     ensure_admin(&state, &info.sender)?;
 
-    match get_proxy(deps.storage, proxy_addr) {
-        Some(proxy) => {
-            // Registered or Leaving state
-            if let Some(proxy_pubkey) = proxy.proxy_pubkey {
-                // In leaving state this was already done
-                if proxy.state != ProxyState::Leaving {
-                    set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-                    remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
-                }
-
-                remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey)?;
-                remove_proxy_address(deps.storage, &proxy_pubkey);
-            }
-            // Authorised state - proxy wasn't registered
-            remove_proxy(deps.storage, proxy_addr);
-        }
-        None => {
-            // Unregistered state
-            return generic_err!(format!("{} is not a proxy", proxy_addr));
-        }
-    }
+    // check if proxy_addr is authorised
+    let proxy = match get_proxy(deps.storage, proxy_addr) {
+        None => generic_err!(format!("{} is not a proxy", proxy_addr)),
+        Some(proxy) => Ok(proxy),
+    }?;
 
     // Return response
     let res = Response {
@@ -154,6 +135,21 @@ fn try_remove_proxy(
         ],
         data: None,
     };
+
+    // Registered or Leaving state
+    if let Some(proxy_pubkey) = proxy.proxy_pubkey {
+        // In leaving state this was already done
+        if proxy.state != ProxyState::Leaving {
+            set_is_proxy_active(deps.storage, &proxy_pubkey, false);
+            remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+        }
+
+        remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey)?;
+        remove_proxy_address(deps.storage, &proxy_pubkey);
+    }
+    // Authorised state - proxy wasn't registered
+    remove_proxy(deps.storage, proxy_addr);
+
     Ok(res)
 }
 
@@ -200,31 +196,17 @@ fn try_register_proxy(
 }
 
 fn try_unregister_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
-    match get_proxy(deps.storage, &info.sender) {
-        None => {
-            return generic_err!("Sender is not a proxy");
-        }
+    // Check if proxy is authorised
+    let mut proxy = match get_proxy(deps.storage, &info.sender) {
+        None => generic_err!("Sender is not a proxy"),
+        Some(proxy) => Ok(proxy),
+    }?;
 
-        Some(mut proxy) => {
-            // Registered or Leaving state
-            if let Some(proxy_pubkey) = proxy.proxy_pubkey {
-                // In leaving state this was already done
-                if proxy.state != ProxyState::Leaving {
-                    set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-                    remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
-                }
-
-                remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey)?;
-                remove_proxy_address(deps.storage, &proxy_pubkey);
-                proxy.state = ProxyState::Authorised;
-                proxy.proxy_pubkey = None;
-                set_proxy(deps.storage, &info.sender, &proxy);
-            } else {
-                // Authorised state - proxy wasn't registered
-                return generic_err!("Proxy already unregistered");
-            }
-        }
-    }
+    // Check if proxy is registered
+    let proxy_pubkey = match proxy.proxy_pubkey {
+        None => generic_err!("Proxy already unregistered"),
+        Some(proxy_pubkey) => Ok(proxy_pubkey),
+    }?;
 
     // Return response
     let res = Response {
@@ -236,6 +218,18 @@ fn try_unregister_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResul
         ],
         data: None,
     };
+
+    if proxy.state != ProxyState::Leaving {
+        set_is_proxy_active(deps.storage, &proxy_pubkey, false);
+        remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+    }
+
+    remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey)?;
+    remove_proxy_address(deps.storage, &proxy_pubkey);
+    proxy.state = ProxyState::Authorised;
+    proxy.proxy_pubkey = None;
+    set_proxy(deps.storage, &info.sender, &proxy);
+
     Ok(res)
 }
 
@@ -283,12 +277,14 @@ fn try_provide_reencrypted_fragment(
     fragment: &str,
 ) -> StdResult<Response> {
     // Get proxy_pubkey or return error
-    let proxy_pubkey = match get_proxy(deps.storage, &info.sender) {
-        Some(proxy) => match proxy.proxy_pubkey {
-            None => generic_err!("Proxy not active"),
-            Some(proxy_pubkey) => Ok(proxy_pubkey),
-        },
+    let proxy = match get_proxy(deps.storage, &info.sender) {
         None => generic_err!("Proxy not registered"),
+        Some(proxy) => Ok(proxy),
+    }?;
+
+    let proxy_pubkey = match proxy.proxy_pubkey {
+        None => generic_err!("Proxy not active"),
+        Some(proxy_pubkey) => Ok(proxy_pubkey),
     }?;
 
     // Get request_id or return error
@@ -309,49 +305,7 @@ fn try_provide_reencrypted_fragment(
         return generic_err!("Fragment already provided.");
     }
 
-    // Add fragment to fragments store
-    request.fragment = Some(fragment.to_string());
-    set_reencryption_request(deps.storage, &request_id, &request);
-
-    // Remove request as it's completed
-    remove_proxy_reencryption_request(deps.storage, &proxy_pubkey, &request_id);
-
-    let state = get_state(deps.storage)?;
-
-    // Check if threshold amount of fragments is provided:
-    let delegatee_request_ids =
-        get_all_delegatee_reencryption_requests(deps.storage, data_id, delegatee_pubkey);
-
-    let mut n_completed_requests = 0;
-    for i_request_id in &delegatee_request_ids {
-        let i_request = get_reencryption_request(deps.storage, i_request_id).unwrap();
-        if i_request.fragment.is_some() {
-            n_completed_requests += 1;
-        }
-    }
-
-    // Delete incomplete requests if more than threshold fragments provided
-    if n_completed_requests >= state.threshold {
-        for i_request_id in delegatee_request_ids {
-            let i_request = get_reencryption_request(deps.storage, &i_request_id).unwrap();
-            if i_request.fragment.is_none() {
-                remove_delegatee_reencryption_request(
-                    deps.storage,
-                    data_id,
-                    delegatee_pubkey,
-                    &i_request.proxy_pubkey,
-                );
-                remove_proxy_reencryption_request(
-                    deps.storage,
-                    &i_request.proxy_pubkey,
-                    &i_request_id,
-                );
-                remove_reencryption_request(deps.storage, &i_request_id);
-            }
-        }
-    }
-
-    // Return response
+    // Prepare return response
     let res = Response {
         submessages: vec![],
         messages: vec![],
@@ -363,6 +317,14 @@ fn try_provide_reencrypted_fragment(
         ],
         data: None,
     };
+
+    // Add fragment to fragments store
+    request.fragment = Some(fragment.to_string());
+    set_reencryption_request(deps.storage, &request_id, &request);
+
+    // Remove request as it's completed
+    remove_proxy_reencryption_request(deps.storage, &proxy_pubkey, &request_id);
+
     Ok(res)
 }
 
@@ -412,10 +374,6 @@ fn try_request_proxies_for_delegation(
 
     ensure_delegator(deps.storage, delegator_pubkey, &info.sender)?;
 
-    if get_is_delegation_used(deps.storage, delegator_pubkey, delegatee_pubkey) {
-        return generic_err!("Delegation already exist");
-    }
-
     let selected_proxy_pubkeys = select_proxy_pubkeys(deps.storage)?;
     let mut selected_proxy_pubkeys_str: String = String::from("[");
 
@@ -424,7 +382,6 @@ fn try_request_proxies_for_delegation(
         delegatee_pubkey: delegatee_pubkey.to_string(),
         delegation_string: None,
     };
-    set_is_delegation_used(deps.storage, delegator_pubkey, delegatee_pubkey, true);
 
     for proxy_pubkey in selected_proxy_pubkeys {
         set_delegation(deps.storage, &state.next_delegation_id, &delegation);
@@ -472,50 +429,42 @@ fn try_add_delegation(
 
     let n_expected_strings =
         get_all_proxies_from_delegation(deps.storage, delegator_pubkey, delegatee_pubkey).len();
-    let n_provided_strings = proxy_delegations.len();
 
     if n_expected_strings == 0 {
         return generic_err!("No proxies selected for this delegation");
     }
 
-    if n_expected_strings != n_provided_strings {
+    if n_expected_strings != proxy_delegations.len() {
         return generic_err!(format!(
             "Provided wrong number of delegation strings, expected {} got {}.",
-            n_expected_strings, n_provided_strings
+            n_expected_strings,
+            proxy_delegations.len()
         ));
     }
 
     for proxy_delegation in proxy_delegations {
-        match get_delegation_id(
+        let delegation_id = match get_delegation_id(
             deps.storage,
             delegator_pubkey,
             delegatee_pubkey,
             &proxy_delegation.proxy_pubkey,
         ) {
-            // Delegation not requested
-            None => {
-                return generic_err!(format!(
-                    "Proxy {} not selected for delegation.",
-                    proxy_delegation.proxy_pubkey
-                ));
-            }
-            // Delegation requested
-            Some(delegation_id) => {
-                let mut delegation = get_delegation(deps.storage, &delegation_id).unwrap();
-                match delegation.delegation_string {
-                    // Delegation requested and strings already provided
-                    Some(_) => {
-                        return generic_err!("Delegation strings already provided");
-                    }
-                    // Delegation requested and strings not provided - correct case
-                    None => {
-                        delegation.delegation_string =
-                            Some(proxy_delegation.delegation_string.clone());
-                        set_delegation(deps.storage, &delegation_id, &delegation);
-                    }
-                }
-            }
+            None => generic_err!(format!(
+                "Proxy {} not selected for delegation.",
+                proxy_delegation.proxy_pubkey
+            )),
+            Some(delegation_id) => Ok(delegation_id),
+        }?;
+
+        let mut delegation = get_delegation(deps.storage, &delegation_id).unwrap();
+
+        // Delegation requested and strings already provided
+        if delegation.delegation_string.is_some() {
+            return generic_err!("Delegation strings already provided");
         }
+
+        delegation.delegation_string = Some(proxy_delegation.delegation_string.clone());
+        set_delegation(deps.storage, &delegation_id, &delegation);
     }
 
     // Return response
@@ -725,6 +674,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => {
             let state = get_state(deps.storage)?;
             Ok(to_binary(&GetFragmentsResponse {
+                reencryption_request_state: get_reencryption_request_state(
+                    deps.storage,
+                    &data_id,
+                    &delegatee_pubkey,
+                ),
                 fragments: get_all_fragments(deps.storage, &data_id, &delegatee_pubkey),
                 threshold: state.threshold,
             })?)
@@ -737,12 +691,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             proxy_task: get_next_proxy_task(deps.storage, &proxy_pubkey)?,
         })?),
 
-        QueryMsg::GetDoesDelegationExist {
-            delegator_addr: _,
+        QueryMsg::GetDelegationState {
             delegator_pubkey,
             delegatee_pubkey,
-        } => Ok(to_binary(&GetDoesDelegationExistRepsonse {
-            delegation_exists: get_is_delegation_used(
+        } => Ok(to_binary(&GetDelegationStateRepsonse {
+            delegation_state: get_delegation_state(
                 deps.storage,
                 &delegator_pubkey,
                 &delegatee_pubkey,
@@ -750,7 +703,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         })?),
 
         QueryMsg::GetSelectedProxiesForDelegation {
-            delegator_addr: _,
             delegator_pubkey,
             delegatee_pubkey,
         } => Ok(to_binary(&GetSelectedProxiesForDelegationResponse {
@@ -805,104 +757,4 @@ fn select_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<String>> {
     }
 
     Ok(proxy_pubkeys[0..n_proxies].to_vec())
-}
-
-pub fn get_all_fragments(
-    storage: &dyn Storage,
-    data_id: &str,
-    delegatee_pubkey: &str,
-) -> Vec<String> {
-    let mut fragments: Vec<String> = Vec::new();
-    for request_id in get_all_delegatee_reencryption_requests(storage, data_id, delegatee_pubkey) {
-        let request = get_reencryption_request(storage, &request_id).unwrap();
-
-        match request.fragment {
-            None => continue,
-            Some(fragment) => fragments.push(fragment.clone()),
-        }
-    }
-    fragments
-}
-
-pub fn remove_proxy_delegations(storage: &mut dyn Storage, proxy_pubkey: &str) -> StdResult<()> {
-    // Delete all proxy delegations -- Make proxy inactive / stop requests factory
-    for delegation_id in get_all_proxy_delegations(storage, proxy_pubkey) {
-        let delegation = get_delegation(storage, &delegation_id).unwrap();
-
-        let all_delegation_proxies = get_all_proxies_from_delegation(
-            storage,
-            &delegation.delegator_pubkey,
-            &delegation.delegatee_pubkey,
-        );
-        // Delete entire delegation = delete each proxy delegation in delegation
-        for i_proxy_pubkey in all_delegation_proxies {
-            let i_delegation_id = get_delegation_id(
-                storage,
-                &delegation.delegator_pubkey,
-                &delegation.delegatee_pubkey,
-                &i_proxy_pubkey,
-            )
-            .unwrap();
-
-            remove_delegation(storage, &i_delegation_id);
-            remove_delegation_id(
-                storage,
-                &delegation.delegator_pubkey,
-                &delegation.delegatee_pubkey,
-                &i_proxy_pubkey,
-            );
-            remove_proxy_delegation(storage, &i_proxy_pubkey, &i_delegation_id);
-        }
-    }
-    Ok(())
-}
-
-// Delete all unfinished current proxy re-encryption requests
-pub fn remove_proxy_reencryption_requests(
-    storage: &mut dyn Storage,
-    proxy_pubkey: &str,
-) -> StdResult<()> {
-    let state = get_state(storage)?;
-
-    for re_request_id in get_all_proxy_reencryption_requests(storage, proxy_pubkey) {
-        let re_request = get_reencryption_request(storage, &re_request_id).unwrap();
-
-        let all_related_requests_ids = get_all_delegatee_reencryption_requests(
-            storage,
-            &re_request.data_id,
-            &re_request.delegatee_pubkey,
-        );
-
-        if all_related_requests_ids.len() < (state.threshold as usize + 1) {
-            // Delete other proxies related requests because request cannot be completed without this proxy
-
-            for i_re_request_id in all_related_requests_ids {
-                let i_re_request = get_reencryption_request(storage, &i_re_request_id).unwrap();
-                remove_delegatee_reencryption_request(
-                    storage,
-                    &i_re_request.data_id,
-                    &i_re_request.delegatee_pubkey,
-                    &i_re_request.proxy_pubkey,
-                );
-                remove_proxy_reencryption_request(
-                    storage,
-                    &i_re_request.proxy_pubkey,
-                    &i_re_request_id,
-                );
-                remove_reencryption_request(storage, &i_re_request_id);
-            }
-        } else {
-            // Delete only current proxy unfinished request
-
-            remove_delegatee_reencryption_request(
-                storage,
-                &re_request.data_id,
-                &re_request.delegatee_pubkey,
-                proxy_pubkey,
-            );
-            remove_proxy_reencryption_request(storage, proxy_pubkey, &re_request_id);
-            remove_reencryption_request(storage, &re_request_id);
-        }
-    }
-    Ok(())
 }

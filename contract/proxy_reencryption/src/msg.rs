@@ -1,3 +1,5 @@
+use crate::delegations::DelegationState;
+use crate::reencryption_requests::ReencryptionRequestState;
 use crate::state::DataEntry;
 use cosmwasm_std::Addr;
 use schemars::JsonSchema;
@@ -85,13 +87,11 @@ pub enum QueryMsg {
     GetNextProxyTask {
         proxy_pubkey: String,
     },
-    GetDoesDelegationExist {
-        delegator_addr: Addr,
+    GetDelegationState {
         delegator_pubkey: String,
         delegatee_pubkey: String,
     },
     GetSelectedProxiesForDelegation {
-        delegator_addr: Addr,
         delegator_pubkey: String,
         delegatee_pubkey: String,
     },
@@ -109,6 +109,7 @@ pub struct GetDataIDResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetFragmentsResponse {
+    pub reencryption_request_state: ReencryptionRequestState,
     pub fragments: Vec<String>,
     pub threshold: u32,
 }
@@ -124,8 +125,8 @@ pub struct GetNextProxyTaskResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct GetDoesDelegationExistRepsonse {
-    pub delegation_exists: bool,
+pub struct GetDelegationStateRepsonse {
+    pub delegation_state: DelegationState,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

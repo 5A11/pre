@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from dataclasses import dataclass
 
-from pre.common import Address, Delegation, HashID, ProxyTask
+from pre.common import Address, Delegation, HashID, ProxyTask, DelegationState, GetFragmentsResponse
 from pre.ledger.base_ledger import AbstractLedger, AbstractLedgerCrypto
 
 
@@ -20,7 +20,6 @@ class BaseAbstractContract(ABC):
 @dataclass
 class DataEntry:
     pubkey: bytes
-    addr: Address
 
 class AbstractContractQueries(BaseAbstractContract):
     @abstractmethod
@@ -38,7 +37,6 @@ class AbstractContractQueries(BaseAbstractContract):
     @abstractmethod
     def get_selected_proxies_for_delegation(
         self,
-        delegator_addr: Address,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> List[bytes]:
@@ -51,7 +49,7 @@ class AbstractContractQueries(BaseAbstractContract):
     @abstractmethod
     def get_fragments_response(
         self, hash_id: HashID, delegatee_pubkey_bytes: bytes
-    ) -> Tuple[int, List[HashID]]:
+    ) -> GetFragmentsResponse:
         pass
 
 
@@ -102,18 +100,16 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         pass
 
     @abstractmethod
-    def does_delegation_exist(  # FIXME(LR) duplicate of get_selected_proxies_for_delegation
+    def get_delegation_state(  # FIXME(LR) duplicate of get_selected_proxies_for_delegation
         self,
-        delegator_addr: Address,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
-    ) -> bool:
+    ) -> DelegationState:
         pass
 
     @abstractmethod
     def get_selected_proxies_for_delegation(
         self,
-        delegator_addr: Address,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> List[bytes]:

@@ -4,8 +4,9 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use cw_proxy_reencryption::msg::{
-    ExecuteMsg, GetAvailableProxiesResponse, GetDataIDResponse, GetFragmentsResponse,
-    GetNextProxyTaskResponse, GetThresholdResponse, InstantiateMsg, QueryMsg,
+    ExecuteMsg, GetAvailableProxiesResponse, GetDataIDResponse, GetDelegationStateRepsonse,
+    GetFragmentsResponse, GetNextProxyTaskResponse, GetSelectedProxiesForDelegationResponse,
+    GetThresholdResponse, InstantiateMsg, QueryMsg,
 };
 
 fn main() {
@@ -22,4 +23,9 @@ fn main() {
     export_schema(&schema_for!(GetFragmentsResponse), &out_dir);
     export_schema(&schema_for!(GetThresholdResponse), &out_dir);
     export_schema(&schema_for!(GetNextProxyTaskResponse), &out_dir);
+    export_schema(&schema_for!(GetDelegationStateRepsonse), &out_dir);
+    export_schema(
+        &schema_for!(GetSelectedProxiesForDelegationResponse),
+        &out_dir,
+    );
 }

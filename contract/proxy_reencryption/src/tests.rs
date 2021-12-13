@@ -1,25 +1,26 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{Addr, Coin, DepsMut, Env, MessageInfo, Response, StdResult};
 
-use crate::contract::{execute, get_all_fragments, get_next_proxy_task, instantiate};
+use crate::contract::{execute, get_next_proxy_task, instantiate};
 use crate::delegations::{
-    add_proxy_delegation, get_delegation, get_delegation_id, is_proxy_delegation, set_delegation,
-    set_delegation_id, Delegation,
+    add_proxy_delegation, get_delegation, get_delegation_id, get_delegation_state,
+    is_proxy_delegation, set_delegation, set_delegation_id, Delegation, DelegationState,
 };
 use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegation, ProxyTask};
 use crate::proxies::{
     get_all_active_proxy_pubkeys, get_is_proxy_active, get_proxy, get_proxy_address, ProxyState,
 };
 use crate::reencryption_requests::{
-    get_all_proxy_reencryption_requests, get_delegatee_reencryption_request,
-    get_reencryption_request, is_proxy_reencryption_request,
+    get_all_fragments, get_all_proxy_reencryption_requests, get_delegatee_reencryption_request,
+    get_reencryption_request, get_reencryption_request_state, is_proxy_reencryption_request,
+    ReencryptionRequestState,
 };
 use crate::state::{get_data_entry, get_delegator_address, get_state, DataEntry, State};
 
-fn mock_env_height(signer: &Addr, height: u64) -> (Env, MessageInfo) {
+fn mock_env_height(signer: &Addr, height: u64, coins: &Vec<Coin>) -> (Env, MessageInfo) {
     let mut env = mock_env();
     env.block.height = height;
-    let info = mock_info(signer.as_str(), &[]);
+    let info = mock_info(signer.as_str(), &coins);
 
     return (env, info);
 }
@@ -38,12 +39,12 @@ fn init_contract(
         n_max_proxies: n_max_proxies.clone(),
         proxies: proxies.clone(),
     };
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
     return instantiate(deps, env.0, env.1, init_msg);
 }
 
 fn add_proxy(deps: DepsMut, creator: &Addr, proxy_addr: &Addr) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::AddProxy {
         proxy_addr: proxy_addr.clone(),
@@ -53,7 +54,7 @@ fn add_proxy(deps: DepsMut, creator: &Addr, proxy_addr: &Addr) -> StdResult<Resp
 }
 
 fn remove_proxy(deps: DepsMut, creator: &Addr, proxy_addr: &Addr) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::RemoveProxy {
         proxy_addr: proxy_addr.clone(),
@@ -63,7 +64,7 @@ fn remove_proxy(deps: DepsMut, creator: &Addr, proxy_addr: &Addr) -> StdResult<R
 }
 
 fn register_proxy(deps: DepsMut, creator: &Addr, proxy_pubkey: &String) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::RegisterProxy {
         proxy_pubkey: proxy_pubkey.clone(),
@@ -73,7 +74,7 @@ fn register_proxy(deps: DepsMut, creator: &Addr, proxy_pubkey: &String) -> StdRe
 }
 
 fn unregister_proxy(deps: DepsMut, creator: &Addr) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::UnregisterProxy {};
 
@@ -81,7 +82,7 @@ fn unregister_proxy(deps: DepsMut, creator: &Addr) -> StdResult<Response> {
 }
 
 fn deactivate_proxy(deps: DepsMut, creator: &Addr) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::DeactivateProxy {};
 
@@ -95,7 +96,7 @@ fn provide_reencrypted_fragment(
     delegatee_pubkey: &String,
     fragment: &String,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::ProvideReencryptedFragment {
         data_id: data_id.clone(),
@@ -112,7 +113,7 @@ fn add_data(
     data_id: &String,
     delegator_pubkey: &String,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::AddData {
         data_id: data_id.clone(),
@@ -129,7 +130,7 @@ fn add_delegation(
     delegatee_pubkey: &String,
     proxy_delegations: &[ProxyDelegation],
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::AddDelegation {
         delegator_pubkey: delegator_pubkey.clone(),
@@ -146,7 +147,7 @@ fn request_proxies_for_delegation(
     delegator_pubkey: &String,
     delegatee_pubkey: &String,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::RequestProxiesForDelegation {
         delegator_pubkey: delegator_pubkey.clone(),
@@ -162,7 +163,7 @@ fn request_reencryption(
     data_id: &String,
     delegatee_pubkey: &String,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450);
+    let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::RequestReencryption {
         data_id: data_id.clone(),
@@ -260,6 +261,7 @@ fn test_add_remove_proxy() {
     let creator = Addr::unchecked("creator".to_string());
     let admin = Addr::unchecked("admin".to_string());
     let proxy = Addr::unchecked("proxy".to_string());
+    let proxy_pubkey = String::from("proxy_pubkey");
 
     assert!(init_contract(
         deps.as_mut(),
@@ -284,6 +286,9 @@ fn test_add_remove_proxy() {
 
     // Already removed
     assert!(remove_proxy(deps.as_mut(), &admin, &proxy).is_err());
+
+    assert!(add_proxy(deps.as_mut(), &admin, &proxy).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy, &proxy_pubkey).is_ok());
 }
 
 #[test]
@@ -321,6 +326,7 @@ fn test_register_unregister_proxy() {
 
     // Only proxy can add pubkeys
     assert!(register_proxy(deps.as_mut(), &creator, &proxy_pubkey).is_err());
+
     assert!(register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey).is_ok());
     // Already registered
     assert!(register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey).is_err());
@@ -380,7 +386,7 @@ fn test_add_data() {
     };
 
     /*************** Initialise *************/
-    assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &None).is_ok());
+    assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &None,).is_ok());
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
@@ -490,7 +496,9 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     ];
 
     // Reencryption can't be requested yet
-    assert!(request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey).is_err());
+    assert!(
+        request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey,).is_err()
+    );
 
     // Proxies not requested
     assert!(add_delegation(
@@ -516,7 +524,9 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     );
 
     // Reencryption can't be requested yet - No delegation strings added
-    assert!(request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey).is_err());
+    assert!(
+        request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey,).is_err()
+    );
 
     // Add delegation with different proxy than selected one
     assert!(add_delegation(
@@ -559,13 +569,17 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     .is_err());
 
     // Reencryption cannot be requested by delegator2
-    assert!(request_reencryption(deps.as_mut(), &delegator2, &data_id, &delegatee_pubkey).is_err());
+    assert!(
+        request_reencryption(deps.as_mut(), &delegator2, &data_id, &delegatee_pubkey,).is_err()
+    );
 
     // Reencryption can be requested only after add_delegation
-    assert!(request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey).is_ok());
+    assert!(request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey,).is_ok());
 
     // Reencryption already requested
-    assert!(request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey).is_err());
+    assert!(
+        request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey,).is_err()
+    );
 
     // Check if request was created
     assert_eq!(
@@ -735,7 +749,7 @@ fn test_provide_reencrypted_fragment() {
     .is_ok());
 
     /*************** Request re-encryption *************/
-    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee_pubkey).is_ok());
+    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee_pubkey,).is_ok());
 
     /*************** Provide reencrypted fragment *************/
     assert_eq!(
@@ -870,6 +884,11 @@ fn test_contract_lifecycle() {
         },
     ];
 
+    assert_eq!(
+        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        DelegationState::NonExisting
+    );
+
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
         &delegator,
@@ -877,6 +896,12 @@ fn test_contract_lifecycle() {
         &delegatee1_pubkey,
     )
     .is_ok());
+
+    assert_eq!(
+        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        DelegationState::WaitingForDelegationStrings
+    );
+
     assert!(add_delegation(
         deps.as_mut(),
         &delegator,
@@ -885,6 +910,11 @@ fn test_contract_lifecycle() {
         &proxy_delegations,
     )
     .is_ok());
+
+    assert_eq!(
+        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        DelegationState::Active
+    );
 
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
@@ -910,9 +940,18 @@ fn test_contract_lifecycle() {
         .unwrap()
         .is_none());
 
+    assert_eq!(
+        get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        ReencryptionRequestState::Inaccessible
+    );
+
     /*************** Request reencryption by delegator *************/
 
-    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee1_pubkey).is_ok());
+    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee1_pubkey,).is_ok());
+    assert_eq!(
+        get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        ReencryptionRequestState::Ready
+    );
 
     // Check number of requests
     assert_eq!(
@@ -924,7 +963,7 @@ fn test_contract_lifecycle() {
         1
     );
 
-    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee2_pubkey).is_ok());
+    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee2_pubkey,).is_ok());
 
     // Check number of requests
     assert_eq!(
@@ -1029,23 +1068,43 @@ fn test_contract_lifecycle() {
         vec![proxy1_fragment2]
     );
 
+    assert_eq!(
+        get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        ReencryptionRequestState::Ready
+    );
+    assert_eq!(
+        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        DelegationState::Active
+    );
+
     // Re-encryption was requested in past
-    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee1_pubkey).is_err());
+    assert!(
+        request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee1_pubkey,).is_err()
+    );
 
-    // Proxy 1 leaves - all its delegations gets deleted
-    assert!(unregister_proxy(deps.as_mut(), &proxy1).is_ok());
+    // Proxy 2 leaves - all its delegations gets deleted
+    assert!(unregister_proxy(deps.as_mut(), &proxy2).is_ok());
 
-    // Proxy 1 gets back
-    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey).is_ok());
+    // Proxy 2 gets back
+    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey).is_ok());
 
-    // Delegation cannot be created again
+    assert_eq!(
+        get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        ReencryptionRequestState::Inaccessible
+    );
+    assert_eq!(
+        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        DelegationState::NonExisting
+    );
+
+    // Delegation cannot be re-created again
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
         &delegator,
         &delegator_pubkey,
         &delegatee1_pubkey,
     )
-    .is_err());
+    .is_ok());
     assert!(add_delegation(
         deps.as_mut(),
         &delegator,
@@ -1053,7 +1112,7 @@ fn test_contract_lifecycle() {
         &delegatee1_pubkey,
         &proxy_delegations,
     )
-    .is_err());
+    .is_ok());
 }
 
 #[test]
@@ -1224,19 +1283,19 @@ fn test_proxy_unregister_with_requests() {
 
     // Re-encryption requests with DATA1 to delegatee1
     assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee1_pubkey).is_ok()
+        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee1_pubkey,).is_ok()
     );
     // Re-encryption requests with DATA1 to delegatee2
     assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee2_pubkey).is_ok()
+        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee2_pubkey,).is_ok()
     );
     // Re-encryption requests with DATA2 to delegatee2
     assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id2, &delegatee2_pubkey).is_ok()
+        request_reencryption(deps.as_mut(), &delegator1, &data_id2, &delegatee2_pubkey,).is_ok()
     );
     // Re-encryption requests with DATA3 to delegatee1
     assert!(
-        request_reencryption(deps.as_mut(), &delegator2, &data_id3, &delegatee1_pubkey).is_ok()
+        request_reencryption(deps.as_mut(), &delegator2, &data_id3, &delegatee1_pubkey,).is_ok()
     );
 
     // Complete requests
@@ -1251,6 +1310,7 @@ fn test_proxy_unregister_with_requests() {
 
     // Unregister proxy2
     assert!(unregister_proxy(deps.as_mut(), &proxy2).is_ok());
+
     // Already unregistered
     assert!(unregister_proxy(deps.as_mut(), &proxy2).is_err());
 
@@ -1529,7 +1589,7 @@ fn test_proxy_unregister_with_requests() {
 
     // Delegation 1 was removed with all re-encryption requests
     assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee1_pubkey).is_err()
+        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee1_pubkey,).is_err()
     );
 }
 
@@ -1701,19 +1761,19 @@ fn test_proxy_deactivate_and_remove_with_requests() {
 
     // Re-encryption requests with DATA1 to delegatee1
     assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee1_pubkey).is_ok()
+        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee1_pubkey,).is_ok()
     );
     // Re-encryption requests with DATA1 to delegatee2
     assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee2_pubkey).is_ok()
+        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee2_pubkey,).is_ok()
     );
     // Re-encryption requests with DATA2 to delegatee2
     assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id2, &delegatee2_pubkey).is_ok()
+        request_reencryption(deps.as_mut(), &delegator1, &data_id2, &delegatee2_pubkey,).is_ok()
     );
     // Re-encryption requests with DATA3 to delegatee1
     assert!(
-        request_reencryption(deps.as_mut(), &delegator2, &data_id3, &delegatee1_pubkey).is_ok()
+        request_reencryption(deps.as_mut(), &delegator2, &data_id3, &delegatee1_pubkey,).is_ok()
     );
 
     // Complete requests
@@ -2045,123 +2105,4 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy5_pubkey,
         &8,
     ));
-}
-
-#[test]
-fn test_deleting_re_requests_threshold_amount_fragments_provided() {
-    let mut deps = mock_dependencies(&[]);
-
-    // Addresses
-    let creator = Addr::unchecked("creator".to_string());
-    let proxy1 = Addr::unchecked("proxy_1".to_string());
-    let proxy2 = Addr::unchecked("proxy_2".to_string());
-
-    let delegator = Addr::unchecked("delegator".to_string());
-
-    // Pubkeys
-    let delegator_pubkey: String = String::from("DRK");
-    let delegatee1_pubkey: String = String::from("DEK1");
-    let proxy1_pubkey: String = String::from("proxy_pubkey1");
-    let proxy2_pubkey: String = String::from("proxy_pubkey2");
-
-    let data_id = String::from("DATA");
-    let data_entry = DataEntry {
-        delegator_pubkey: delegator_pubkey.clone(),
-    };
-
-    /*************** Initialise *************/
-    let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
-    assert!(init_contract(
-        deps.as_mut(),
-        &creator,
-        &Some(1),
-        &None,
-        &None,
-        &Some(proxies.clone()),
-    )
-    .is_ok());
-
-    /*************** Register proxies *************/
-    // Proxies register -> submits pubkeys
-    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey).is_ok());
-
-    /*************** Add data and delegations by delegator *************/
-    // Add data by delegator
-    assert!(add_data(
-        deps.as_mut(),
-        &delegator,
-        &data_id,
-        &data_entry.delegator_pubkey,
-    )
-    .is_ok());
-
-    // Add 2 delegations for 2 proxies
-    let proxy1_delegation_string = String::from("DS_P1");
-    let proxy2_delegation_string = String::from("DS_P2");
-
-    let proxy_delegations: Vec<ProxyDelegation> = vec![
-        ProxyDelegation {
-            proxy_pubkey: proxy1_pubkey.clone(),
-            delegation_string: proxy1_delegation_string.clone(),
-        },
-        ProxyDelegation {
-            proxy_pubkey: proxy2_pubkey.clone(),
-            delegation_string: proxy2_delegation_string.clone(),
-        },
-    ];
-
-    assert!(request_proxies_for_delegation(
-        deps.as_mut(),
-        &delegator,
-        &delegator_pubkey,
-        &delegatee1_pubkey,
-    )
-    .is_ok());
-    assert!(add_delegation(
-        deps.as_mut(),
-        &delegator,
-        &delegator_pubkey,
-        &delegatee1_pubkey,
-        &proxy_delegations,
-    )
-    .is_ok());
-
-    /*************** Request reencryption by delegator *************/
-
-    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee1_pubkey).is_ok());
-
-    // Check number of requests
-    assert_eq!(
-        get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(),
-        1
-    );
-    assert_eq!(
-        get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(),
-        1
-    );
-
-    /*************** Provide fragment *************/
-
-    // Proxy1 provides fragment for task1
-    let proxy1_fragment1: String = String::from("PR1_FRAG1");
-    assert!(provide_reencrypted_fragment(
-        deps.as_mut(),
-        &proxy1,
-        &data_id,
-        &delegatee1_pubkey,
-        &proxy1_fragment1,
-    )
-    .is_ok());
-
-    // The threshold is 1 so task gets completed
-    // Check numbers of requests
-    assert_eq!(
-        get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy1_pubkey).len(),
-        0
-    );
-    assert_eq!(
-        get_all_proxy_reencryption_requests(deps.as_mut().storage, &proxy2_pubkey).len(),
-        0
-    );
 }

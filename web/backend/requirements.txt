@@ -1,0 +1,13 @@
+Django==3.2.10
+djangorestframework
+django-rest-auth
+django-allauth
+django-cleanup
+django-cors-headers
+pytz
+flake8
+black
+mypy
+coverage
+psycopg2
+django-nose

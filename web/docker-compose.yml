@@ -1,0 +1,40 @@
+version: '3'
+
+services:
+
+  db:
+    image: postgres
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+
+  backend:
+    build: ./backend
+    working_dir: /backend
+    command: >
+      bash -c "
+      python manage.py collectstatic --noinput
+      && python manage.py migrate
+      && python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./backend:/backend
+      - static:/backend/static
+      - uploads:/backend/uploads
+    expose:
+      - "8000"
+    depends_on:
+      - db
+
+  nginx:
+    build: ./nginx
+    ports:
+      - 8000:80
+    depends_on:
+      - backend
+    volumes:
+      - static:/backend/static
+      - uploads:/backend/uploads
+
+volumes:
+  static:
+  uploads:

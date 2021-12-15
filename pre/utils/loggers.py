@@ -1,11 +1,10 @@
+""" logging helpers, inspired from https://github.com/fetchai/agents-aea/blob/master/aea/cli/utils/loggers.py """
+
 import logging
 import sys
 from typing import Dict
 
 import click
-
-
-""" logging helpers, inspired from https://github.com/fetchai/agents-aea/blob/master/aea/cli/utils/loggers.py """
 
 
 class ColorFormatter(logging.Formatter):
@@ -41,20 +40,7 @@ def default_logging_config(logger):  # pylint: disable=redefined-outer-name
     return logger
 
 
-_log_levels: Dict = {}
 _loggers: Dict = {}
-
-
-def _set_logger_level(logger, log_level):
-    level = logging.getLevelName(log_level.upper())
-    logger.setLevel(level)
-
-
-def _update_log_level(logger_name, logger):
-    if logger_name in _log_levels:
-        _set_logger_level(logger, _log_levels[logger_name])
-    elif "default" in _log_levels:
-        _set_logger_level(logger, _log_levels["default"])
 
 
 def get_logger(name, name_length=1):
@@ -63,13 +49,5 @@ def get_logger(name, name_length=1):
     logger_name = ".".join(splitted[-name_length:])
     logger = logging.getLogger(logger_name)
     logger = default_logging_config(logger)
-    _update_log_level(logger_name, logger)
     _loggers[logger_name] = logger
     return logger
-
-
-def set_log_levels(config):
-    global _log_levels, _loggers  # pylint: disable=W0603
-    _log_levels = {**config}
-    for name, logger in _loggers.items():
-        _update_log_level(name, logger)

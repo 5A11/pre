@@ -1,3 +1,4 @@
+import contextlib
 from io import BytesIO
 from typing import Dict, IO, Optional, Union, cast
 
@@ -12,7 +13,14 @@ from pre.common import (
     HashID,
     ReencryptedFragment,
 )
-from pre.storage.base_storage import AbstractStorage
+from pre.storage.base_storage import (
+    AbstractStorage,
+    ServerUnreachable,
+    StorageError,
+    StorageNetworkError,
+    StorageNotConnected,
+    StorageTimeout,
+)
 
 
 class IpfsStorageConfig(AbstractConfig):
@@ -21,18 +29,22 @@ class IpfsStorageConfig(AbstractConfig):
         config_dict = cls.make_default()
         config_dict["addr"] = data.get("addr") or config_dict["addr"]
         config_dict["port"] = data.get("port") or config_dict["port"]
+        config_dict["timeout"] = data.get("timeout") or config_dict["timeout"]
 
         if not isinstance(config_dict["addr"], str):
             raise ValueError("ipfs storage parameter `addr` has to be a string")
 
         if not isinstance(config_dict["port"], int):
-            raise ValueError("ipfs storage parameter `port` has to be a string")
+            raise ValueError("ipfs storage parameter `port` has to be an integer")
+
+        if not isinstance(config_dict["timeout"], int):
+            raise ValueError("ipfs storage parameter `timeout` has to be an integer")
 
         return config_dict
 
     @classmethod
     def make_default(cls) -> Dict:
-        return {"addr": "localhost", "port": 5001}
+        return {"addr": "localhost", "port": 5001, "timeout": 10}
 
 
 class IpfsStorage(AbstractStorage):
@@ -42,6 +54,7 @@ class IpfsStorage(AbstractStorage):
         self,
         addr: Optional[str] = None,
         port: Optional[int] = None,
+        timeout: int = 10,
         storage_config: Optional[Dict] = None,
     ):
         self._storage_config = storage_config or {}
@@ -49,15 +62,33 @@ class IpfsStorage(AbstractStorage):
         if addr and port:
             url = "/dns/" + str(addr) + "/tcp/" + str(port) + "/http"
             self._storage_config["addr"] = url
+        self.timeout = timeout
 
     def _check_connected(self):
         if self._client is None:
-            raise ValueError("IPFS storage is not connected! Connect first!")
+            raise StorageNotConnected("IPFS storage is not connected! Connect first!")
+
+    @contextlib.contextmanager
+    def _wrap_exceptions(self):
+        try:
+            yield
+        except ipfshttpclient.exceptions.TimeoutError as e:
+            raise StorageTimeout(e)
+        except ipfshttpclient.exceptions.ConnectionError as e:
+            if "Failed to establish a new connection" in str(e):
+                raise ServerUnreachable(e.original)
+            raise StorageNetworkError(e.original)
+        except ipfshttpclient.exceptions.CommunicationError as e:  # pragma: nocover
+            raise StorageError(e)
 
     def connect(self):
         if self._client is not None:
-            raise ValueError("Already connected!")
-        self._client = ipfshttpclient.connect(**self._storage_config)
+            raise StorageError("Already connected!")
+
+        with self._wrap_exceptions():
+            self._client = ipfshttpclient.connect(
+                **self._storage_config, timeout=self.timeout
+            )
 
     def disconnect(self):
         self._check_connected()
@@ -66,18 +97,20 @@ class IpfsStorage(AbstractStorage):
 
     def _get_object(self, hash_id: HashID, stream: bool = False) -> Union[bytes, IO]:
         self._check_connected()
-        return (
-            ReadableStreamWrapper(self._client.cat(hash_id, stream=True))  # type: ignore
-            if stream
-            else self._client.cat(hash_id, stream=False)  # type: ignore
-        )
+        with self._wrap_exceptions():
+            return (
+                ReadableStreamWrapper(self._client.cat(hash_id, stream=True))  # type: ignore
+                if stream
+                else self._client.cat(hash_id, stream=False, timeout=self.timeout)  # type: ignore
+            )
 
     def _add_object(self, data: Union[bytes, IO]) -> HashID:
         self._check_connected()
-        if isinstance(data, bytes):
-            data = BytesIO(data)
-        res = self._client.add(file=data)  # type: ignore
-        return HashID(res["Hash"])
+        with self._wrap_exceptions():
+            if isinstance(data, bytes):
+                data = BytesIO(data)
+            res = self._client.add(file=data, timeout=self.timeout)  # type: ignore
+            return HashID(res["Hash"])
 
     def store_encrypted_data(self, encrypted_data: EncryptedData) -> HashID:
         objects = {
@@ -102,7 +135,7 @@ class IpfsStorage(AbstractStorage):
 
     def get_data(self, hash_id: HashID, stream: bool = False) -> Union[bytes, IO]:
         links = self._read_container(hash_id)
-        return self._get_object(links["capsule"], stream=stream)
+        return self._get_object(links["data"], stream=stream)
 
     def store_encrypted_part(self, encrypted_part: ReencryptedFragment) -> HashID:
         return self._add_object(encrypted_part)
@@ -112,14 +145,16 @@ class IpfsStorage(AbstractStorage):
 
     def _add_to_container(self, objects: Dict) -> HashID:
         self._check_connected()
-        res = self._client.object.new()  # type: ignore
-        container_id = res["Hash"]
-        for name, cid in objects.items():
-            res = self._client.object.patch.add_link(container_id, name=name, ref=cid)  # type: ignore
+        with self._wrap_exceptions():
+            res = self._client.object.new()  # type: ignore
             container_id = res["Hash"]
-        return HashID(container_id)
+            for name, cid in objects.items():
+                res = self._client.object.patch.add_link(container_id, name=name, ref=cid, timeout=self.timeout)  # type: ignore
+                container_id = res["Hash"]
+            return HashID(container_id)
 
     def _read_container(self, container_id: HashID) -> Dict[str, HashID]:
-        return {
-            i["Name"]: i["Hash"] for i in self._client.object.links(container_id)["Links"]  # type: ignore
-        }
+        with self._wrap_exceptions():
+            return {
+                i["Name"]: i["Hash"] for i in self._client.object.links(container_id, timeout=self.timeout)["Links"]  # type: ignore
+            }

@@ -26,6 +26,7 @@ def cli(ctx, app_config: AppConf):
     ctx.ensure_object(dict)
     ctx.obj[AppConf.ctx_key] = app_config
 
+
 @cli.command(name="add-data")
 @click.argument("data_file", type=file_exists_type, required=True)
 @click.pass_context
@@ -42,7 +43,7 @@ def add_data(
         crypto=app_config.get_crypto_instance(),
     )
 
-    if app_config.do_fund :
+    if app_config.do_fund:
         ledger = app_config.get_ledger_instance()
         addr = delegator_api._ledger_crypto.get_address()
         if not ledger.get_balance(addr):
@@ -55,15 +56,15 @@ def add_data(
 
 
 @cli.command(name="grant-access")
-#@click.option("--threshold", type=int, required=False, default=1)
-#@click.option("--proxies", type=str, required=False, default="")
+# @click.option("--threshold", type=int, required=False, default=1)
+# @click.option("--proxies", type=str, required=False, default="")
 @click.argument("hash_id", type=str, required=True)
 @click.argument("reader-public-key", type=str, required=True)
 @click.pass_context
 def grant_access(
     ctx,
-    #threshold: int,
-    #proxies: str,
+    # threshold: int,
+    # proxies: str,
     hash_id: str,
     reader_public_key: str,
 ):
@@ -75,14 +76,14 @@ def grant_access(
         storage=app_config.get_storage_instance(),
         crypto=app_config.get_crypto_instance(),
     )
-    #click.echo(f"owner public key: {bytes(delegator_api._encryption_private_key.public_key).hex()}")
+    # click.echo(f"owner public key: {bytes(delegator_api._encryption_private_key.public_key).hex()}")
 
     delegatee_pubkey_bytes = bytes.fromhex(reader_public_key)
 
     delegator_api.grant_access(
         hash_id=hash_id,
         delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-        threshold=app_config.threshold
+        threshold=app_config.threshold,
     )
 
     click.echo(f"Access to hash_id {hash_id} granted to {reader_public_key}")

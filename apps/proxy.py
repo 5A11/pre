@@ -4,6 +4,7 @@ import click
 
 from apps.conf import AppConf
 from pre.api.proxy import ProxyAPI
+from pre.contract.base_contract import ProxyAlreadyRegistered
 
 
 PROG_NAME = "proxy"
@@ -46,9 +47,9 @@ def register(ctx):
         if not ledger.get_balance(addr):
             click.echo(f"funding {addr}")
             ledger.ensure_funds([addr])
-    
+
     proxy_api.register()
-    click.echo("Proxy registered")
+    click.echo("Proxy was registered")
 
 
 @cli.command(name="unregister")
@@ -87,29 +88,25 @@ def run(ctx, run_once_and_exit: bool):
         if not ledger.get_balance(addr):
             click.echo(f"funding {addr}")
             ledger.ensure_funds([addr])
-    
+
     try:
-        try:
-            proxy_api.register()
-            click.echo("Proxy registered")
-        except ValueError as exc:
-            if "Generic error: Proxy already registered" in str(exc):
-                click.echo("Proxy was registered already")
-            else:
-                raise
-        click.echo(f"Waiting for reencryption requests...")
+        proxy_api.register()
+        click.echo("Proxy was registered")  # pragma: nocover
+    except ProxyAlreadyRegistered:
+        click.echo("Proxy was already registered. skip registration")
+
+    try:
         while True:
             task = proxy_api.get_next_reencryption_request()
-            if not task:
+            if task is not None:
+                click.echo(f"Got a reencryption task: {task}")
+                proxy_api.process_reencryption_request(task)
+                click.echo(f"Reencryption task processed: {task}")
+            else:  # pragma: nocover
                 time.sleep(DEFAULT_SLEEP_TIME)
-                continue
-            click.echo(f"Got a reencryption task: {task}")
-            proxy_api.process_reencryption_request(task)
-            click.echo(f"Reencryption task processed: {task}")
 
             if run_once_and_exit:  # pragma: nocover
                 break
-
     finally:
         proxy_api.unregister()
         click.echo("Proxy was unregistered")

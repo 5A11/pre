@@ -1,18 +1,41 @@
+import re
 from base64 import b64decode, b64encode
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pre.common import Address, Delegation, HashID, ProxyTask, DelegationState, GetFragmentsResponse, \
-    ReencryptionRequestState
+from pre.common import (
+    Address,
+    Delegation,
+    DelegationState,
+    GetFragmentsResponse,
+    HashID,
+    ProxyTask,
+    ReencryptionRequestState,
+)
 from pre.contract.base_contract import (
     AbstractAdminContract,
     AbstractContractQueries,
     AbstractDelegatorContract,
     AbstractProxyContract,
+    BadContractAddress,
+    ContractExecutionError,
+    ContractInstantiateFailure,
+    ContractQueryError,
+    DataAlreadyExist,
     DataEntry,
+    DataEntryDoesNotExist,
+    DelegationAlreadyAdded,
+    DelegationAlreadyExist,
+    ProxyAlreadyExist,
+    ProxyAlreadyRegistered,
+    ProxyNotRegistered,
+    ReencryptedCapsuleFragAlreadyProvided,
+    ReencryptionAlreadyRequested,
+    UnknownProxy,
+    UnkownReencryptionRequest,
 )
 from pre.ledger.base_ledger import AbstractLedgerCrypto
-from pre.ledger.cosmos.ledger import CosmosLedger
+from pre.ledger.cosmos.ledger import BroadcastException, CosmosLedger
 from pre.utils.loggers import get_logger
 
 
@@ -27,12 +50,66 @@ def encode_bytes(data: bytes) -> str:
     return b64encode(data).decode("ascii")
 
 
+class ContractExecuteExceptionMixIn:
+    @classmethod
+    def _exception_from_res(cls, error_code, res):
+        if error_code == 0:
+            return
+
+        raw_log = ""
+
+        try:
+            raw_log = res["txResponse"]["rawLog"]
+        except KeyError:  # pragma: nocover
+            raw_log = ""
+
+        if "Pubkey already used" in raw_log:
+            raise ProxyAlreadyRegistered(raw_log, error_code, res)
+        elif "Sender is not a proxy." in raw_log:
+            raise UnknownProxy(raw_log, error_code, res)
+        elif re.search("Delegator .* already registered with this pubkey", raw_log):
+            raise DelegationAlreadyAdded(raw_log, error_code, res)
+        elif "is already proxy" in raw_log:
+            raise ProxyAlreadyExist(raw_log, error_code, res)
+        elif "is not a proxy" in raw_log:
+            raise ProxyNotRegistered(raw_log, error_code, res)
+        elif "Proxy already unregistered" in raw_log:
+            raise ProxyNotRegistered(raw_log, error_code, res)
+        elif "No proxies selected for this delegation" in raw_log:
+            raise UnknownProxy(raw_log, error_code, res)
+        elif "Reencryption already requested" in raw_log:
+            raise ReencryptionAlreadyRequested(raw_log, error_code, res)
+        elif "Fragment already provided" in raw_log:
+            raise ReencryptedCapsuleFragAlreadyProvided(raw_log, error_code, res)
+        elif "Entry with ID hash_id already exist" in raw_log:
+            raise DataAlreadyExist(raw_log, error_code, res)
+        elif "Delegation strings already provided" in raw_log:
+            raise DelegationAlreadyExist(raw_log, error_code, res)
+        elif "This fragment was not requested" in raw_log:
+            raise UnkownReencryptionRequest(raw_log, error_code, res)
+        elif "contract: not found" in raw_log:
+            raise BadContractAddress(raw_log, error_code, res)
+        elif re.search("Data entry doesn't exist", raw_log):
+            raise DataEntryDoesNotExist(raw_log, error_code, res)
+        raise ContractExecutionError(
+            f"Contract execution failed: {raw_log}", error_code, res
+        )  # pragma: nocover
+
+
 class ContractQueries(AbstractContractQueries):
     ledger: CosmosLedger
 
+    def _send_query(self, state_msg):
+        try:
+            return self.ledger.send_query_msg(self.contract_address, state_msg)
+        except BroadcastException as e:
+            if "contract: not found: invalid request" in str(e):
+                raise ContractQueryError(str(e))
+            raise
+
     def get_avaiable_proxies(self) -> List[bytes]:
         state_msg: Dict = {"get_available_proxies": {}}
-        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+        json_res = self._send_query(state_msg)
         return [b64decode(i) for i in json_res["proxy_pubkeys"]]
 
     def get_selected_proxies_for_delegation(
@@ -46,13 +123,12 @@ class ContractQueries(AbstractContractQueries):
                 "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
             }
         }
-        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+        json_res = self._send_query(state_msg)
         return [b64decode(i) for i in json_res["proxy_pubkeys"]]
 
     def get_data_entry(self, data_id: HashID) -> Optional[DataEntry]:
         state_msg: Dict = {"get_data_i_d": {"data_id": data_id}}
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
-        print(json_res)
         if json_res["data_entry"]:
             return DataEntry(
                 pubkey=b64decode(json_res["data_entry"]["delegator_pubkey"]),
@@ -61,14 +137,14 @@ class ContractQueries(AbstractContractQueries):
 
     def get_threshold(self) -> int:
         state_msg: Dict = {"get_threshold": {}}
-        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+        json_res = self._send_query(state_msg)
         return json_res["threshold"]
 
     def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
         state_msg: Dict = {
             "get_next_proxy_task": {"proxy_pubkey": encode_bytes(proxy_pubkey_bytes)}
         }
-        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+        json_res = self._send_query(state_msg)
 
         if json_res["proxy_task"]:
             return ProxyTask(
@@ -90,12 +166,14 @@ class ContractQueries(AbstractContractQueries):
                 "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
             }
         }
-        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+        json_res = self._send_query(state_msg)
 
         return GetFragmentsResponse(
-            reencryption_request_state=ReencryptionRequestState[json_res["reencryption_request_state"]],
+            reencryption_request_state=ReencryptionRequestState[
+                json_res["reencryption_request_state"]
+            ],
             fragments=json_res["fragments"],
-            threshold = json_res["threshold"],
+            threshold=json_res["threshold"],
         )
 
     def get_delegation_state(
@@ -109,11 +187,11 @@ class ContractQueries(AbstractContractQueries):
                 "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
             }
         }
-        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+        json_res = self._send_query(state_msg)
         return DelegationState[json_res["delegation_state"]]
 
 
-class AdminContract(AbstractAdminContract):
+class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
     CONTRACT_WASM_FILE = CONTRACT_WASM_FILE
     ledger: CosmosLedger
 
@@ -123,16 +201,16 @@ class AdminContract(AbstractAdminContract):
         ledger: CosmosLedger,
         admin_private_key: AbstractLedgerCrypto,
         admin_addr: Address,
-        threshold: Optional[int],
-        n_max_proxies: Optional[int],
+        threshold: Optional[int] = None,
+        n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
         label: str = "PRE",
     ) -> Address:
         _logger.info("Deploying contract")
         code_id, res = ledger.deploy_contract(admin_private_key, cls.CONTRACT_WASM_FILE)
 
-        if not isinstance(code_id, int):
-            raise ValueError(f"Bad response on deploy contract: {code_id} {res}")
+        if not isinstance(code_id, int):  # pragma: nocover
+            cls._exception_from_res(1, res)
 
         _logger.info("Initializing deployed contract")
         init_msg: Dict = {
@@ -145,9 +223,17 @@ class AdminContract(AbstractAdminContract):
         if n_max_proxies is not None:
             init_msg["n_max_proxies"] = n_max_proxies
 
-        contract_address, res = ledger.send_init_msg(
-            admin_private_key, code_id, init_msg, label
-        )
+        try:
+            contract_address, res = ledger.send_init_msg(
+                admin_private_key, code_id, init_msg, label
+            )
+        except BroadcastException as e:
+            if (
+                "Error parsing into type cw_proxy_reencryption::msg::InstantiateMsg"
+                in str(e)
+            ):
+                raise ContractInstantiateFailure(str(e)) from e
+            raise
         return Address(contract_address)
 
     def add_proxy(self, admin_private_key: AbstractLedgerCrypto, proxy_addr: Address):
@@ -155,8 +241,7 @@ class AdminContract(AbstractAdminContract):
         res, error_code = self.ledger.send_execute_msg(
             admin_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
     def remove_proxy(
         self, admin_private_key: AbstractLedgerCrypto, proxy_addr: Address
@@ -165,11 +250,10 @@ class AdminContract(AbstractAdminContract):
         res, error_code = self.ledger.send_execute_msg(
             admin_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
 
-class DelegatorContract(AbstractDelegatorContract):
+class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn):
     ledger: CosmosLedger
 
     def add_data(
@@ -187,8 +271,7 @@ class DelegatorContract(AbstractDelegatorContract):
         res, error_code = self.ledger.send_execute_msg(
             delegator_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
     def add_delegations(
         self,
@@ -213,19 +296,16 @@ class DelegatorContract(AbstractDelegatorContract):
         res, error_code = self.ledger.send_execute_msg(
             delegator_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
     def get_delegation_state(
         self,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
-    ) -> bool:
+    ) -> DelegationState:
         return ContractQueries(
             ledger=self.ledger, contract_address=self.contract_address
-        ).get_delegation_state(
-            delegator_pubkey_bytes, delegatee_pubkey_bytes
-        )
+        ).get_delegation_state(delegator_pubkey_bytes, delegatee_pubkey_bytes)
 
     def get_selected_proxies_for_delegation(
         self,
@@ -253,8 +333,7 @@ class DelegatorContract(AbstractDelegatorContract):
         res, error_code = self.ledger.send_execute_msg(
             delegator_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
         # FIXME(LR) parse `res`` instead
         return self.get_selected_proxies_for_delegation(
@@ -279,8 +358,7 @@ class DelegatorContract(AbstractDelegatorContract):
         res, error_code = self.ledger.send_execute_msg(
             delegator_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
     def get_avaiable_proxies(self) -> List[bytes]:
         return ContractQueries(
@@ -288,7 +366,7 @@ class DelegatorContract(AbstractDelegatorContract):
         ).get_avaiable_proxies()
 
 
-class ProxyContract(AbstractProxyContract):
+class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
     ledger: CosmosLedger
 
     def proxy_register(
@@ -304,8 +382,7 @@ class ProxyContract(AbstractProxyContract):
         res, error_code = self.ledger.send_execute_msg(
             proxy_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
     def proxy_unregister(
         self,
@@ -315,8 +392,7 @@ class ProxyContract(AbstractProxyContract):
         res, error_code = self.ledger.send_execute_msg(
             proxy_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
     def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
         return ContractQueries(
@@ -340,8 +416,7 @@ class ProxyContract(AbstractProxyContract):
         res, error_code = self.ledger.send_execute_msg(
             proxy_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
 
 class CosmosContract:  # pylint: disable=too-few-public-methods

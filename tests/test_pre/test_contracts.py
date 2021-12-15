@@ -1,0 +1,383 @@
+from unittest.case import TestCase
+
+import pytest
+
+from apps import admin
+from pre.common import Delegation, DelegationState, ReencryptionRequestState
+from pre.contract.base_contract import (
+    BadContractAddress,
+    ContractInstantiateFailure,
+    ContractQueryError,
+    DataAlreadyExist,
+    DataDoesNotExist,
+    DataEntryDoesNotExist,
+    DelegationAlreadyAdded,
+    DelegationAlreadyExist,
+    NotOwner,
+    ProxyAlreadyExist,
+    ProxyAlreadyRegistered,
+    ProxyNotRegistered,
+    ReencryptedCapsuleFragAlreadyProvided,
+    ReencryptionAlreadyRequested,
+    UnknownProxy,
+    UnkownReencryptionRequest,
+)
+from pre.contract.cosmos_contracts import (
+    AdminContract,
+    ContractQueries,
+    DelegatorContract,
+    ProxyContract,
+)
+from pre.crypto.umbral_crypto import UmbralCrypto
+from pre.ledger.cosmos.ledger import BroadcastException, CosmosLedger
+from pre.storage.ipfs_storage import IpfsStorage
+
+from tests.constants import (
+    DEFAULT_DENOMINATION,
+    DEFAULT_FETCH_CHAIN_ID,
+    FETCHD_CONFIGURATION,
+    FETCHD_LOCAL_URL,
+    FUNDED_FETCHAI_PRIVATE_KEY_1,
+    IPFS_PORT,
+    PREFIX,
+)
+from tests.utils import IPFSDaemon, _fetchd_context, local_ledger_and_storage
+
+
+LOCAL_LEDGER_CONFIG = dict(
+    denom=DEFAULT_DENOMINATION,
+    chain_id=DEFAULT_FETCH_CHAIN_ID,
+    prefix=PREFIX,
+    node_address=FETCHD_LOCAL_URL,
+    validator_pk=FUNDED_FETCHAI_PRIVATE_KEY_1,
+)
+
+
+class BaseContractTestCase(TestCase):
+    FAKE_CONTRACT_ADDR = "fetch18vd9fpwxzck93qlwghaj6arh4p7c5n890l3amr"
+    THRESHOLD = 1
+    NUM_PROXIES = 10
+
+    @classmethod
+    def setUpClass(self):
+        self.node_confs = local_ledger_and_storage()
+        self.ledger_config, self.ipfs_config = self.node_confs.__enter__()
+
+        ipfs_storage = IpfsStorage(**self.ipfs_config)
+        ipfs_storage.connect()
+
+        self.crypto = UmbralCrypto()
+
+        self.ledger = CosmosLedger(**self.ledger_config)
+        self.validator = self.ledger.load_crypto_from_str(FUNDED_FETCHAI_PRIVATE_KEY_1)
+        self.ledger_crypto = self.ledger.make_new_crypto()
+        self.ledger._send_funds(
+            self.validator, self.ledger_crypto.get_address(), amount=10000
+        )
+        self.contract_addr = self._setup_a_contract()
+        self.proxy_addr = self.ledger_crypto.get_address()
+        self.proxy_pub_key = b"proxy pub key"
+        self.delegator_pub_key = b"delegator_pub_key"
+        self.delegatee_pub_key = b"pub_key"
+        self.hash_id = "hash_id"
+        self.degator_addr = self.ledger_crypto.get_address()
+        self.fragment_hash_id = "some fragment hash_id"
+
+    @classmethod
+    def _setup_a_contract(self):
+        contract_address = AdminContract.instantiate_contract(
+            self.ledger,
+            self.ledger_crypto,
+            self.ledger_crypto.get_address(),
+            self.THRESHOLD,
+            self.NUM_PROXIES,
+        )
+        assert contract_address
+        return contract_address
+
+    @classmethod
+    def tearDownClass(self):
+        self.node_confs.__exit__(None, None, None)  # type: ignore
+
+    @property
+    def proxy_contract(self):
+        return ProxyContract(self.ledger, self.contract_addr)
+
+    @property
+    def admin_contract(self):
+        return AdminContract(self.ledger, self.contract_addr)
+
+    @property
+    def delegator_contract(self):
+        return DelegatorContract(self.ledger, self.contract_addr)
+
+    @property
+    def contract_queries(self):
+        return ContractQueries(self.ledger, self.contract_addr)
+
+
+class TestAdminContract(BaseContractTestCase):
+    def test_contract_address_set_new(self):
+        addr1 = self._setup_a_contract()
+        addr2 = self._setup_a_contract()
+        assert addr1 != addr2
+
+    def test_bad_calls_for_bad_contract_addr(self):
+        fake_addr = self.ledger.make_new_crypto().get_address()
+        admin_contract = AdminContract(self.ledger, contract_address=fake_addr)
+        with pytest.raises(
+            BadContractAddress,
+        ):
+            admin_contract.add_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
+        with pytest.raises(
+            BadContractAddress,
+        ):
+            admin_contract.remove_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
+
+    def test_add_proxy_remove_proxy(self):
+
+        self.admin_contract.add_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
+
+        with pytest.raises(ProxyAlreadyExist):
+            self.admin_contract.add_proxy(
+                self.ledger_crypto, proxy_addr=self.proxy_addr
+            )
+
+        self.admin_contract.remove_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
+
+        with pytest.raises(ProxyNotRegistered):
+            self.admin_contract.remove_proxy(
+                self.ledger_crypto, proxy_addr=self.proxy_addr
+            )
+
+    def test_get_threshold(self):
+        assert self.contract_queries.get_threshold() == self.THRESHOLD
+
+    def test_bad_set_contract(self):
+        with pytest.raises(
+            ContractInstantiateFailure,
+            match="Error parsing into type cw_proxy_reencryption::msg::InstantiateMsg: Invalid number",
+        ):
+            AdminContract.instantiate_contract(
+                self.ledger,
+                self.ledger_crypto,
+                self.ledger_crypto.get_address(),
+                -1,
+                9999999,
+            )
+
+    def test_bad_address_queries(self):
+        fake_addr = self.ledger.make_new_crypto().get_address()
+        contract_queries = ContractQueries(self.ledger, contract_address=fake_addr)
+        with pytest.raises(ContractQueryError):
+            contract_queries.get_threshold()
+
+
+class TestDelegatorContract(BaseContractTestCase):
+    def test_add_delegation_add_reencryption_request(self):
+        self.delegator_contract.add_data(
+            self.ledger_crypto, self.delegator_pub_key, self.hash_id
+        )
+
+        with pytest.raises(DataAlreadyExist):
+            self.delegator_contract.add_data(
+                self.ledger_crypto, self.delegator_pub_key, self.hash_id
+            )
+
+        with pytest.raises(UnknownProxy):
+            self.delegator_contract.add_delegations(
+                self.ledger_crypto,
+                self.delegator_pub_key,
+                self.delegatee_pub_key,
+                delegations=[Delegation(self.proxy_pub_key, b"somedata")],
+            )
+        assert (
+            self.delegator_contract.get_delegation_state(
+                delegator_pubkey_bytes=self.delegator_pub_key,
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+            )
+            == DelegationState.non_existing
+        )
+
+        with pytest.raises(UnknownProxy):
+            self.proxy_contract.proxy_register(
+                self.ledger_crypto, proxy_pubkey_bytes=self.proxy_pub_key
+            )
+
+        self.admin_contract.add_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
+
+        with pytest.raises(ProxyAlreadyExist):
+            self.admin_contract.add_proxy(
+                self.ledger_crypto, proxy_addr=self.proxy_addr
+            )
+
+        assert not self.delegator_contract.get_avaiable_proxies()
+
+        self.proxy_contract.proxy_register(
+            self.ledger_crypto, proxy_pubkey_bytes=self.proxy_pub_key
+        )
+
+        with pytest.raises(ProxyAlreadyRegistered):
+            self.proxy_contract.proxy_register(
+                self.ledger_crypto, proxy_pubkey_bytes=self.proxy_pub_key
+            )
+
+        assert self.delegator_contract.get_avaiable_proxies()
+
+        proxies_list = self.delegator_contract.get_selected_proxies_for_delegation(
+            delegator_pubkey_bytes=self.delegator_pub_key,
+            delegatee_pubkey_bytes=self.delegatee_pub_key,
+        )
+
+        if not proxies_list:
+            # request proxies from contract
+            proxies_list = self.delegator_contract.request_proxies_for_delegation(
+                delegator_private_key=self.ledger_crypto,
+                delegator_pubkey_bytes=self.delegator_pub_key,
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+            )
+
+        assert proxies_list
+
+        self.delegator_contract.add_delegations(
+            self.ledger_crypto,
+            self.delegator_pub_key,
+            self.delegatee_pub_key,
+            delegations=[
+                Delegation(
+                    proxy_pub_key=self.proxy_pub_key, delegation_string=b"somedata"
+                )
+            ],
+        )
+
+        with pytest.raises(DelegationAlreadyExist):
+            self.delegator_contract.add_delegations(
+                self.ledger_crypto,
+                self.delegator_pub_key,
+                self.delegatee_pub_key,
+                delegations=[
+                    Delegation(
+                        proxy_pub_key=self.proxy_pub_key, delegation_string=b"somedata"
+                    )
+                ],
+            )
+
+        assert (
+            self.delegator_contract.get_delegation_state(
+                delegator_pubkey_bytes=self.delegator_pub_key,
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+            )
+            == DelegationState.active
+        )
+
+        assert not self.proxy_contract.get_next_proxy_task(
+            proxy_pubkey_bytes=self.proxy_pub_key
+        )
+
+        self.delegator_contract.request_reencryption(
+            delegator_private_key=self.ledger_crypto,
+            delegator_pubkey_bytes=self.delegator_pub_key,
+            hash_id=self.hash_id,
+            delegatee_pubkey_bytes=self.delegatee_pub_key,
+        )
+
+        with pytest.raises(DataEntryDoesNotExist):
+            self.delegator_contract.request_reencryption(
+                delegator_private_key=self.ledger_crypto,
+                delegator_pubkey_bytes=self.delegator_pub_key,
+                hash_id="Q",
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+            )
+
+        with pytest.raises(DelegationAlreadyAdded):
+            self.delegator_contract.request_reencryption(
+                delegator_private_key=self.validator,
+                delegator_pubkey_bytes=self.delegator_pub_key,
+                hash_id=self.hash_id,
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+            )
+
+        with pytest.raises(ReencryptionAlreadyRequested):
+            self.delegator_contract.request_reencryption(
+                delegator_private_key=self.ledger_crypto,
+                delegator_pubkey_bytes=self.delegator_pub_key,
+                hash_id=self.hash_id,
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+            )
+
+        proxy_task = self.proxy_contract.get_next_proxy_task(
+            proxy_pubkey_bytes=self.proxy_pub_key
+        )
+        assert proxy_task
+
+        assert (
+            self.contract_queries.get_fragments_response(
+                self.hash_id, delegatee_pubkey_bytes=self.delegatee_pub_key
+            ).reencryption_request_state
+            == ReencryptionRequestState.ready
+        )
+
+        self.proxy_contract.provide_reencrypted_fragment(
+            proxy_private_key=self.ledger_crypto,
+            hash_id=self.hash_id,
+            delegatee_pubkey_bytes=self.delegatee_pub_key,
+            fragment_hash_id=self.fragment_hash_id,
+        )
+
+        assert (
+            self.delegator_contract.get_delegation_state(
+                delegator_pubkey_bytes=self.delegator_pub_key,
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+            )
+            == DelegationState.active
+        )
+
+        with pytest.raises(ReencryptedCapsuleFragAlreadyProvided):
+            self.proxy_contract.provide_reencrypted_fragment(
+                proxy_private_key=self.ledger_crypto,
+                hash_id=self.hash_id,
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+                fragment_hash_id=self.fragment_hash_id,
+            )
+
+        with pytest.raises(UnkownReencryptionRequest):
+            self.proxy_contract.provide_reencrypted_fragment(
+                proxy_private_key=self.ledger_crypto,
+                hash_id="another hash id",
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+                fragment_hash_id=self.fragment_hash_id,
+            )
+
+        assert (
+            self.fragment_hash_id
+            in self.contract_queries.get_fragments_response(
+                self.hash_id, delegatee_pubkey_bytes=self.delegatee_pub_key
+            ).fragments
+        )
+
+        # no errors
+        self.contract_queries.get_fragments_response(
+            "bad hash id", delegatee_pubkey_bytes=self.delegatee_pub_key
+        )
+
+        # no errors
+        self.contract_queries.get_fragments_response(
+            self.hash_id, delegatee_pubkey_bytes=self.delegatee_pub_key + b"bad_pubkey"
+        )
+
+        self.proxy_contract.proxy_unregister(self.ledger_crypto)
+
+        with pytest.raises(ProxyNotRegistered):
+            self.proxy_contract.proxy_unregister(self.ledger_crypto)
+        assert not self.delegator_contract.get_avaiable_proxies()
+
+        # test get data entry
+
+        data_entry = self.contract_queries.get_data_entry(self.hash_id)
+        assert data_entry
+        # need a fix
+        # assert data_entry.addr == self.degator_addr
+        assert data_entry.pubkey == self.delegator_pub_key
+
+        data_entry = self.contract_queries.get_data_entry("hashid not exists")
+        assert not data_entry

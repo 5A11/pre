@@ -1,6 +1,6 @@
-from typing import IO, List, Optional, Protocol, Tuple, Union, cast
+from typing import IO, List, Union
 
-from pre.common import Capsule, HashID, PrivateKey, DelegationState
+from pre.common import DelegationState, HashID, PrivateKey
 from pre.contract.base_contract import AbstractDelegatorContract
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.ledger.base_ledger import AbstractLedgerCrypto
@@ -29,9 +29,9 @@ class DelegatorAPI:
         return bytes(self._encryption_private_key.public_key)
 
     def add_data(self, data: Union[bytes, IO]) -> HashID:
-        return self._add_data(data)[0]
+        return self._add_data(data)
 
-    def _add_data(self, data: Union[bytes, IO]) -> Tuple[HashID, Capsule]:
+    def _add_data(self, data: Union[bytes, IO]) -> HashID:
         encrypted_data = self._crypto.encrypt(
             data, self._encryption_private_key.public_key
         )
@@ -41,12 +41,7 @@ class DelegatorAPI:
             delegator_pubkey_bytes=self._encryption_public_key,
             hash_id=hash_id,
         )
-        return hash_id, encrypted_data.capsule
-
-    def get_proxies_list(
-        self,
-    ) -> List[bytes]:
-        return self._contract.get_avaiable_proxies()
+        return hash_id
 
     def get_selected_proxies_for_delegation(
         self,
@@ -60,7 +55,6 @@ class DelegatorAPI:
     def _set_delegation(
         self,
         delegatee_pubkey_bytes: bytes,
-        capsule_bytes: bytes,
         threshold: int,
     ):
         proxies_list = self.get_selected_proxies_for_delegation(delegatee_pubkey_bytes)
@@ -75,8 +69,12 @@ class DelegatorAPI:
         if not proxies_list:
             raise ValueError("proxies_list can not be empty")
 
+        if len(proxies_list) < threshold:
+            raise ValueError(
+                f"not enought proxies: {len(proxies_list)} cause threshold is {threshold}"
+            )
+
         delegations = self._crypto.generate_delegations(
-            capsule_bytes=capsule_bytes,
             threshold=threshold,
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
             proxies_pubkeys_bytes=proxies_list,
@@ -94,17 +92,16 @@ class DelegatorAPI:
         hash_id: HashID,
         delegatee_pubkey_bytes: bytes,
         threshold: int,
-        capsule: Optional[Capsule] = None,
     ):
-        if self._contract.get_delegation_state(
-            delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
-            delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-        ) == DelegationState.non_existing:
-            if not capsule:
-                capsule = self._storage.get_capsule(hash_id)
+        if (
+            self._contract.get_delegation_state(
+                delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
+                delegatee_pubkey_bytes=delegatee_pubkey_bytes,
+            )
+            == DelegationState.non_existing
+        ):
             self._set_delegation(
                 delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-                capsule_bytes=capsule,
                 threshold=threshold,
             )
         # DelegationState.Active
@@ -113,20 +110,4 @@ class DelegatorAPI:
             delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
             hash_id=hash_id,
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-        )
-
-    def add_data_and_grant(
-        self,
-        data: Union[bytes, IO],
-        delegatee_pubkey_bytes: bytes,
-        threshold: int,
-        proxies_list: Optional[List[bytes]] = None,
-    ):
-        hash_id, capsule = self._add_data(data)
-        self.grant_access(
-            hash_id=hash_id,
-            delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-            threshold=threshold,
-            proxies_list=proxies_list,
-            capsule=capsule,
         )

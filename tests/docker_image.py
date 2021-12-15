@@ -162,6 +162,9 @@ class FetchLedgerDockerImage(DockerImage):
             'sed -i "s/stake/atestfet/" ~/.fetchd/config/genesis.json',
             'sed -i "s/enable = false/enable = true/" ~/.fetchd/config/app.toml',
             'sed -i "s/swagger = false/swagger = true/" ~/.fetchd/config/app.toml',
+            'sed -i "s/swagger = false/swagger = true/" ~/.fetchd/config/app.toml',
+            'sed -i "s/3s/1s/" ~/.fetchd/config/config.toml',
+            'sed -i "s/5s/1s/" ~/.fetchd/config/config.toml',
             "fetchd start",
         )
 

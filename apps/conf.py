@@ -24,6 +24,7 @@ from pre.storage.ipfs_storage import IpfsStorage
 
 class AppConf:
     ctx_key = "app_config"
+
     class Params(Enum):
         LEDGER_CONFIG = "ledger_config"
         STORAGE_CONFIG = "ipfs_config"

@@ -1,7 +1,7 @@
 import typing
 from abc import ABC, abstractmethod
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Callable, Dict, IO, List, NamedTuple, Optional, Union
 
 
@@ -23,50 +23,43 @@ class AbstractConfig(ABC):
     @classmethod
     @abstractmethod
     def validate(cls, data: Dict) -> Dict:
-        pass
+        """Validate config."""
 
     @classmethod
     @abstractmethod
     def make_default(cls) -> Dict:
-        pass
+        """Generate default config."""
 
 
 class PublicKey(ABC):
-    @property
-    def address(self) -> Address:
-        return ""
+    """Abstract public key."""
 
     @abstractmethod
     def __bytes__(self) -> bytes:
-        pass
+        """Get public key bytes."""
 
     @classmethod
     @abstractmethod
     def from_bytes(cls, data: bytes) -> Any:
-        pass
+        """Make public key from bytes."""
 
 
 class PrivateKey(ABC):
+    """Abstract private key."""
+
     @property
+    @abstractmethod
     def public_key(self) -> PublicKey:
-        pass
+        """Get public key."""
 
     @abstractmethod
     def __bytes__(self) -> bytes:
-        pass
+        """Get private key bytes."""
 
     @classmethod
     @abstractmethod
     def from_bytes(cls, data: bytes) -> Any:
-        pass
-
-
-class EncryptionPrivateKey(PrivateKey):
-    pass
-
-
-class LedgerPrivateKey(PrivateKey):
-    pass
+        """Make private key from bytes."""
 
 
 @dataclass
@@ -100,7 +93,7 @@ class ProxyTask:
         self.delegator_pubkey = delegator_pubkey
         self.delegation_string = delegation_string
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: nocover
         return f"{self.hash_id}: delegator: {self.delegator_pubkey.hex()} delegatee: {self.delegatee_pubkey.hex()}"
 
 
@@ -132,16 +125,16 @@ class DataEntry:
 def types_from_annotations(func: Callable) -> Dict:
     types = {}
     for name, type_ in func.__annotations__.items():
-        if typing.get_origin(type_) is typing.Union:
+        if typing.get_origin(type_) is typing.Union:  # for optional
             type_ = typing.get_args(type_)
         types[name] = type_
 
     return types
 
 
-def validate_with_types(data: Dict, types: Dict, allow_extras=True) -> Dict:
+def filter_data_with_types(data: Dict, types: Dict, allow_extras=True) -> Dict:
     extra_keys = set(data.keys()) - set(types.keys())
-    if extra_keys and not allow_extras:
+    if extra_keys and not allow_extras:  # pragma: nocover
         raise ValueError(f'Extra keys found `{", ".join(extra_keys)}`')
 
     validated_data = {}
@@ -156,4 +149,3 @@ def get_defaults(func: Callable) -> Dict:
     varnames = func.__code__.co_varnames
     defaults = func.__defaults__  # type: ignore
     return dict(zip(varnames[-len(defaults) :], defaults))
-

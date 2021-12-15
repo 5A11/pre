@@ -2,19 +2,29 @@ import logging
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import time
 from contextlib import contextmanager
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 import pytest
 
-import docker as docker
+import docker
 
+from tests import conftest
 from tests.constants import (
+    DEFAULT_DENOMINATION,
+    DEFAULT_FETCH_CHAIN_ID,
     DEFAULT_FETCH_DOCKER_IMAGE_TAG,
     DEFAULT_FETCH_LEDGER_ADDR,
     DEFAULT_FETCH_LEDGER_RPC_PORT,
+    FETCHD_CONFIGURATION,
+    FETCHD_LOCAL_URL,
+    FUNDED_FETCHAI_PRIVATE_KEY_1,
+    LOCAL_IPFS_CONFIG,
+    LOCAL_LEDGER_CONFIG,
+    PREFIX,
 )
 from tests.docker_image import DockerImage, FetchLedgerDockerImage
 
@@ -29,15 +39,21 @@ def _launch_image(image: DockerImage, timeout: float = 2.0, max_attempts: int = 
     :param image: an instance of Docker image.
     :return: None
     """
-    image.check_skip()
-    image.stop_if_already_running()
-    container = image.create()
-    container.start()
-    logger.info(f"Setting up image {image.tag}...")
-    success = image.wait(max_attempts, timeout)
+
+    for _ in range(5):
+        image.check_skip()
+        image.stop_if_already_running()
+        container = image.create()
+        container.start()
+        logger.info(f"Setting up image {image.tag}...")
+        success = image.wait(max_attempts, timeout)
+        if not success:
+            container.stop()
+            container.remove()
+        else:
+            break
+
     if not success:
-        container.stop()
-        container.remove()
         pytest.fail(f"{image.tag} doesn't work. Exiting...")
     else:
         try:
@@ -46,8 +62,8 @@ def _launch_image(image: DockerImage, timeout: float = 2.0, max_attempts: int = 
             yield
         finally:
             logger.info(f"Stopping the image {image.tag}...")
-            # container.stop()
-            # container.remove()
+            container.stop()
+            container.remove()
 
 
 @contextmanager
@@ -70,7 +86,7 @@ class IPFSDaemon:
     :raises Exception: if IPFS is not installed.
     """
 
-    def __init__(self, timeout: float = 15.0):
+    def __init__(self, timeout: float = 15.0, port: int = 5001):
         """Initialise IPFS daemon."""
         # check we have ipfs
         self.timeout = timeout
@@ -78,6 +94,7 @@ class IPFSDaemon:
         if res is None:
             raise Exception("Please install IPFS first!")
         self.process = None  # type: Optional[subprocess.Popen]
+        self.port = port
 
     def __enter__(self) -> None:
         """Run the ipfs daemon."""
@@ -86,8 +103,15 @@ class IPFSDaemon:
             stdout=subprocess.PIPE,
             env=os.environ.copy(),
         )
+
         print("Waiting for {} seconds the IPFS daemon to be up.".format(self.timeout))
-        time.sleep(self.timeout)
+
+        t = time.time()
+        while time.time() - t < self.timeout:
+            if is_port_open(host="localhost", port=self.port):
+                return
+            time.sleep(1)
+        raise ValueError("failed to connect")
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
         """Terminate the ipfs daemon."""
@@ -99,3 +123,22 @@ class IPFSDaemon:
         if poll is None:
             self.process.terminate()
             self.process.wait(2)
+
+
+def is_port_open(host, port):
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex((host, port))
+    finally:
+        sock.close()
+    return result == 0
+
+
+@contextmanager
+def local_ledger_and_storage() -> Tuple[Dict, Dict]:
+    conf_name = conftest.NodeConf.get_conf_name()
+    if conf_name == "local":
+        with _fetchd_context(FETCHD_CONFIGURATION), IPFSDaemon():
+            yield conftest.NodeConf.get_ledger_conf(), conftest.NodeConf.get_storage_conf()
+    else:
+        yield conftest.NodeConf.get_ledger_conf(), conftest.NodeConf.get_storage_conf()

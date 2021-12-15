@@ -49,9 +49,9 @@ from google.protobuf.json_format import MessageToDict
 
 from pre.common import (
     AbstractConfig,
+    filter_data_with_types,
     get_defaults,
     types_from_annotations,
-    validate_with_types,
 )
 from pre.ledger.cosmos.crypto import CosmosCrypto
 from pre.utils.loggers import get_logger
@@ -90,7 +90,7 @@ class CosmosLedgerConfig(AbstractConfig):
         types = types_from_annotations(CosmosLedger.__init__)
         new_data = cls.make_default()
         new_data.update(data)
-        return validate_with_types(new_data, types)
+        return filter_data_with_types(new_data, types)
 
     @classmethod
     def make_default(cls) -> Dict:
@@ -121,10 +121,10 @@ class CosmosLedger:
         msg_retry_interval: int = 2,
         msg_failed_retry_interval: int = 10,
         faucet_retry_interval: int = 20,
-        n_sending_retries: int = 5,
-        n_total_msg_retries: int = 10,
-        get_response_retry_interval: int = 2,
-        n_get_response_retries: int = 30,
+        n_sending_retries: int = 1,  # 5,
+        n_total_msg_retries: int = 1,  # 10,
+        get_response_retry_interval: float = 0.5,  # 2,
+        n_get_response_retries: int = 30,  # 30,
     ):
         """
         Create new instance to deploy and communicate with smart contract
@@ -200,11 +200,11 @@ class CosmosLedger:
         :param gas:  Maximum amount of gas to be used on executing command
         :return: Deployment transaction response
         """
-        elapsed_time = 0
+        attempt = 0
         res = None
         code_id: Optional[int] = None
         last_exception: Optional[Exception] = None
-        while code_id is None and elapsed_time < self.n_total_msg_retries:
+        while code_id is None and attempt < self.n_total_msg_retries:
             try:
                 msg = self.get_packed_store_msg(
                     sender_address=sender_crypto.get_address(),
@@ -231,6 +231,7 @@ class CosmosLedger:
                     f"Failed to deploy contract code due BroadcastException: {e}"
                 )
                 time.sleep(self.msg_failed_retry_interval)
+                attempt += 1
                 continue
 
         if code_id is None or res is None:
@@ -306,13 +307,22 @@ class CosmosLedger:
                 elapsed_time += 1
 
         if contract_address is None or res is None:
+            error_msg = ""
+            if res:
+                error_msg = res.tx_response.raw_log
+
             raise BroadcastException(
-                f"Failed to init contract after multiple attempts: {last_exception}"
+                f"Failed to init contract after multiple attempts: {last_exception} {error_msg}"
             )
 
         return contract_address, MessageToDict(res)
 
-    def send_query_msg(self, contract_address: str, query_msg: JSONLike) -> JSONLike:
+    def send_query_msg(
+        self,
+        contract_address: str,
+        query_msg: JSONLike,
+        num_retries: Optional[int] = None,
+    ) -> JSONLike:
         """
         Generate and send query message to get state of smart contract
         - No signing is required because it works with contract as read only
@@ -326,21 +336,23 @@ class CosmosLedger:
             address=contract_address, query_data=json.dumps(query_msg).encode("UTF8")
         )
 
-        elapsed_time = 0
+        if num_retries is None:
+            num_retries = self.n_total_msg_retries
+
         res = None
         last_exception: Optional[Exception] = None
-        while res is None and elapsed_time < self.n_total_msg_retries:
+        for _ in range(num_retries):
             try:
                 res = self.wasm_client.SmartContractState(request)
             except Exception as e:  # pylint: disable=W0703
                 last_exception = e
                 _logger.warning(f"Cannot get contract state: {e}")
                 time.sleep(self.msg_failed_retry_interval)
-                continue
+
         if res is None:
             raise BroadcastException(
                 f"Getting contract state failed after multiple attempts: {last_exception}"
-            )
+            ) from last_exception
         return json.loads(res.data)  # pylint: disable=E1101
 
     def send_execute_msg(
@@ -350,6 +362,8 @@ class CosmosLedger:
         execute_msg: JSONLike,
         gas: int = DEFAULT_GAS_LIMIT,
         amount: Optional[List[Coin]] = None,
+        retries: Optional[int] = None,
+        broadcast_retries: Optional[int] = None,
     ) -> Tuple[JSONLike, int]:
         """
         Generate, sign and send handle message
@@ -362,10 +376,13 @@ class CosmosLedger:
 
         :return: Execute message response
         """
-        elapsed_time = 0
         res: Optional[GetTxResponse] = None
         last_exception: Optional[Exception] = None
-        while res is None and elapsed_time < self.n_total_msg_retries:
+
+        if retries is None:
+            retries = self.n_sending_retries
+
+        for _ in range(retries):
             try:
 
                 msg = self.get_packed_exec_msg(
@@ -384,6 +401,7 @@ class CosmosLedger:
                 self.sign_tx(tx, sender_crypto)
 
                 res = self.broadcast_tx(tx)
+                break
             except BroadcastException as e:
                 # Failure due to wrong sequence, signature, etc.
                 last_exception = e
@@ -391,12 +409,11 @@ class CosmosLedger:
                     f"Failed to deploy contract code due BroadcastException: {e}"
                 )
                 time.sleep(self.msg_failed_retry_interval)
-                continue
 
         if res is None:
             raise BroadcastException(
                 f"Failed to execute contract after multiple attempts: {last_exception}"
-            )
+            ) from last_exception
 
         # err_code >0 in case of exceptions inside rust contract
         err_code = res.tx_response.code  # pylint: disable=E1101
@@ -739,7 +756,7 @@ class CosmosLedger:
 
         return send_msg_packed
 
-    def broadcast_tx(self, tx: Tx) -> GetTxResponse:
+    def broadcast_tx(self, tx: Tx, retries: Optional[int] = None) -> GetTxResponse:
         """
         Broadcast transaction and get receipt
 
@@ -755,21 +772,23 @@ class CosmosLedger:
             tx_bytes=tx_data, mode=BroadcastMode.BROADCAST_MODE_SYNC
         )
 
-        elapsed_time = 0
+        if retries is None:
+            retries = self.n_total_msg_retries
+
         last_exception = None
         broad_tx_resp = None
-        while broad_tx_resp is None and elapsed_time < self.n_total_msg_retries:
+        for _ in range(retries):
             try:
                 broad_tx_resp = self.tx_client.BroadcastTx(broad_tx_req)
+                break
             except Exception as e:  # pylint: disable=W0703
                 last_exception = e
                 _logger.warning(f"Transaction broadcasting failed: {e}")
                 time.sleep(self.msg_retry_interval)
-                continue
 
         if broad_tx_resp is None:
             raise BroadcastException(
-                f"Broadcasting tx failed after mRuntimeErrorultiple attempts: {last_exception}"
+                f"Broadcasting tx failed after multiple attempts: {last_exception}"
             )
 
         # Transaction cannot be broadcast because of wrong format, sequence, signature, etc.
@@ -779,24 +798,24 @@ class CosmosLedger:
 
         # Wait for transaction to settle
         tx_request = GetTxRequest(hash=broad_tx_resp.tx_response.txhash)
-        elapsed_time = 0
         last_exception = None
         tx_response = None
-        while tx_response is None and elapsed_time < self.n_get_response_retries:
+
+        for _ in range(self.n_get_response_retries):
             try:
-                elapsed_time += 1
-                time.sleep(self.get_response_retry_interval)
                 # Send GetTx request
                 tx_response = self.tx_client.GetTx(tx_request)
+                break
             except Exception as e:  # pylint: disable=W0703
                 # This fails when Tx is not on chain yet - not an actual error
                 last_exception = e
+                time.sleep(self.get_response_retry_interval)
                 continue
 
         if tx_response is None:
             raise BroadcastException(
                 f"Getting tx response failed after multiple attempts: {last_exception}"
-            )
+            ) from last_exception
 
         return tx_response
 

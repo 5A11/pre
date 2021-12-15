@@ -23,6 +23,9 @@ setuptools.setup(
         "cosmpy",
         "requests",
         "click",
+        "ipfshttpclient",
+        "umbral",
+        "pyyaml",
     ],
     tests_require=["tox~=3.20.0"],
 )

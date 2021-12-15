@@ -41,7 +41,9 @@ def get_data_status(
         storage=app_config.get_storage_instance(),
         crypto=app_config.get_crypto_instance(),
     )
-    click.echo(f"reader public key: {bytes(delegatee_api._encryption_private_key.public_key).hex()}")
+    click.echo(
+        f"reader public key: {bytes(delegatee_api._encryption_private_key.public_key).hex()}"
+    )
     is_ready, _, _ = delegatee_api.is_data_ready(hash_id)
     if is_ready:
         click.echo(f"Data {hash_id} is ready!")
@@ -70,7 +72,6 @@ def get_data(
         crypto=app_config.get_crypto_instance(),
     )
 
-    
     data_entry = delegatee_api._contract.get_data_entry(hash_id)
     if not data_entry:
         raise ValueError("Couldn't query data entry of data id from contract")

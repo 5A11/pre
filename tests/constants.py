@@ -31,3 +31,31 @@ FETCHD_CHAIN_ID = FETCHD_DC_CHAIN_ID
 IPFS_DC_HOST = "ipfs"
 IPFS_HOST = IPFS_DC_HOST
 IPFS_PORT = 5001
+
+
+LOCAL_LEDGER_CONFIG = dict(
+    denom=DEFAULT_DENOMINATION,
+    chain_id=DEFAULT_FETCH_CHAIN_ID,
+    prefix=PREFIX,
+    node_address=FETCHD_LOCAL_URL,
+    validator_pk=FUNDED_FETCHAI_PRIVATE_KEY_1,
+)
+
+LOCAL_IPFS_CONFIG = dict(
+    addr="localhost",
+    port=IPFS_PORT,
+)
+
+
+TESTNET_IPFS_CONFIG = dict(
+    addr=IPFS_DC_HOST,
+    port=IPFS_PORT,
+)
+
+TESTNET_LEDGER_CONFIG = dict(
+    denom=DEFAULT_DENOMINATION,
+    chain_id=FETCHD_CHAIN_ID,
+    prefix=PREFIX,
+    node_address=FETCHD_URL,
+    validator_pk=FUNDED_FETCHAI_PRIVATE_KEY_1,
+)

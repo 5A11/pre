@@ -8,10 +8,15 @@ from umbral import Signer as _Signer
 from umbral import VerifiedCapsuleFrag as _VerifiedCapsuleFrag
 from umbral import decrypt_original, encrypt, generate_kfrags, reencrypt
 from umbral.capsule_frag import CapsuleFrag
+from umbral.errors import VerificationError
 from umbral.pre import decrypt_reencrypted
 
 from pre.common import Delegation, EncryptedData, PrivateKey, PublicKey
-from pre.crypto.base_crypto import AbstractCrypto
+from pre.crypto.base_crypto import (
+    AbstractCrypto,
+    NotEnoughFragments,
+    WrongDecryptionKey,
+)
 
 
 class UmbralPublicKey(PublicKey):
@@ -106,10 +111,6 @@ class UmbralReencryptedFragment:
     def __init__(self, umbral_reenc_cap_frag: _VerifiedCapsuleFrag) -> None:
         self._reenc_cap_frag = umbral_reenc_cap_frag
 
-    @property
-    def _umbral_reencrypted_cap_frag(self) -> _VerifiedCapsuleFrag:
-        return self._reenc_cap_frag
-
     def __bytes__(self) -> bytes:
         return bytes(self._reenc_cap_frag)
 
@@ -133,13 +134,11 @@ class UmbralCrypto(AbstractCrypto):
 
     def generate_delegations(
         self,
-        capsule_bytes: bytes,
         threshold: int,
         delegatee_pubkey_bytes: bytes,
         proxies_pubkeys_bytes: List[bytes],
         delegator_private_key: PrivateKey,
     ) -> List[Delegation]:
-        # umb_capsule = cast(UmbralCapsule, capsule)
         umb_delegatee_public_key = UmbralPublicKey.from_bytes(
             delegatee_pubkey_bytes
         )._umbral_key
@@ -194,9 +193,17 @@ class UmbralCrypto(AbstractCrypto):
             delegatee_pubkey_bytes
         )._umbral_key
 
-        dec_kfrag = decrypt_original(
-            umb_proxy_private_key, umb_delegation.capsule, umb_delegation.data
-        )
+        try:
+            dec_kfrag = decrypt_original(
+                umb_proxy_private_key, umb_delegation.capsule, umb_delegation.data
+            )
+        except ValueError as e:
+            if (
+                "either someone tampered with the ciphertext or you are using an incorrect decryption key"
+                in str(e)
+            ):
+                raise WrongDecryptionKey(str(e)) from e
+            raise
         kfrag = KeyFrag.from_bytes(dec_kfrag).verify(
             umb_delegator_public_key, umb_delegator_public_key, umb_delegatee_public_key
         )
@@ -225,21 +232,31 @@ class UmbralCrypto(AbstractCrypto):
             frag = UmbralReencryptedFragment.from_bytes(frag_bytes)
             reenc_frag = cast(UmbralReencryptedFragment, frag)._reenc_cap_frag
             cfrag = CapsuleFrag.from_bytes(bytes(reenc_frag))
-            cfrag = cfrag.verify(
-                umb_capsule,
-                umb_delegator_public_key,
-                umb_delegator_public_key,
-                umb_delegatee_private_key.public_key(),
-            )
+            try:
+                cfrag = cfrag.verify(
+                    umb_capsule,
+                    umb_delegator_public_key,
+                    umb_delegator_public_key,
+                    umb_delegatee_private_key.public_key(),
+                )
+            except VerificationError as e:
+                if "Invalid KeyFrag signature" in str(e):
+                    raise WrongDecryptionKey(str(e)) from e
+                raise
             cfrags.append(cfrag)
 
-        return decrypt_reencrypted(
-            receiving_sk=umb_delegatee_private_key,
-            delegating_pk=umb_delegator_public_key,
-            capsule=umb_capsule,
-            verified_cfrags=cfrags,
-            ciphertext=encrypted_data.data,
-        )
+        try:
+            return decrypt_reencrypted(
+                receiving_sk=umb_delegatee_private_key,
+                delegating_pk=umb_delegator_public_key,
+                capsule=umb_capsule,
+                verified_cfrags=cfrags,
+                ciphertext=encrypted_data.data,
+            )
+        except ValueError as e:
+            if "Internal validation failed" in str(e):
+                raise NotEnoughFragments(str(e)) from e
+            raise
 
     @classmethod
     def make_new_key(cls) -> UmbralPrivateKey:

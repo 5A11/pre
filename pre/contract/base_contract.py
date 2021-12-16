@@ -6,13 +6,13 @@ from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 
 from pre.common import (
     Address,
+    ContractState,
     Delegation,
-    ProxyInfo,
+    GetDelegationStateResponse,
     GetFragmentsResponse,
     HashID,
+    ProxyInfo,
     ProxyTask,
-    ContractState,
-    GetDelegationStateResponse,
 )
 from pre.ledger.base_ledger import AbstractLedger, AbstractLedgerCrypto
 
@@ -147,7 +147,7 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         delegator_pubkey_bytes: bytes,
         hash_id: HashID,
         delegatee_pubkey_bytes: bytes,
-        stake_amount: Coin
+        stake_amount: Coin,
     ):
         """Request reencryption for the data with proxies selected for delegation."""
 
@@ -162,7 +162,7 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         self,
         proxy_private_key: AbstractLedgerCrypto,
         proxy_pubkey_bytes: bytes,
-        stake_amount: Coin
+        stake_amount: Coin,
     ):
         """Register the proxy."""
 

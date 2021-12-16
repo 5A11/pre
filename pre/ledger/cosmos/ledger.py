@@ -344,6 +344,8 @@ class CosmosLedger:
         for _ in range(num_retries):
             try:
                 res = self.wasm_client.SmartContractState(request)
+                if res is not None:
+                    break
             except Exception as e:  # pylint: disable=W0703
                 last_exception = e
                 _logger.warning(f"Cannot get contract state: {e}")
@@ -399,9 +401,9 @@ class CosmosLedger:
                     gas_limit=gas,
                 )
                 self.sign_tx(tx, sender_crypto)
-
                 res = self.broadcast_tx(tx)
-                break
+                if res is not None:
+                    break
             except BroadcastException as e:
                 # Failure due to wrong sequence, signature, etc.
                 last_exception = e

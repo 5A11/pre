@@ -1,7 +1,7 @@
 lint:
-	black pre apps
-	isort pre apps
-	flake8 pre apps
+	black pre apps tests
+	isort pre apps tests
+	flake8 pre apps tests
 	mypy pre apps --disable-error-code import
 	pylint pre apps
 

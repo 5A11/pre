@@ -16,22 +16,14 @@ jobs:
        - uses: actions/setup-python@master
          with:
            python-version: 3.9
-       - name: Setup Rust environment
-         run: |
-           rustup target add wasm32-unknown-unknown
        - name: Install dependencies
          run: |
-           sudo apt-get update --fix-missing
-           sudo apt-get autoremove
-           sudo apt-get autoclean
-           sudo apt-get install -y wget
-           sudo apt-get install -y binaryen
            wget -O ./go-ipfs.tar.gz https://dist.ipfs.io/go-ipfs/v0.6.0/go-ipfs_v0.6.0_linux-amd64.tar.gz
            tar xvfz go-ipfs.tar.gz
            sudo mv go-ipfs/ipfs /usr/local/bin/ipfs
            ipfs init 
            pip install tox
        - name: build contract
-         run: make build_contract
+         run: cd contract && ./build_in_docker.sh
        - name: Run tests
          run: tox -e py39

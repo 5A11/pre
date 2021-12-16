@@ -1,4 +1,4 @@
-from typing import IO, List, Optional, Tuple, Union
+from typing import IO, List, Union
 
 from pre.common import DelegationState, HashID, PrivateKey
 from pre.contract.base_contract import AbstractDelegatorContract
@@ -69,11 +69,6 @@ class DelegatorAPI:
         if not proxies_list:
             raise ValueError("proxies_list can not be empty")
 
-        if len(proxies_list) < threshold:
-            raise ValueError(
-                f"not enought proxies: {len(proxies_list)} cause threshold is {threshold}"
-            )
-
         delegations = self._crypto.generate_delegations(
             threshold=threshold,
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
@@ -116,5 +111,5 @@ class DelegatorAPI:
             delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
             hash_id=hash_id,
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-            stake_amount=delegation_state_response.minimum_request_reward
+            stake_amount=delegation_state_response.minimum_request_reward,
         )

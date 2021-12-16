@@ -1,5 +1,6 @@
 from typing import IO, List, Union, cast
 
+import nacl
 from umbral import Capsule as _Capsule
 from umbral import KeyFrag
 from umbral import PublicKey as _PublicKey
@@ -9,13 +10,15 @@ from umbral import VerifiedCapsuleFrag as _VerifiedCapsuleFrag
 from umbral import decrypt_original, encrypt, generate_kfrags, reencrypt
 from umbral.capsule_frag import CapsuleFrag
 from umbral.errors import VerificationError
+from umbral.openssl import ErrorInvalidPointEncoding
 from umbral.pre import decrypt_reencrypted
 
 from pre.common import Delegation, EncryptedData, PrivateKey, PublicKey
 from pre.crypto.base_crypto import (
     AbstractCrypto,
+    DecryptionError,
+    IncorrectFormatOfDelegationString,
     NotEnoughFragments,
-    WrongDecryptionKey,
 )
 
 
@@ -104,7 +107,10 @@ class UmbralDelegation:
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "UmbralDelegation":
-        return cls(_Delegation.from_bytes(data))
+        try:
+            return cls(_Delegation.from_bytes(data))
+        except ErrorInvalidPointEncoding as e:
+            raise IncorrectFormatOfDelegationString(str(e)) from e
 
 
 class UmbralReencryptedFragment:
@@ -198,11 +204,11 @@ class UmbralCrypto(AbstractCrypto):
                 umb_proxy_private_key, umb_delegation.capsule, umb_delegation.data
             )
         except ValueError as e:
-            if (
-                "either someone tampered with the ciphertext or you are using an incorrect decryption key"
-                in str(e)
+            if hasattr(e, "__cause__") and isinstance(
+                e.__cause__, nacl.exceptions.CryptoError
             ):
-                raise WrongDecryptionKey(str(e)) from e
+                e = e.__cause__
+                raise DecryptionError(str(e)) from e
             raise
         kfrag = KeyFrag.from_bytes(dec_kfrag).verify(
             umb_delegator_public_key, umb_delegator_public_key, umb_delegatee_public_key
@@ -241,7 +247,7 @@ class UmbralCrypto(AbstractCrypto):
                 )
             except VerificationError as e:
                 if "Invalid KeyFrag signature" in str(e):
-                    raise WrongDecryptionKey(str(e)) from e
+                    raise DecryptionError(str(e)) from e
                 raise
             cfrags.append(cfrag)
 

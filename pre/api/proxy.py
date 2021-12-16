@@ -29,8 +29,10 @@ class ProxyAPI:
 
     def register(self):
         contract_state = self._contract.get_contract_state()
-        minimum_registration_stake = Coin(denom=contract_state.stake_denom,
-                                          amount=str(contract_state.minimum_proxy_stake_amount))
+        minimum_registration_stake = Coin(
+            denom=contract_state.stake_denom,
+            amount=str(contract_state.minimum_proxy_stake_amount),
+        )
 
         self._contract.proxy_register(
             proxy_private_key=self._ledger_crypto,

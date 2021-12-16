@@ -4,7 +4,11 @@ import pytest
 from umbral import SecretKey
 
 from pre.common import ReencryptedFragment
-from pre.crypto.base_crypto import NotEnoughFragments, WrongDecryptionKey
+from pre.crypto.base_crypto import (
+    DecryptionError,
+    IncorrectFormatOfDelegationString,
+    NotEnoughFragments,
+)
 from pre.crypto.umbral_crypto import UmbralCrypto, UmbralPrivateKey, UmbralPublicKey
 
 
@@ -52,7 +56,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
         )
 
     # delegation does not match proxy key
-    with pytest.raises(WrongDecryptionKey):
+    with pytest.raises(DecryptionError, match="Decryption failed."):
         crypto.reencrypt(
             encrypted_data.capsule,
             bytes(delegations[1].delegation_string),
@@ -61,8 +65,26 @@ def test_encryption_delegation_reencryption_decryption_cycle():
             bytes(delegatee.public_key),
         )
 
+    with pytest.raises(IncorrectFormatOfDelegationString):
+        crypto.reencrypt(
+            encrypted_data.capsule,
+            bytes(b"1" * 98),
+            proxies[1],
+            bytes(delegator.public_key),
+            bytes(delegatee.public_key),
+        )
+
+    # bad delegator key:
+    with pytest.raises(DecryptionError):
+        crypto.decrypt(
+            encrypted_data,
+            reencrypted_cap_frags[:threshold],
+            delegatee,
+            bytes(delegatee.public_key),
+        )
+
     # bad delegatee key:
-    with pytest.raises(WrongDecryptionKey):
+    with pytest.raises(DecryptionError):
         crypto.decrypt(
             encrypted_data,
             reencrypted_cap_frags[:threshold],

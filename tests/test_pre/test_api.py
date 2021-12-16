@@ -8,12 +8,13 @@ from pre.api.delegatee import DelegateeAPI
 from pre.api.delegator import DelegatorAPI
 from pre.api.proxy import ProxyAPI
 from pre.common import (
+    ContractState,
     DelegationState,
     EncryptedData,
+    GetDelegationStateResponse,
     GetFragmentsResponse,
     ProxyTask,
     ReencryptionRequestState,
-    GetDelegationStateResponse, ContractState,
 )
 from pre.contract.cosmos_contracts import AdminContract
 from pre.crypto.base_crypto import AbstractCrypto
@@ -44,27 +45,21 @@ def test_delegator_api():
     )
     storage.store_encrypted_data.assert_called_once_with(crypto.encrypt.return_value)
 
-    minimum_request_reward = Coin(denom="atestfet",
-                                  amount=str(100))
+    minimum_request_reward = Coin(denom="atestfet", amount=str(100))
 
     contract.get_delegation_state.return_value = GetDelegationStateResponse(
         delegation_state=DelegationState.non_existing,
-        minimum_request_reward=minimum_request_reward)
+        minimum_request_reward=minimum_request_reward,
+    )
     contract.get_selected_proxies_for_delegation.return_value = []
     contract.request_proxies_for_delegation.return_value = []
 
     with pytest.raises(ValueError, match="proxies_list can not be empty"):
         delegator_api.grant_access(hash_id, delegatee_pubkey_bytes, threshold)
 
-    with pytest.raises(
-            ValueError, match="not enought proxies: .* cause threshold is .*"
-    ):
-        contract.request_proxies_for_delegation.return_value = [b"proxy_pub_key"]
-        delegator_api.grant_access(hash_id, delegatee_pubkey_bytes, threshold)
-
     contract.request_proxies_for_delegation.return_value = [
-                                                               b"proxy_pub_key"
-                                                           ] * threshold
+        b"proxy_pub_key"
+    ] * threshold
     delegator_api.grant_access(hash_id, delegatee_pubkey_bytes, threshold)
 
 
@@ -110,7 +105,7 @@ def test_delegatee_api():
     crypto.decrypt.assert_called_once_with(
         encrypted_data=storage.get_encrypted_data.return_value,
         encrypted_data_fragments_bytes=[storage.get_encrypted_part.return_value]
-                                       * threshold,
+        * threshold,
         delegatee_private_key=ANY,
         delegator_pubkey_bytes=delegator_pubkey_bytes,
     )
@@ -141,10 +136,28 @@ def test_admin_api():
 
     with patch.object(AdminAPI.CONTRACT_CLASS, "instantiate_contract") as mock:
         contract_address = admin_api.instantiate_contract(
-            ledger_crypto, ledger, admin_address, stake_denom, threshold, None, None, max_proxies, proxies, label
+            ledger_crypto,
+            ledger,
+            admin_address,
+            stake_denom,
+            threshold,
+            None,
+            None,
+            max_proxies,
+            proxies,
+            label,
         )
         mock.assert_called_once_with(
-            ledger, ledger_crypto, admin_address, stake_denom, threshold, None, None, max_proxies, proxies, label
+            ledger,
+            ledger_crypto,
+            admin_address,
+            stake_denom,
+            threshold,
+            None,
+            None,
+            max_proxies,
+            proxies,
+            label,
         )
 
     admin_api.add_proxy(proxy_addr)
@@ -156,12 +169,14 @@ def test_admin_api():
 
 def test_proxy_api():
     contract = Mock()
-    contract.get_contract_state.return_value = ContractState(admin="admin",
-                                                             threshold=1,
-                                                             n_max_proxies=1,
-                                                             stake_denom="atestfet",
-                                                             minimum_proxy_stake_amount="1000",
-                                                             minimum_request_reward_amount="100")
+    contract.get_contract_state.return_value = ContractState(
+        admin="admin",
+        threshold=1,
+        n_max_proxies=1,
+        stake_denom="atestfet",
+        minimum_proxy_stake_amount="1000",
+        minimum_request_reward_amount="100",
+    )
 
     storage: AbstractStorage = Mock()
     encryption_private_key = Mock()
@@ -180,14 +195,13 @@ def test_proxy_api():
     )
     fragment_hash_id = b"fragment hash id"
     capsule = b"capsule"
-    minimum_registration_stake = Coin(denom="atestfet",
-                                      amount=str(1000))
+    minimum_registration_stake = Coin(denom="atestfet", amount=str(1000))
 
     proxy_api.register()
     contract.proxy_register.assert_called_once_with(
         proxy_private_key=ledger_crypto,
         proxy_pubkey_bytes=encryption_private_key.public_key,
-        stake_amount=minimum_registration_stake
+        stake_amount=minimum_registration_stake,
     )
 
     proxy_api.unregister()

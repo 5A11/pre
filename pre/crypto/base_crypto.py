@@ -59,7 +59,11 @@ class CryptoError(Exception):
     pass
 
 
-class WrongDecryptionKey(CryptoError):
+class DecryptionError(CryptoError):
+    pass
+
+
+class IncorrectFormatOfDelegationString(CryptoError):
     pass
 
 

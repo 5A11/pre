@@ -1,7 +1,13 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{Addr, Coin, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{
+    Addr, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Uint128,
+};
 
-use crate::contract::{execute, get_next_proxy_task, instantiate};
+use crate::contract::{
+    execute, get_next_proxy_task, instantiate, DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
+    DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT,
+};
 use crate::delegations::{
     add_proxy_delegation, get_delegation, get_delegation_id, get_delegation_state,
     is_proxy_delegation, set_delegation, set_delegation_id, Delegation, DelegationState,
@@ -25,6 +31,17 @@ fn mock_env_height(signer: &Addr, height: u64, coins: &Vec<Coin>) -> (Env, Messa
     return (env, info);
 }
 
+fn is_err(result: StdResult<Response>, must_contain: &str) -> bool {
+    // Returns true if error message contains specific string
+    match result {
+        Ok(_) => false,
+        Err(err) => match err {
+            StdError::GenericErr { msg } => msg.contains(must_contain),
+            _ => false,
+        },
+    }
+}
+
 fn init_contract(
     deps: DepsMut,
     creator: &Addr,
@@ -32,12 +49,18 @@ fn init_contract(
     admin: &Option<Addr>,
     n_max_proxies: &Option<u32>,
     proxies: &Option<Vec<Addr>>,
+    stake_denom: &String,
+    minimum_proxy_stake_amount: &Option<Uint128>,
+    minimum_request_reward_amount: &Option<Uint128>,
 ) -> StdResult<Response> {
     let init_msg = InstantiateMsg {
         threshold: threshold.clone(),
         admin: admin.clone(),
         n_max_proxies: n_max_proxies.clone(),
         proxies: proxies.clone(),
+        stake_denom: stake_denom.clone(),
+        minimum_proxy_stake_amount: minimum_proxy_stake_amount.clone(),
+        minimum_request_reward_amount: minimum_request_reward_amount.clone(),
     };
     let env = mock_env_height(&creator, 450, &vec![]);
     return instantiate(deps, env.0, env.1, init_msg);
@@ -63,8 +86,13 @@ fn remove_proxy(deps: DepsMut, creator: &Addr, proxy_addr: &Addr) -> StdResult<R
     return execute(deps, env.0, env.1, msg);
 }
 
-fn register_proxy(deps: DepsMut, creator: &Addr, proxy_pubkey: &String) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450, &vec![]);
+fn register_proxy(
+    deps: DepsMut,
+    creator: &Addr,
+    proxy_pubkey: &String,
+    coins: &Vec<Coin>,
+) -> StdResult<Response> {
+    let env = mock_env_height(&creator, 450, &coins);
 
     let msg = ExecuteMsg::RegisterProxy {
         proxy_pubkey: proxy_pubkey.clone(),
@@ -85,6 +113,20 @@ fn deactivate_proxy(deps: DepsMut, creator: &Addr) -> StdResult<Response> {
     let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::DeactivateProxy {};
+
+    return execute(deps, env.0, env.1, msg);
+}
+
+fn withdraw_stake(
+    deps: DepsMut,
+    creator: &Addr,
+    stake_amount: &Option<Uint128>,
+) -> StdResult<Response> {
+    let env = mock_env_height(&creator, 450, &vec![]);
+
+    let msg = ExecuteMsg::WithdrawStake {
+        stake_amount: stake_amount.clone(),
+    };
 
     return execute(deps, env.0, env.1, msg);
 }
@@ -162,8 +204,9 @@ fn request_reencryption(
     creator: &Addr,
     data_id: &String,
     delegatee_pubkey: &String,
+    coins: &Vec<Coin>,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, 450, &vec![]);
+    let env = mock_env_height(&creator, 450, &coins);
 
     let msg = ExecuteMsg::RequestReencryption {
         data_id: data_id.clone(),
@@ -188,6 +231,9 @@ fn test_new_contract_default_values() {
         &None,
         &None,
         &Some(proxies.clone()),
+        &String::from("atestfet"),
+        &None,
+        &None,
     )
     .is_ok());
 
@@ -212,26 +258,36 @@ fn test_new_contract_custom_values() {
     let proxies: Vec<Addr> = vec![creator.clone(), proxy.clone()];
 
     // n_max_proxies cannot be less than threshold
-    assert!(init_contract(
-        deps.as_mut(),
-        &creator,
-        &Some(123),
-        &Some(proxy.clone()),
-        &Some(122),
-        &Some(proxies.clone()),
-    )
-    .is_err());
+    assert!(is_err(
+        init_contract(
+            deps.as_mut(),
+            &creator,
+            &Some(123),
+            &Some(proxy.clone()),
+            &Some(122),
+            &Some(proxies.clone()),
+            &String::from("atestfet"),
+            &None,
+            &None,
+        ),
+        "lower than threshold"
+    ));
 
     // Threshold cannot be zero
-    assert!(init_contract(
-        deps.as_mut(),
-        &creator,
-        &Some(0),
-        &Some(proxy.clone()),
-        &Some(456),
-        &Some(proxies.clone()),
-    )
-    .is_err());
+    assert!(is_err(
+        init_contract(
+            deps.as_mut(),
+            &creator,
+            &Some(0),
+            &Some(proxy.clone()),
+            &Some(456),
+            &Some(proxies.clone()),
+            &String::from("atestfet"),
+            &None,
+            &None,
+        ),
+        "cannot be 0"
+    ));
 
     assert!(init_contract(
         deps.as_mut(),
@@ -240,6 +296,9 @@ fn test_new_contract_custom_values() {
         &Some(proxy.clone()),
         &Some(456),
         &Some(proxies.clone()),
+        &String::from("atestfet"),
+        &None,
+        &None,
     )
     .is_ok());
 
@@ -263,6 +322,12 @@ fn test_add_remove_proxy() {
     let proxy = Addr::unchecked("proxy".to_string());
     let proxy_pubkey = String::from("proxy_pubkey");
 
+    let stake_denom = String::from("atestfet");
+    let proxy_stake = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+
     assert!(init_contract(
         deps.as_mut(),
         &creator,
@@ -270,25 +335,56 @@ fn test_add_remove_proxy() {
         &Some(admin.clone()),
         &None,
         &None,
+        &stake_denom,
+        &None,
+        &None,
     )
     .is_ok());
 
     // Only admin can add proxies
-    assert!(add_proxy(deps.as_mut(), &creator, &proxy).is_err());
+    assert!(is_err(
+        add_proxy(deps.as_mut(), &creator, &proxy),
+        "Only admin"
+    ));
     assert!(add_proxy(deps.as_mut(), &admin, &proxy).is_ok());
 
     // Already added
-    assert!(add_proxy(deps.as_mut(), &admin, &proxy).is_err());
+    assert!(is_err(
+        add_proxy(deps.as_mut(), &admin, &proxy),
+        "already proxy"
+    ));
 
     // Only admin can remove proxies
-    assert!(remove_proxy(deps.as_mut(), &creator, &proxy).is_err());
-    assert!(remove_proxy(deps.as_mut(), &admin, &proxy).is_ok());
+    assert!(is_err(
+        remove_proxy(deps.as_mut(), &creator, &proxy),
+        "Only admin"
+    ));
+
+    let remove_proxy_response = remove_proxy(deps.as_mut(), &admin, &proxy).unwrap();
+    // When stake is 0 no BankMsg is created
+    assert_eq!(remove_proxy_response.messages.len(), 0);
 
     // Already removed
-    assert!(remove_proxy(deps.as_mut(), &admin, &proxy).is_err());
+    assert!(is_err(
+        remove_proxy(deps.as_mut(), &admin, &proxy),
+        "not a proxy"
+    ));
 
     assert!(add_proxy(deps.as_mut(), &admin, &proxy).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy, &proxy_pubkey).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy, &proxy_pubkey, &proxy_stake).is_ok());
+
+    // Check if stake gets returned to proxy
+    let remove_proxy_response = remove_proxy(deps.as_mut(), &admin, &proxy).unwrap();
+    assert_eq!(
+        remove_proxy_response.messages[0],
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: proxy.to_string(),
+            amount: vec![Coin::new(
+                DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
+                stake_denom.as_str(),
+            )],
+        })
+    );
 }
 
 #[test]
@@ -302,6 +398,17 @@ fn test_register_unregister_proxy() {
 
     let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
 
+    // Staking
+    let stake_denom = String::from("atestfet");
+    let proxy_stake = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+    let insufficient_proxy_stake = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 1),
+    }];
+
     assert!(init_contract(
         deps.as_mut(),
         &creator,
@@ -309,6 +416,9 @@ fn test_register_unregister_proxy() {
         &None,
         &None,
         &Some(proxies.clone()),
+        &stake_denom,
+        &None,
+        &None,
     )
     .is_ok());
 
@@ -325,11 +435,28 @@ fn test_register_unregister_proxy() {
     assert!(proxy.proxy_pubkey.is_none());
 
     // Only proxy can add pubkeys
-    assert!(register_proxy(deps.as_mut(), &creator, &proxy_pubkey).is_err());
+    assert!(is_err(
+        register_proxy(deps.as_mut(), &creator, &proxy_pubkey, &proxy_stake),
+        "not a proxy"
+    ));
 
-    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey).is_ok());
+    // Insufficient stake amount
+    assert!(is_err(
+        register_proxy(
+            deps.as_mut(),
+            &proxy1,
+            &proxy_pubkey,
+            &insufficient_proxy_stake,
+        ),
+        "Requires at least 100 atestfet"
+    ));
+
+    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey, &proxy_stake).is_ok());
     // Already registered
-    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey).is_err());
+    assert!(is_err(
+        register_proxy(deps.as_mut(), &proxy1, &proxy_pubkey, &proxy_stake),
+        "already registered"
+    ));
 
     // Check proxy state
     assert!(get_is_proxy_active(deps.as_mut().storage, &proxy_pubkey));
@@ -349,7 +476,10 @@ fn test_register_unregister_proxy() {
     assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
     // Register different proxy with existing pubkey
-    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy_pubkey).is_err());
+    assert!(is_err(
+        register_proxy(deps.as_mut(), &proxy2, &proxy_pubkey, &proxy_stake),
+        "Pubkey already used"
+    ));
 
     // Number of available pubkeys remains the same
     let available_proxy_pubkeys = get_all_active_proxy_pubkeys(&deps.storage);
@@ -357,10 +487,29 @@ fn test_register_unregister_proxy() {
     assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
     // Only proxy can remove pubkeys
-    assert!(unregister_proxy(deps.as_mut(), &creator).is_err());
-    assert!(unregister_proxy(deps.as_mut(), &proxy1).is_ok());
+    assert!(is_err(
+        unregister_proxy(deps.as_mut(), &creator),
+        "not a proxy"
+    ));
+
+    // Check if stake gets returned to proxy
+    let unregister_response = unregister_proxy(deps.as_mut(), &proxy1).unwrap();
+    assert_eq!(
+        unregister_response.messages[0],
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: proxy1.to_string(),
+            amount: vec![Coin::new(
+                DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
+                stake_denom.as_str(),
+            )],
+        })
+    );
+
     // Already unregistered
-    assert!(unregister_proxy(deps.as_mut(), &proxy1).is_err());
+    assert!(is_err(
+        unregister_proxy(deps.as_mut(), &proxy1),
+        "already unregistered"
+    ));
 
     // All proxies unregistered
     assert_eq!(get_all_active_proxy_pubkeys(&deps.storage).len(), 0);
@@ -386,7 +535,18 @@ fn test_add_data() {
     };
 
     /*************** Initialise *************/
-    assert!(init_contract(deps.as_mut(), &creator, &None, &None, &None, &None,).is_ok());
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        &None,
+        &None,
+        &None,
+        &None,
+        &String::from("atestfet"),
+        &None,
+        &None,
+    )
+    .is_ok());
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
@@ -399,13 +559,15 @@ fn test_add_data() {
     .is_ok());
 
     // Data already added
-    assert!(add_data(
-        deps.as_mut(),
-        &delegator1,
-        &data_id1,
-        &data_entry.delegator_pubkey,
-    )
-    .is_err());
+    assert!(is_err(
+        add_data(
+            deps.as_mut(),
+            &delegator1,
+            &data_id1,
+            &data_entry.delegator_pubkey,
+        ),
+        "already exist"
+    ));
 
     assert_eq!(
         &get_data_entry(deps.as_mut().storage, &data_id1).unwrap(),
@@ -417,7 +579,10 @@ fn test_add_data() {
     );
 
     // Delgator2 cannot use delegator1 pubkey
-    assert!(add_data(deps.as_mut(), &delegator2, &data_id2, &delegator1_pubkey).is_err());
+    assert!(is_err(
+        add_data(deps.as_mut(), &delegator2, &data_id2, &delegator1_pubkey),
+        "already registered with this pubkey"
+    ));
 }
 
 #[test]
@@ -444,6 +609,20 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         delegator_pubkey: delegator1_pubkey.clone(),
     };
 
+    // Staking
+    let proxy_stake = vec![Coin {
+        denom: String::from("atestfet"),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+    let request_reward = vec![Coin {
+        denom: String::from("atestfet"),
+        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+    }];
+    let insufficient_request_reward = vec![Coin {
+        denom: String::from("atestfet"),
+        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT - 1),
+    }];
+
     /*************** Initialise *************/
     assert!(init_contract(
         deps.as_mut(),
@@ -452,13 +631,16 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         &None,
         &Some(1),
         &Some(vec![proxy1.clone(), proxy2.clone()]),
+        &String::from("atestfet"),
+        &None,
+        &None,
     )
     .is_ok());
 
     /*************** Register proxies *************/
     // Proxies register -> submits pubkeys
-    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey, &proxy_stake).is_ok());
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
@@ -496,19 +678,28 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     ];
 
     // Reencryption can't be requested yet
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey,).is_err()
-    );
+    assert!(is_err(
+        request_reencryption(
+            deps.as_mut(),
+            &delegator1,
+            &data_id,
+            &delegatee_pubkey,
+            &request_reward,
+        ),
+        "Delegation doesn't exist"
+    ));
 
     // Proxies not requested
-    assert!(add_delegation(
-        deps.as_mut(),
-        &delegator1,
-        &delegator1_pubkey,
-        &delegatee_pubkey,
-        &proxy_delegations,
-    )
-    .is_err());
+    assert!(is_err(
+        add_delegation(
+            deps.as_mut(),
+            &delegator1,
+            &delegator1_pubkey,
+            &delegatee_pubkey,
+            &proxy_delegations,
+        ),
+        "No proxies selected"
+    ));
 
     let res = request_proxies_for_delegation(
         deps.as_mut(),
@@ -524,29 +715,40 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     );
 
     // Reencryption can't be requested yet - No delegation strings added
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey,).is_err()
-    );
+    assert!(is_err(
+        request_reencryption(
+            deps.as_mut(),
+            &delegator1,
+            &data_id,
+            &delegatee_pubkey,
+            &request_reward,
+        ),
+        "Not all delegation strings provided"
+    ));
 
     // Add delegation with different proxy than selected one
-    assert!(add_delegation(
-        deps.as_mut(),
-        &delegator1,
-        &delegator1_pubkey,
-        &delegatee_pubkey,
-        &different_proxy_delegations,
-    )
-    .is_err());
+    assert!(is_err(
+        add_delegation(
+            deps.as_mut(),
+            &delegator1,
+            &delegator1_pubkey,
+            &delegatee_pubkey,
+            &different_proxy_delegations,
+        ),
+        "Proxy proxy2_pubkey not selected for delegation."
+    ));
 
     // Add delegation with different amount of proxies than selected one
-    assert!(add_delegation(
-        deps.as_mut(),
-        &delegator1,
-        &delegator1_pubkey,
-        &delegatee_pubkey,
-        &different_proxy_amount_delegations,
-    )
-    .is_err());
+    assert!(is_err(
+        add_delegation(
+            deps.as_mut(),
+            &delegator1,
+            &delegator1_pubkey,
+            &delegatee_pubkey,
+            &different_proxy_amount_delegations,
+        ),
+        "Provided wrong number of delegation strings, expected 1 got 2."
+    ));
 
     // Add delegation
     assert!(add_delegation(
@@ -559,27 +761,62 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     .is_ok());
 
     // Cannot add same delegation twice
-    assert!(add_delegation(
-        deps.as_mut(),
-        &delegator1,
-        &delegator1_pubkey,
-        &delegatee_pubkey,
-        &proxy_delegations,
-    )
-    .is_err());
+    assert!(is_err(
+        add_delegation(
+            deps.as_mut(),
+            &delegator1,
+            &delegator1_pubkey,
+            &delegatee_pubkey,
+            &proxy_delegations,
+        ),
+        "Delegation strings already provided"
+    ));
 
     // Reencryption cannot be requested by delegator2
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator2, &data_id, &delegatee_pubkey,).is_err()
-    );
+    assert!(is_err(
+        request_reencryption(
+            deps.as_mut(),
+            &delegator2,
+            &data_id,
+            &delegatee_pubkey,
+            &request_reward,
+        ),
+        "Delegator delegator1 already registered with this pubkey."
+    ));
+
+    // Insufficient stake amount
+    assert!(is_err(
+        request_reencryption(
+            deps.as_mut(),
+            &delegator1,
+            &data_id,
+            &delegatee_pubkey,
+            &insufficient_request_reward,
+        ),
+        "Requires at least 100 atestfet."
+    ));
 
     // Reencryption can be requested only after add_delegation
-    assert!(request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey,).is_ok());
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        &data_id,
+        &delegatee_pubkey,
+        &request_reward,
+    )
+    .is_ok());
 
     // Reencryption already requested
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id, &delegatee_pubkey,).is_err()
-    );
+    assert!(is_err(
+        request_reencryption(
+            deps.as_mut(),
+            &delegator1,
+            &data_id,
+            &delegatee_pubkey,
+            &request_reward,
+        ),
+        "Reencryption already requested"
+    ));
 
     // Check if request was created
     assert_eq!(
@@ -620,6 +857,12 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
     let data_id1 = String::from("DATA1");
     let data_id2 = String::from("DATA2");
 
+    // Staking
+    let proxy_stake = vec![Coin {
+        denom: String::from("atestfet"),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+
     /*************** Initialise *************/
     assert!(init_contract(
         deps.as_mut(),
@@ -628,12 +871,15 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         &None,
         &Some(1),
         &Some(vec![proxy1.clone(), proxy2.clone()]),
+        &String::from("atestfet"),
+        &None,
+        &None,
     )
     .is_ok());
 
     /*************** Register proxies *************/
     // Proxies register -> submits pubkeys
-    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey, &proxy_stake).is_ok());
 
     // Add delegation for proxy
     let proxy1_delegation_string = String::from("DS_P1");
@@ -663,18 +909,23 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
     .is_ok());
 
     // Add data by delegator2 with already used delegator1_pubkey is prevented
-    assert!(add_data(deps.as_mut(), &delegator2, &data_id1, &delegator1_pubkey).is_err());
+    assert!(is_err(
+        add_data(deps.as_mut(), &delegator2, &data_id1, &delegator1_pubkey),
+        "Delegator delegator1 already registered with this pubkey."
+    ));
 
     assert!(add_data(deps.as_mut(), &delegator2, &data_id2, &delegator2_pubkey).is_ok());
 
     // Cannot add delegation by delegator1 using delegator2 pubkey
-    assert!(request_proxies_for_delegation(
-        deps.as_mut(),
-        &delegator1,
-        &delegator2_pubkey,
-        &delegatee_pubkey,
-    )
-    .is_err());
+    assert!(is_err(
+        request_proxies_for_delegation(
+            deps.as_mut(),
+            &delegator1,
+            &delegator2_pubkey,
+            &delegatee_pubkey,
+        ),
+        "Delegator delegator2 already registered with this pubkey."
+    ));
 }
 
 #[test]
@@ -699,6 +950,16 @@ fn test_provide_reencrypted_fragment() {
         delegator_pubkey: delegator_pubkey.clone(),
     };
 
+    // Staking
+    let proxy_stake = vec![Coin {
+        denom: String::from("atestfet"),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+    let request_reward = vec![Coin {
+        denom: String::from("atestfet"),
+        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+    }];
+
     /*************** Initialise *************/
     assert!(init_contract(
         deps.as_mut(),
@@ -707,12 +968,15 @@ fn test_provide_reencrypted_fragment() {
         &None,
         &None,
         &Some(vec![proxy.clone()]),
+        &String::from("atestfet"),
+        &None,
+        &None,
     )
     .is_ok());
 
     /*************** Register proxies *************/
     // Proxies register -> submits pubkeys
-    assert!(register_proxy(deps.as_mut(), &proxy, &proxy_pubkey).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy, &proxy_pubkey, &proxy_stake).is_ok());
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
@@ -749,7 +1013,14 @@ fn test_provide_reencrypted_fragment() {
     .is_ok());
 
     /*************** Request re-encryption *************/
-    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee_pubkey,).is_ok());
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator,
+        &data_id,
+        &delegatee_pubkey,
+        &request_reward,
+    )
+    .is_ok());
 
     /*************** Provide reencrypted fragment *************/
     assert_eq!(
@@ -770,24 +1041,28 @@ fn test_provide_reencrypted_fragment() {
 
     let proxy_fragment: String = String::from("PR1_FRAG1");
     // Provide unwanted fragment
-    assert!(provide_reencrypted_fragment(
-        deps.as_mut(),
-        &proxy,
-        &data_id,
-        &other_delegatee_pubkey,
-        &proxy_fragment,
-    )
-    .is_err());
+    assert!(is_err(
+        provide_reencrypted_fragment(
+            deps.as_mut(),
+            &proxy,
+            &data_id,
+            &other_delegatee_pubkey,
+            &proxy_fragment,
+        ),
+        "This fragment was not requested."
+    ));
 
     // Not a proxy
-    assert!(provide_reencrypted_fragment(
-        deps.as_mut(),
-        &creator,
-        &data_id,
-        &delegatee_pubkey,
-        &proxy_fragment,
-    )
-    .is_err());
+    assert!(is_err(
+        provide_reencrypted_fragment(
+            deps.as_mut(),
+            &creator,
+            &data_id,
+            &delegatee_pubkey,
+            &proxy_fragment,
+        ),
+        "Proxy not registered"
+    ));
 
     // Provide fragment correctly
     assert!(provide_reencrypted_fragment(
@@ -799,14 +1074,16 @@ fn test_provide_reencrypted_fragment() {
     )
     .is_ok());
     // Fragment already provided
-    assert!(provide_reencrypted_fragment(
-        deps.as_mut(),
-        &proxy,
-        &data_id,
-        &delegatee_pubkey,
-        &proxy_fragment,
-    )
-    .is_err());
+    assert!(is_err(
+        provide_reencrypted_fragment(
+            deps.as_mut(),
+            &proxy,
+            &data_id,
+            &delegatee_pubkey,
+            &proxy_fragment,
+        ),
+        "Fragment already provided."
+    ));
 
     // This entry is removed when proxy task is done
     assert!(!is_proxy_reencryption_request(
@@ -842,6 +1119,17 @@ fn test_contract_lifecycle() {
         delegator_pubkey: delegator_pubkey.clone(),
     };
 
+    // Staking
+    let stake_denom = String::from("atestfet");
+    let proxy_stake = vec![Coin {
+        denom: String::from("atestfet"),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+    let request_reward = vec![Coin {
+        denom: String::from("atestfet"),
+        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+    }];
+
     /*************** Initialise *************/
     let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
     assert!(init_contract(
@@ -851,13 +1139,16 @@ fn test_contract_lifecycle() {
         &None,
         &None,
         &Some(proxies.clone()),
+        &stake_denom,
+        &None,
+        &None,
     )
     .is_ok());
 
     /*************** Register proxies *************/
     // Proxies register -> submits pubkeys
-    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey, &proxy_stake).is_ok());
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
@@ -947,7 +1238,14 @@ fn test_contract_lifecycle() {
 
     /*************** Request reencryption by delegator *************/
 
-    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee1_pubkey,).is_ok());
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator,
+        &data_id,
+        &delegatee1_pubkey,
+        &request_reward,
+    )
+    .is_ok());
     assert_eq!(
         get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
         ReencryptionRequestState::Ready
@@ -963,7 +1261,14 @@ fn test_contract_lifecycle() {
         1
     );
 
-    assert!(request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee2_pubkey,).is_ok());
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator,
+        &data_id,
+        &delegatee2_pubkey,
+        &request_reward,
+    )
+    .is_ok());
 
     // Check number of requests
     assert_eq!(
@@ -1003,6 +1308,13 @@ fn test_contract_lifecycle() {
         &proxy1_fragment1,
     )
     .is_ok());
+
+    // Check if proxy got reward
+    let proxy = get_proxy(deps.as_mut().storage, &proxy1).unwrap();
+    assert_eq!(
+        proxy.stake_amount.u128(),
+        DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT
+    );
 
     // Check numbers of requests
     assert_eq!(
@@ -1049,6 +1361,13 @@ fn test_contract_lifecycle() {
     )
     .is_ok());
 
+    // Check if proxy got reward
+    let proxy = get_proxy(deps.as_mut().storage, &proxy1).unwrap();
+    assert_eq!(
+        proxy.stake_amount.u128(),
+        DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + 2 * DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT
+    );
+
     // All tasks completed for proxy1
     assert!(get_next_proxy_task(deps.as_mut().storage, &proxy1_pubkey)
         .unwrap()
@@ -1078,15 +1397,33 @@ fn test_contract_lifecycle() {
     );
 
     // Re-encryption was requested in past
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator, &data_id, &delegatee1_pubkey,).is_err()
-    );
+    assert!(is_err(
+        request_reencryption(
+            deps.as_mut(),
+            &delegator,
+            &data_id,
+            &delegatee1_pubkey,
+            &request_reward,
+        ),
+        "Reencryption already requested"
+    ));
 
     // Proxy 2 leaves - all its delegations gets deleted
     assert!(unregister_proxy(deps.as_mut(), &proxy2).is_ok());
 
+    // Check proxy stake amount
+    let proxy = get_proxy(deps.as_mut().storage, &proxy2).unwrap();
+    assert_eq!(proxy.stake_amount.u128(), 0);
+
     // Proxy 2 gets back
-    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey, &proxy_stake).is_ok());
+
+    // Check proxy stake amount
+    let proxy = get_proxy(deps.as_mut().storage, &proxy2).unwrap();
+    assert_eq!(
+        proxy.stake_amount.u128(),
+        DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT
+    );
 
     assert_eq!(
         get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
@@ -1113,6 +1450,19 @@ fn test_contract_lifecycle() {
         &proxy_delegations,
     )
     .is_ok());
+
+    // Check if all stake gets returned to proxy after un-registered
+    let unregister_response = unregister_proxy(deps.as_mut(), &proxy1).unwrap();
+    assert_eq!(
+        unregister_response.messages[0],
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: proxy1.to_string(),
+            amount: vec![Coin::new(
+                DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2,
+                stake_denom.as_str(),
+            )],
+        })
+    );
 }
 
 #[test]
@@ -1150,6 +1500,21 @@ fn test_proxy_unregister_with_requests() {
     let delegation_string = String::from("DELESTRING");
     let re_encrypted_fragment = String::from("FRAGMENT");
 
+    // Staking
+    let stake_denom = String::from("atestfet");
+    let proxy_stake = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+    let request_reward_2_proxies = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+    }];
+    let request_reward_3_proxies = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 3),
+    }];
+
     /*************** Initialise *************/
     let proxies: Vec<Addr> = vec![
         proxy1.clone(),
@@ -1165,16 +1530,19 @@ fn test_proxy_unregister_with_requests() {
         &None,
         &None,
         &Some(proxies.clone()),
+        &stake_denom,
+        &None,
+        &None,
     )
     .is_ok());
 
     /*************** Register proxies *************/
     // Proxies register -> submits pubkeys
-    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy3, &proxy3_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy4, &proxy4_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy5, &proxy5_pubkey).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy3, &proxy3_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy4, &proxy4_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy5, &proxy5_pubkey, &proxy_stake).is_ok());
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
@@ -1282,21 +1650,41 @@ fn test_proxy_unregister_with_requests() {
     // Request re-encryptions
 
     // Re-encryption requests with DATA1 to delegatee1
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee1_pubkey,).is_ok()
-    );
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        &data_id1,
+        &delegatee1_pubkey,
+        &request_reward_3_proxies,
+    )
+    .is_ok());
     // Re-encryption requests with DATA1 to delegatee2
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee2_pubkey,).is_ok()
-    );
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        &data_id1,
+        &delegatee2_pubkey,
+        &request_reward_2_proxies,
+    )
+    .is_ok());
     // Re-encryption requests with DATA2 to delegatee2
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id2, &delegatee2_pubkey,).is_ok()
-    );
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        &data_id2,
+        &delegatee2_pubkey,
+        &request_reward_2_proxies,
+    )
+    .is_ok());
     // Re-encryption requests with DATA3 to delegatee1
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator2, &data_id3, &delegatee1_pubkey,).is_ok()
-    );
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator2,
+        &data_id3,
+        &delegatee1_pubkey,
+        &request_reward_2_proxies,
+    )
+    .is_ok());
 
     // Complete requests
     assert!(provide_reencrypted_fragment(
@@ -1309,10 +1697,36 @@ fn test_proxy_unregister_with_requests() {
     .is_ok());
 
     // Unregister proxy2
-    assert!(unregister_proxy(deps.as_mut(), &proxy2).is_ok());
+    let unregister_response = unregister_proxy(deps.as_mut(), &proxy2).unwrap();
+
+    // Check if stake gets returned to proxy
+    assert_eq!(
+        unregister_response.messages[0],
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: proxy2.to_string(),
+            amount: vec![Coin::new(
+                DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT,
+                stake_denom.as_str(),
+            )],
+        })
+    );
+    // Check if stake from unfinished request get returned to delegator
+    assert_eq!(
+        unregister_response.messages[1],
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: delegator1.to_string(),
+            amount: vec![Coin::new(
+                DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 3,
+                stake_denom.as_str(),
+            )],
+        })
+    );
 
     // Already unregistered
-    assert!(unregister_proxy(deps.as_mut(), &proxy2).is_err());
+    assert!(is_err(
+        unregister_proxy(deps.as_mut(), &proxy2),
+        "Proxy already unregistered"
+    ));
 
     // Check state of delegations
 
@@ -1588,9 +2002,16 @@ fn test_proxy_unregister_with_requests() {
     ));
 
     // Delegation 1 was removed with all re-encryption requests
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee1_pubkey,).is_err()
-    );
+    assert!(is_err(
+        request_reencryption(
+            deps.as_mut(),
+            &delegator1,
+            &data_id1,
+            &delegatee1_pubkey,
+            &request_reward_3_proxies,
+        ),
+        "Delegation doesn't exist."
+    ));
 }
 
 #[test]
@@ -1628,6 +2049,21 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     let delegation_string = String::from("DELESTRING");
     let re_encrypted_fragment = String::from("FRAGMENT");
 
+    // Staking
+    let stake_denom = String::from("atestfet");
+    let proxy_stake = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+    let request_reward_2_proxies = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+    }];
+    let request_reward_3_proxies = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 3),
+    }];
+
     /*************** Initialise *************/
     let proxies: Vec<Addr> = vec![
         proxy1.clone(),
@@ -1643,16 +2079,19 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &None,
         &None,
         &Some(proxies.clone()),
+        &stake_denom,
+        &None,
+        &None,
     )
     .is_ok());
 
     /*************** Register proxies *************/
     // Proxies register -> submits pubkeys
-    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy3, &proxy3_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy4, &proxy4_pubkey).is_ok());
-    assert!(register_proxy(deps.as_mut(), &proxy5, &proxy5_pubkey).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy3, &proxy3_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy4, &proxy4_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy5, &proxy5_pubkey, &proxy_stake).is_ok());
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
@@ -1760,21 +2199,41 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // Request re-encryptions
 
     // Re-encryption requests with DATA1 to delegatee1
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee1_pubkey,).is_ok()
-    );
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        &data_id1,
+        &delegatee1_pubkey,
+        &request_reward_3_proxies,
+    )
+    .is_ok());
     // Re-encryption requests with DATA1 to delegatee2
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id1, &delegatee2_pubkey,).is_ok()
-    );
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        &data_id1,
+        &delegatee2_pubkey,
+        &request_reward_2_proxies,
+    )
+    .is_ok());
     // Re-encryption requests with DATA2 to delegatee2
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator1, &data_id2, &delegatee2_pubkey,).is_ok()
-    );
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        &data_id2,
+        &delegatee2_pubkey,
+        &request_reward_2_proxies,
+    )
+    .is_ok());
     // Re-encryption requests with DATA3 to delegatee1
-    assert!(
-        request_reencryption(deps.as_mut(), &delegator2, &data_id3, &delegatee1_pubkey,).is_ok()
-    );
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator2,
+        &data_id3,
+        &delegatee1_pubkey,
+        &request_reward_2_proxies,
+    )
+    .is_ok());
 
     // Complete requests
     assert!(provide_reencrypted_fragment(
@@ -1800,12 +2259,18 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     assert_eq!(proxy.proxy_pubkey.unwrap(), proxy2_pubkey);
 
     // Sender is not a proxy
-    assert!(deactivate_proxy(deps.as_mut(), &creator).is_err());
+    assert!(is_err(
+        deactivate_proxy(deps.as_mut(), &creator),
+        "Sender is not a proxy"
+    ));
 
     // Deactivate proxy2
     assert!(deactivate_proxy(deps.as_mut(), &proxy2).is_ok());
     // Already deactivated
-    assert!(deactivate_proxy(deps.as_mut(), &proxy2).is_err());
+    assert!(is_err(
+        deactivate_proxy(deps.as_mut(), &proxy2),
+        "Proxy already deactivated"
+    ));
 
     // Check proxy state
     assert!(!get_is_proxy_active(deps.as_mut().storage, &proxy2_pubkey));
@@ -1933,7 +2398,10 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // Remove proxy by admin
     assert!(remove_proxy(deps.as_mut(), &creator, &proxy2).is_ok());
     // Already removed
-    assert!(remove_proxy(deps.as_mut(), &creator, &proxy2).is_err());
+    assert!(is_err(
+        remove_proxy(deps.as_mut(), &creator, &proxy2),
+        "proxy_2 is not a proxy"
+    ));
 
     // Check proxy state
     assert!(!get_is_proxy_active(deps.as_mut().storage, &proxy2_pubkey));
@@ -2104,5 +2572,116 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         deps.as_mut().storage,
         &proxy5_pubkey,
         &8,
+    ));
+}
+
+#[test]
+fn test_proxy_stake_withdrawal() {
+    let mut deps = mock_dependencies(&[]);
+    let creator = Addr::unchecked("creator".to_string());
+    let proxy1 = Addr::unchecked("proxy1".to_string());
+    let proxy2 = Addr::unchecked("proxy2".to_string());
+
+    let proxy1_pubkey: String = String::from("proxy1_pubkey");
+    let proxy2_pubkey: String = String::from("proxy2_pubkey");
+
+    let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
+
+    // Staking
+    let stake_denom = String::from("atestfet");
+    let proxy_stake = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + 50),
+    }];
+
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        &None,
+        &None,
+        &None,
+        &Some(proxies.clone()),
+        &stake_denom,
+        &None,
+        &None,
+    )
+    .is_ok());
+
+    assert!(register_proxy(deps.as_mut(), &proxy1, &proxy1_pubkey, &proxy_stake).is_ok());
+    assert!(register_proxy(deps.as_mut(), &proxy2, &proxy2_pubkey, &proxy_stake).is_ok());
+
+    let proxy = get_proxy(deps.as_mut().storage, &proxy1).unwrap();
+    assert_eq!(
+        proxy.stake_amount.u128(),
+        DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + 50
+    );
+
+    // Proxy1 is trying to withdraw more than is available gives you maximum available stake
+    let withdraw_res = withdraw_stake(deps.as_mut(), &proxy1, &Some(Uint128::new(51))).unwrap();
+    assert_eq!(
+        withdraw_res.messages[0],
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: proxy1.to_string(),
+            amount: vec![Coin::new(50, stake_denom.as_str())],
+        })
+    );
+
+    // All stake of proxy1 withdrawn
+    assert!(is_err(
+        withdraw_stake(deps.as_mut(), &proxy1, &None),
+        "Not enough stake to withdraw"
+    ));
+
+    // Proxy2 is trying to withdraw maximum available stake
+    let withdraw_res = withdraw_stake(deps.as_mut(), &proxy2, &None).unwrap();
+    assert_eq!(
+        withdraw_res.messages[0],
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: proxy2.to_string(),
+            amount: vec![Coin::new(50, stake_denom.as_str())],
+        })
+    );
+
+    // All stake of proxy2 withdrawn
+    assert!(is_err(
+        withdraw_stake(deps.as_mut(), &proxy2, &None),
+        "Not enough stake to withdraw"
+    ));
+
+    let proxy = get_proxy(deps.as_mut().storage, &proxy1).unwrap();
+    assert_eq!(
+        proxy.stake_amount.u128(),
+        DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT
+    );
+
+    let proxy = get_proxy(deps.as_mut().storage, &proxy2).unwrap();
+    assert_eq!(
+        proxy.stake_amount.u128(),
+        DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT
+    );
+
+    // Insufficient stake
+    assert!(is_err(
+        withdraw_stake(deps.as_mut(), &proxy1, &Some(Uint128::new(1))),
+        "Not enough stake to withdraw"
+    ));
+
+    // Remaining stake can be withdrawn only by unregistering
+    let unregister_res = unregister_proxy(deps.as_mut(), &proxy1).unwrap();
+    assert_eq!(
+        unregister_res.messages[0],
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: proxy1.to_string(),
+            amount: vec![Coin::new(
+                DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
+                stake_denom.as_str(),
+            )],
+        })
+    );
+
+    // Proxy unregistered
+    assert!(is_err(
+        withdraw_stake(deps.as_mut(), &proxy1, &Some(Uint128::new(1))),
+        "Not enough stake to withdraw"
     ));
 }

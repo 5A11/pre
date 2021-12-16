@@ -1,66 +1,35 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InstantiateMsg",
+  "title": "GetContractStateResponse",
   "type": "object",
   "required": [
-    "stake_denom"
+    "admin",
+    "minimum_proxy_stake_amount",
+    "minimum_request_reward_amount",
+    "n_max_proxies",
+    "stake_denom",
+    "threshold"
   ],
   "properties": {
     "admin": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Addr"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "$ref": "#/definitions/Addr"
     },
     "minimum_proxy_stake_amount": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "$ref": "#/definitions/Uint128"
     },
     "minimum_request_reward_amount": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "$ref": "#/definitions/Uint128"
     },
     "n_max_proxies": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint32",
       "minimum": 0.0
-    },
-    "proxies": {
-      "type": [
-        "array",
-        "null"
-      ],
-      "items": {
-        "$ref": "#/definitions/Addr"
-      }
     },
     "stake_denom": {
       "type": "string"
     },
     "threshold": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint32",
       "minimum": 0.0
     }

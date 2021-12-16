@@ -1,11 +1,13 @@
 use crate::msg::{
-    ExecuteMsg, GetAvailableProxiesResponse, GetDataIDResponse, GetDelegationStateRepsonse,
-    GetFragmentsResponse, GetNextProxyTaskResponse, GetSelectedProxiesForDelegationResponse,
-    GetThresholdResponse, InstantiateMsg, ProxyDelegation, ProxyTask, QueryMsg,
+    ExecuteMsg, GetAvailableProxiesResponse, GetContractStateResponse, GetDataIDResponse,
+    GetDelegationStateResponse, GetFragmentsResponse, GetNextProxyTaskResponse,
+    GetProxyInfoResponse, GetSelectedProxiesForDelegationResponse, InstantiateMsg, ProxyDelegation,
+    ProxyInfo, ProxyTask, QueryMsg,
 };
 use crate::proxies::{
-    get_all_active_proxy_pubkeys, get_proxy, get_proxy_address, remove_proxy, remove_proxy_address,
-    set_is_proxy_active, set_proxy, set_proxy_address, Proxy, ProxyState,
+    get_all_active_proxy_pubkeys, get_proxy, get_proxy_address, maximum_withdrawable_stake_amount,
+    remove_proxy, remove_proxy_address, set_is_proxy_active, set_proxy, set_proxy_address, Proxy,
+    ProxyState,
 };
 use crate::state::{
     get_data_entry, get_delegator_address, get_state, set_data_entry, set_delegator_address,
@@ -23,15 +25,20 @@ use crate::reencryption_requests::{
     remove_proxy_reencryption_requests, set_reencryption_request, ReencryptionRequest,
 };
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    Storage,
+    attr, to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, Storage, Uint128,
 };
+
+use crate::common::add_bank_msg;
 
 macro_rules! generic_err {
     ($val:expr) => {
         Err(StdError::generic_err($val))
     };
 }
+
+pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 100;
+pub const DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT: u128 = 100;
 
 pub fn instantiate(
     deps: DepsMut,
@@ -45,6 +52,13 @@ pub fn instantiate(
         threshold: msg.threshold.unwrap_or(1),
         next_request_id: 0,
         next_delegation_id: 0,
+        stake_denom: msg.stake_denom,
+        minimum_proxy_stake_amount: msg
+            .minimum_proxy_stake_amount
+            .unwrap_or_else(|| Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT)),
+        minimum_request_reward_amount: msg
+            .minimum_request_reward_amount
+            .unwrap_or_else(|| Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT)),
     };
 
     if state.threshold == 0 {
@@ -60,6 +74,7 @@ pub fn instantiate(
     let new_proxy = Proxy {
         state: ProxyState::Authorised,
         proxy_pubkey: None,
+        stake_amount: Uint128::new(0),
     };
 
     if let Some(proxies_addr) = msg.proxies {
@@ -90,6 +105,7 @@ fn try_add_proxy(
     let new_proxy = Proxy {
         state: ProxyState::Authorised,
         proxy_pubkey: None,
+        stake_amount: Uint128::new(0),
     };
 
     set_proxy(deps.storage, proxy_addr, &new_proxy);
@@ -125,7 +141,7 @@ fn try_remove_proxy(
     }?;
 
     // Return response
-    let res = Response {
+    let mut res = Response {
         submessages: vec![],
         messages: vec![],
         attributes: vec![
@@ -136,6 +152,14 @@ fn try_remove_proxy(
         data: None,
     };
 
+    // Return stake back to proxy
+    add_bank_msg(
+        &mut res,
+        proxy_addr,
+        proxy.stake_amount.u128(),
+        &state.stake_denom,
+    );
+
     // Registered or Leaving state
     if let Some(proxy_pubkey) = proxy.proxy_pubkey {
         // In leaving state this was already done
@@ -144,7 +168,7 @@ fn try_remove_proxy(
             remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
         }
 
-        remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey)?;
+        remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey, &mut res)?;
         remove_proxy_address(deps.storage, &proxy_pubkey);
     }
     // Authorised state - proxy wasn't registered
@@ -161,26 +185,33 @@ fn try_register_proxy(
     info: MessageInfo,
     proxy_pubkey: String,
 ) -> StdResult<Response> {
+    let state = get_state(deps.storage)?;
+
+    let mut proxy = match get_proxy(deps.storage, &info.sender) {
+        None => generic_err!("Sender is not a proxy."),
+        Some(proxy) => Ok(proxy),
+    }?;
+
+    if proxy.proxy_pubkey.is_some() {
+        return generic_err!("Proxy already registered.");
+    }
+
     if get_proxy_address(deps.storage, &proxy_pubkey).is_some() {
         return generic_err!("Pubkey already used.");
     }
 
-    match get_proxy(deps.storage, &info.sender) {
-        None => {
-            return generic_err!("Sender is not a proxy.");
-        }
-        Some(mut proxy) => {
-            if proxy.proxy_pubkey.is_some() {
-                return generic_err!("Proxy already registered.");
-            }
+    ensure_stake(
+        &state,
+        &info.funds,
+        &state.minimum_proxy_stake_amount.u128(),
+    )?;
 
-            proxy.proxy_pubkey = Some(proxy_pubkey.clone());
-            proxy.state = ProxyState::Registered;
-            set_proxy(deps.storage, &info.sender, &proxy);
-            set_is_proxy_active(deps.storage, &proxy_pubkey, true);
-            set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
-        }
-    }
+    proxy.proxy_pubkey = Some(proxy_pubkey.clone());
+    proxy.state = ProxyState::Registered;
+    proxy.stake_amount = Uint128::new(proxy.stake_amount.u128() + info.funds[0].amount.u128());
+    set_proxy(deps.storage, &info.sender, &proxy);
+    set_is_proxy_active(deps.storage, &proxy_pubkey, true);
+    set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
 
     // Return response
     let res = Response {
@@ -196,6 +227,8 @@ fn try_register_proxy(
 }
 
 fn try_unregister_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+    let state = get_state(deps.storage)?;
+
     // Check if proxy is authorised
     let mut proxy = match get_proxy(deps.storage, &info.sender) {
         None => generic_err!("Sender is not a proxy"),
@@ -209,7 +242,7 @@ fn try_unregister_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResul
     }?;
 
     // Return response
-    let res = Response {
+    let mut res = Response {
         submessages: vec![],
         messages: vec![],
         attributes: vec![
@@ -219,13 +252,22 @@ fn try_unregister_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResul
         data: None,
     };
 
+    // Return stake back to proxy
+    add_bank_msg(
+        &mut res,
+        &info.sender,
+        proxy.stake_amount.u128(),
+        &state.stake_denom,
+    );
+
     if proxy.state != ProxyState::Leaving {
         set_is_proxy_active(deps.storage, &proxy_pubkey, false);
         remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
     }
 
-    remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey)?;
+    remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey, &mut res)?;
     remove_proxy_address(deps.storage, &proxy_pubkey);
+    proxy.stake_amount = Uint128::new(0);
     proxy.state = ProxyState::Authorised;
     proxy.proxy_pubkey = None;
     set_proxy(deps.storage, &info.sender, &proxy);
@@ -277,12 +319,12 @@ fn try_provide_reencrypted_fragment(
     fragment: &str,
 ) -> StdResult<Response> {
     // Get proxy_pubkey or return error
-    let proxy = match get_proxy(deps.storage, &info.sender) {
+    let mut proxy = match get_proxy(deps.storage, &info.sender) {
         None => generic_err!("Proxy not registered"),
         Some(proxy) => Ok(proxy),
     }?;
 
-    let proxy_pubkey = match proxy.proxy_pubkey {
+    let proxy_pubkey = match proxy.proxy_pubkey.clone() {
         None => generic_err!("Proxy not active"),
         Some(proxy_pubkey) => Ok(proxy_pubkey),
     }?;
@@ -318,12 +360,72 @@ fn try_provide_reencrypted_fragment(
         data: None,
     };
 
+    // Add reward to proxy stake
+    proxy.stake_amount += request.reward_amount;
+    set_proxy(deps.storage, &info.sender, &proxy);
+
     // Add fragment to fragments store
     request.fragment = Some(fragment.to_string());
+    request.reward_amount = Uint128::new(0);
     set_reencryption_request(deps.storage, &request_id, &request);
 
     // Remove request as it's completed
     remove_proxy_reencryption_request(deps.storage, &proxy_pubkey, &request_id);
+
+    Ok(res)
+}
+
+fn try_withdraw_stake(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    stake_amount: &Option<Uint128>,
+) -> StdResult<Response> {
+    let state = get_state(deps.storage)?;
+
+    // Check if proxy is authorised
+    let mut proxy = match get_proxy(deps.storage, &info.sender) {
+        None => generic_err!("Sender is not a proxy"),
+        Some(proxy) => Ok(proxy),
+    }?;
+
+    // Check maximum amount that can be withdrawn
+    let maximum_withdrawable_amount = maximum_withdrawable_stake_amount(&state, &proxy);
+
+    if maximum_withdrawable_amount == 0 {
+        return generic_err!("Not enough stake to withdraw");
+    }
+
+    // Withdraw maximum possible in case of stake_amount is None
+    let mut withdraw_stake_amount = stake_amount
+        .map(|data| data.u128())
+        .unwrap_or(maximum_withdrawable_amount);
+
+    // Need to leave at least minimum_proxy_stake_amount after withdrawal
+    if withdraw_stake_amount > maximum_withdrawable_amount {
+        withdraw_stake_amount = maximum_withdrawable_amount;
+    }
+
+    // Return response
+    let mut res = Response {
+        submessages: vec![],
+        messages: vec![],
+        attributes: vec![
+            attr("action", "withdraw_stake"),
+            attr("stake_amount", withdraw_stake_amount),
+        ],
+        data: None,
+    };
+
+    // Update proxy stake amount
+    proxy.stake_amount = Uint128::new(proxy.stake_amount.u128() - withdraw_stake_amount);
+    set_proxy(deps.storage, &info.sender, &proxy);
+    add_bank_msg(
+        &mut res,
+        &info.sender,
+        withdraw_stake_amount,
+        &state.stake_denom,
+    );
 
     Ok(res)
 }
@@ -510,12 +612,22 @@ fn try_request_reencryption(
         return generic_err!("Delegation doesn't exist.");
     }
 
+    // Ensure more than minimum_request_reward_amount * number_of_proxies of stake provided
+    ensure_stake(
+        &state,
+        &info.funds,
+        &(state.minimum_request_reward_amount.u128() * proxy_pubkeys.len() as u128),
+    )?;
+
     let mut new_request = ReencryptionRequest {
         delegatee_pubkey: delegatee_pubkey.to_string(),
         data_id: data_id.to_string(),
         fragment: None,
         proxy_pubkey: "".to_string(),
         delegation_string: "".to_string(),
+        // Per proxy stake amount
+        reward_amount: Uint128::new(info.funds[0].amount.u128() / proxy_pubkeys.len() as u128),
+        delegator_addr: info.sender,
     };
 
     for proxy_pubkey in proxy_pubkeys {
@@ -608,12 +720,33 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     match msg {
+        // Admin actions
         ExecuteMsg::AddProxy { proxy_addr } => try_add_proxy(deps, env, info, &proxy_addr),
         ExecuteMsg::RemoveProxy { proxy_addr } => try_remove_proxy(deps, env, info, &proxy_addr),
+
+        // Proxy actions
         ExecuteMsg::RegisterProxy { proxy_pubkey } => {
             try_register_proxy(deps, env, info, proxy_pubkey)
         }
+        ExecuteMsg::ProvideReencryptedFragment {
+            data_id,
+            delegatee_pubkey,
+            fragment,
+        } => try_provide_reencrypted_fragment(
+            deps,
+            env,
+            info,
+            &data_id,
+            &delegatee_pubkey,
+            &fragment,
+        ),
         ExecuteMsg::UnregisterProxy {} => try_unregister_proxy(deps, env, info),
+        ExecuteMsg::DeactivateProxy {} => try_deactivate_proxy(deps, env, info),
+        ExecuteMsg::WithdrawStake { stake_amount } => {
+            try_withdraw_stake(deps, env, info, &stake_amount)
+        }
+
+        // Delegator actions
         ExecuteMsg::AddData {
             data_id,
             delegator_pubkey,
@@ -644,19 +777,6 @@ pub fn execute(
             data_id,
             delegatee_pubkey,
         } => try_request_reencryption(deps, env, info, &data_id, &delegatee_pubkey),
-        ExecuteMsg::ProvideReencryptedFragment {
-            data_id,
-            delegatee_pubkey,
-            fragment,
-        } => try_provide_reencrypted_fragment(
-            deps,
-            env,
-            info,
-            &data_id,
-            &delegatee_pubkey,
-            &fragment,
-        ),
-        ExecuteMsg::DeactivateProxy {} => try_deactivate_proxy(deps, env, info),
     }
 }
 
@@ -683,9 +803,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 threshold: state.threshold,
             })?)
         }
-        QueryMsg::GetThreshold {} => Ok(to_binary(&GetThresholdResponse {
-            threshold: get_state(deps.storage)?.threshold,
-        })?),
+        QueryMsg::GetContractState {} => {
+            let state = get_state(deps.storage)?;
+            Ok(to_binary(&GetContractStateResponse {
+                admin: state.admin,
+                threshold: state.threshold,
+                n_max_proxies: state.n_max_proxies,
+                stake_denom: state.stake_denom,
+                minimum_proxy_stake_amount: state.minimum_proxy_stake_amount,
+                minimum_request_reward_amount: state.minimum_request_reward_amount,
+            })?)
+        }
 
         QueryMsg::GetNextProxyTask { proxy_pubkey } => Ok(to_binary(&GetNextProxyTaskResponse {
             proxy_task: get_next_proxy_task(deps.storage, &proxy_pubkey)?,
@@ -694,13 +822,25 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetDelegationState {
             delegator_pubkey,
             delegatee_pubkey,
-        } => Ok(to_binary(&GetDelegationStateRepsonse {
-            delegation_state: get_delegation_state(
-                deps.storage,
-                &delegator_pubkey,
-                &delegatee_pubkey,
-            ),
-        })?),
+        } => {
+            let state = get_state(deps.storage)?;
+            let n_proxies =
+                get_all_proxies_from_delegation(deps.storage, &delegator_pubkey, &delegatee_pubkey)
+                    .len();
+            let minimum_stake_amount =
+                n_proxies as u128 * state.minimum_request_reward_amount.u128();
+            Ok(to_binary(&GetDelegationStateResponse {
+                delegation_state: get_delegation_state(
+                    deps.storage,
+                    &delegator_pubkey,
+                    &delegatee_pubkey,
+                ),
+                minimum_request_reward: Coin {
+                    denom: state.stake_denom,
+                    amount: Uint128::new(minimum_stake_amount),
+                },
+            })?)
+        }
 
         QueryMsg::GetSelectedProxiesForDelegation {
             delegator_pubkey,
@@ -712,6 +852,26 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 &delegatee_pubkey,
             ),
         })?),
+
+        QueryMsg::GetProxyInfo { proxy_pubkey } => {
+            let mut proxy_info: Option<ProxyInfo> = None;
+
+            if let Some(proxy_addr) = get_proxy_address(deps.storage, &proxy_pubkey) {
+                let proxy = get_proxy(deps.storage, &proxy_addr).unwrap();
+                let state = get_state(deps.storage)?;
+
+                proxy_info = Some(ProxyInfo {
+                    proxy_address: proxy_addr,
+                    stake_amount: proxy.stake_amount,
+                    withdrawable_stake_amount: Uint128::new(maximum_withdrawable_stake_amount(
+                        &state, &proxy,
+                    )),
+                    proxy_state: proxy.state,
+                })
+            }
+
+            Ok(to_binary(&GetProxyInfoResponse { proxy_info })?)
+        }
     }
 }
 
@@ -741,6 +901,20 @@ fn ensure_delegator(
     } else {
         // Reserve delegator_pubkey for current delegator_address
         set_delegator_address(storage, delegator_pubkey, delegator_address);
+    }
+    Ok(())
+}
+
+fn ensure_stake(state: &State, funds: &[Coin], required_stake: &u128) -> StdResult<()> {
+    if funds.len() != 1 || funds[0].denom != state.stake_denom {
+        return generic_err!(format!("Expected 1 Coin with denom {}", state.stake_denom));
+    }
+
+    if &funds[0].amount.u128() < required_stake {
+        return generic_err!(format!(
+            "Requires at least {} {}.",
+            required_stake, state.stake_denom
+        ));
     }
     Ok(())
 }

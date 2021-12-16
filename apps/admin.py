@@ -33,6 +33,7 @@ def instantiate_contract(
     threshold,
     n_max_proxies,
     admin_address: Optional[str] = None,
+    stake_denom: str = "atestfet",
     proxies: str = "",
 ):
     # TODO: admin address validation
@@ -50,6 +51,7 @@ def instantiate_contract(
 
     kwargs = dict(
         admin_address=admin_address,
+        stake_denom=stake_denom,
         threshold=threshold,
         n_max_proxies=n_max_proxies,
         proxies=proxies_list,

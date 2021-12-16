@@ -3,6 +3,8 @@ from base64 import b64decode, b64encode
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
+
 from pre.common import (
     Address,
     Delegation,
@@ -10,7 +12,7 @@ from pre.common import (
     GetFragmentsResponse,
     HashID,
     ProxyTask,
-    ReencryptionRequestState,
+    ReencryptionRequestState, ContractState, ProxyState, ProxyInfo, GetDelegationStateResponse,
 )
 from pre.contract.base_contract import (
     AbstractAdminContract,
@@ -67,6 +69,8 @@ class ContractExecuteExceptionMixIn:
             raise ProxyAlreadyRegistered(raw_log, error_code, res)
         elif "Sender is not a proxy." in raw_log:
             raise UnknownProxy(raw_log, error_code, res)
+        elif "Proxy already registered." in raw_log:
+            raise ProxyAlreadyRegistered(raw_log, error_code, res)
         elif re.search("Delegator .* already registered with this pubkey", raw_log):
             raise DelegationAlreadyAdded(raw_log, error_code, res)
         elif "is already proxy" in raw_log:
@@ -135,10 +139,16 @@ class ContractQueries(AbstractContractQueries):
             )
         return None
 
-    def get_threshold(self) -> int:
-        state_msg: Dict = {"get_threshold": {}}
+    def get_contract_state(self) -> ContractState:
+        state_msg: Dict = {"get_contract_state": {}}
         json_res = self._send_query(state_msg)
-        return json_res["threshold"]
+        return ContractState(admin=json_res["admin"],
+                             threshold=json_res["threshold"],
+                             n_max_proxies=json_res["n_max_proxies"],
+                             stake_denom=json_res["stake_denom"],
+                             minimum_proxy_stake_amount=json_res["minimum_proxy_stake_amount"],
+                             minimum_request_reward_amount=json_res["minimum_request_reward_amount"],
+                             )
 
     def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
         state_msg: Dict = {
@@ -180,15 +190,34 @@ class ContractQueries(AbstractContractQueries):
         self,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
-    ) -> DelegationState:
+    ) -> GetDelegationStateResponse:
         state_msg: Dict = {
             "get_delegation_state": {
                 "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
                 "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
             }
         }
-        json_res = self._send_query(state_msg)
-        return DelegationState[json_res["delegation_state"]]
+        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+        return GetDelegationStateResponse(delegation_state=DelegationState[json_res["delegation_state"]],
+                                          minimum_request_reward=Coin(
+                                              denom=str(json_res["minimum_request_reward"]["denom"]),
+                                              amount=str(json_res["minimum_request_reward"]["amount"]))
+                                          )
+
+    def get_proxy_info(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyInfo]:
+        state_msg: Dict = {
+            "get_proxy_info": {"proxy_info": encode_bytes(proxy_pubkey_bytes)}
+        }
+        json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
+
+        if json_res["proxy_info"]:
+            return ProxyInfo(
+                proxy_address=json_res["proxy_info"]["proxy_address"],
+                stake_amount=json_res["proxy_info"]["stake_amount"],
+                withdrawable_stake_amount=json_res["proxy_info"]["withdrawable_stake_amount"],
+                proxy_state=ProxyState[json_res["proxy_info"]["proxy_state"]],
+            )
+        return None
 
 
 class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
@@ -201,6 +230,9 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         ledger: CosmosLedger,
         admin_private_key: AbstractLedgerCrypto,
         admin_addr: Address,
+        stake_denom: str,
+        minimum_proxy_stake_amount: Optional[str] = None,
+        minimum_request_reward_amount: Optional[str] = None,
         threshold: Optional[int] = None,
         n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
@@ -215,10 +247,17 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         _logger.info("Initializing deployed contract")
         init_msg: Dict = {
             "admin": admin_addr,
-            "proxies": proxies or [],
+            "stake_denom": stake_denom,
+            "proxies": proxies or []
         }
         if threshold is not None:
             init_msg["threshold"] = threshold
+
+        if minimum_proxy_stake_amount is not None:
+            init_msg["minimum_proxy_stake_amount"] = minimum_proxy_stake_amount
+
+        if minimum_request_reward_amount is not None:
+            init_msg["minimum_request_reward_amount"] = minimum_request_reward_amount
 
         if n_max_proxies is not None:
             init_msg["n_max_proxies"] = n_max_proxies
@@ -302,7 +341,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
         self,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
-    ) -> DelegationState:
+    ) -> GetDelegationStateResponse:
         return ContractQueries(
             ledger=self.ledger, contract_address=self.contract_address
         ).get_delegation_state(delegator_pubkey_bytes, delegatee_pubkey_bytes)
@@ -347,6 +386,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
         delegator_pubkey_bytes: bytes,
         hash_id: HashID,
         delegatee_pubkey_bytes: bytes,
+        stake_amount: Coin
     ):
         submit_msg = {
             "request_reencryption": {
@@ -356,7 +396,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
             }
         }
         res, error_code = self.ledger.send_execute_msg(
-            delegator_private_key, self.contract_address, submit_msg
+            delegator_private_key, self.contract_address, submit_msg, amount=[stake_amount]
         )
         self._exception_from_res(error_code, res)
 
@@ -373,6 +413,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         self,
         proxy_private_key: AbstractLedgerCrypto,
         proxy_pubkey_bytes: bytes,
+        stake_amount: Coin
     ):
         submit_msg = {
             "register_proxy": {
@@ -380,7 +421,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
             }
         }
         res, error_code = self.ledger.send_execute_msg(
-            proxy_private_key, self.contract_address, submit_msg
+            proxy_private_key, self.contract_address, submit_msg, amount=[stake_amount]
         )
         self._exception_from_res(error_code, res)
 
@@ -417,6 +458,36 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
             proxy_private_key, self.contract_address, submit_msg
         )
         self._exception_from_res(error_code, res)
+
+    def withdraw_stake(
+            self,
+            proxy_private_key: AbstractLedgerCrypto,
+            stake_amount: Optional[str] = None
+    ):
+        if stake_amount is not None:
+            submit_msg = {
+                "withdraw_stake": {
+                    "stake_amount": stake_amount,
+                }
+            }
+        else:
+            submit_msg = {
+                "withdraw_stake": {}
+            }
+
+        res, error_code = self.ledger.send_execute_msg(
+            proxy_private_key, self.contract_address, submit_msg
+        )
+        if error_code != 0:
+            raise ValueError(f"Contract execution failed: {error_code} {res}")
+
+    def get_contract_state(self) -> ContractState:
+        return ContractQueries(
+            ledger=self.ledger, contract_address=self.contract_address
+        ).get_contract_state()
+
+    def get_proxy_info(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyInfo]:
+        pass
 
 
 class CosmosContract:  # pylint: disable=too-few-public-methods

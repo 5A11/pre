@@ -1,8 +1,10 @@
+use crate::common::add_bank_msg;
 use crate::state::get_state;
-use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage};
+use cosmwasm_std::{from_slice, to_vec, Addr, Order, Response, StdResult, Storage, Uint128};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::TryInto;
 
 // Map reencryption_request_id: u64 -> request: ReencryptionRequest
@@ -23,6 +25,10 @@ pub struct ReencryptionRequest {
     pub delegatee_pubkey: String,
     pub fragment: Option<String>,
     pub delegation_string: String,
+
+    pub reward_amount: Uint128,
+    // Stake will be returned to this address
+    pub delegator_addr: Addr,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -240,8 +246,11 @@ pub fn get_reencryption_request_state(
 pub fn remove_proxy_reencryption_requests(
     storage: &mut dyn Storage,
     proxy_pubkey: &str,
+    response: &mut Response,
 ) -> StdResult<()> {
     let state = get_state(storage)?;
+
+    let mut delegator_retrieve_stake: HashMap<Addr, u128> = HashMap::new();
 
     for re_request_id in get_all_proxy_reencryption_requests(storage, proxy_pubkey) {
         let re_request = get_reencryption_request(storage, &re_request_id).unwrap();
@@ -256,12 +265,25 @@ pub fn remove_proxy_reencryption_requests(
             // Delete other proxies related requests because request cannot be completed without this proxy
 
             for i_re_request_id in all_related_requests_ids {
-                resolve_proxy_reencryption_requests(storage, &i_re_request_id);
+                resolve_proxy_reencryption_requests(
+                    storage,
+                    &i_re_request_id,
+                    &mut delegator_retrieve_stake,
+                );
             }
         } else {
             // Delete only current proxy unfinished request
-            resolve_proxy_reencryption_requests(storage, &re_request_id);
+            resolve_proxy_reencryption_requests(
+                storage,
+                &re_request_id,
+                &mut delegator_retrieve_stake,
+            );
         }
+    }
+
+    // Return stake from unfinished requests to delegators
+    for (delegator_addr, stake_amount) in delegator_retrieve_stake {
+        add_bank_msg(response, &delegator_addr, stake_amount, &state.stake_denom);
     }
 
     Ok(())
@@ -269,9 +291,32 @@ pub fn remove_proxy_reencryption_requests(
 
 // High level methods
 
-// Delete re-encryption request
-pub fn resolve_proxy_reencryption_requests(storage: &mut dyn Storage, re_request_id: &u64) {
+// Delete re-encryption request and remember remaining stake amount to be later returned to delegator
+pub fn resolve_proxy_reencryption_requests(
+    storage: &mut dyn Storage,
+    re_request_id: &u64,
+    delegator_retrieve_stake: &mut HashMap<Addr, u128>,
+) {
     let re_request = get_reencryption_request(storage, re_request_id).unwrap();
+
+    // Update delegator stake before deleting entry
+    match delegator_retrieve_stake
+        .get(&re_request.delegator_addr)
+        .cloned()
+    {
+        None => {
+            delegator_retrieve_stake.insert(
+                re_request.delegator_addr.clone(),
+                re_request.reward_amount.u128(),
+            );
+        }
+        Some(stake_amount) => {
+            delegator_retrieve_stake.insert(
+                re_request.delegator_addr.clone(),
+                stake_amount + re_request.reward_amount.u128(),
+            );
+        }
+    }
 
     remove_delegatee_reencryption_request(
         storage,

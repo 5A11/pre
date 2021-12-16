@@ -1,5 +1,7 @@
 from typing import Optional
 
+from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
+
 from pre.common import PrivateKey, ProxyTask
 from pre.contract.base_contract import AbstractProxyContract
 from pre.crypto.base_crypto import AbstractCrypto
@@ -26,9 +28,14 @@ class ProxyAPI:
         return bytes(self._encryption_private_key.public_key)
 
     def register(self):
+        contract_state = self._contract.get_contract_state()
+        minimum_registration_stake = Coin(denom=contract_state.stake_denom,
+                                          amount=str(contract_state.minimum_proxy_stake_amount))
+
         self._contract.proxy_register(
             proxy_private_key=self._ledger_crypto,
             proxy_pubkey_bytes=self._pub_key_as_bytes(),
+            stake_amount=minimum_registration_stake,
         )
 
     def unregister(self):

@@ -1,7 +1,8 @@
 use crate::delegations::DelegationState;
+use crate::proxies::ProxyState;
 use crate::reencryption_requests::ReencryptionRequestState;
 use crate::state::DataEntry;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +20,14 @@ pub struct ProxyTask {
     pub delegation_string: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct ProxyInfo {
+    pub proxy_address: Addr,
+    pub stake_amount: Uint128,
+    pub withdrawable_stake_amount: Uint128,
+    pub proxy_state: ProxyState,
+}
+
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
     pub threshold: Option<u32>,
@@ -26,6 +35,11 @@ pub struct InstantiateMsg {
     // Maximum proxies you can select for delegation = Number of active proxies if None
     pub n_max_proxies: Option<u32>,
     pub proxies: Option<Vec<Addr>>,
+
+    // Staking
+    pub stake_denom: String,
+    pub minimum_proxy_stake_amount: Option<Uint128>,
+    pub minimum_request_reward_amount: Option<Uint128>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -50,7 +64,11 @@ pub enum ExecuteMsg {
         fragment: String,
     },
 
-    DeactivateProxy {}, // Switch to leaving state
+    DeactivateProxy {},
+    // Switch to leaving state
+    WithdrawStake {
+        stake_amount: Option<Uint128>,
+    },
 
     // Delegator actions
     AddData {
@@ -83,7 +101,7 @@ pub enum QueryMsg {
         data_id: String,
         delegatee_pubkey: String,
     },
-    GetThreshold {},
+    GetContractState {},
     GetNextProxyTask {
         proxy_pubkey: String,
     },
@@ -95,6 +113,9 @@ pub enum QueryMsg {
         delegator_pubkey: String,
         delegatee_pubkey: String,
     },
+    GetProxyInfo {
+        proxy_pubkey: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -105,6 +126,7 @@ pub struct GetAvailableProxiesResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetDataIDResponse {
     pub data_entry: Option<DataEntry>,
+    // OTHER
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -115,8 +137,13 @@ pub struct GetFragmentsResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct GetThresholdResponse {
+pub struct GetContractStateResponse {
+    pub admin: Addr,
     pub threshold: u32,
+    pub n_max_proxies: u32,
+    pub stake_denom: String,
+    pub minimum_proxy_stake_amount: Uint128,
+    pub minimum_request_reward_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -125,11 +152,17 @@ pub struct GetNextProxyTaskResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct GetDelegationStateRepsonse {
+pub struct GetDelegationStateResponse {
     pub delegation_state: DelegationState,
+    pub minimum_request_reward: Coin,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetSelectedProxiesForDelegationResponse {
     pub proxy_pubkeys: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct GetProxyInfoResponse {
+    pub proxy_info: Option<ProxyInfo>,
 }

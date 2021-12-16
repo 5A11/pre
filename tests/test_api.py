@@ -25,6 +25,7 @@ def test_api():
     THRESHOLD = 3
     N_PROXIES = 6
     n_max_proxies = 10
+    stake_denom = "atestfet"
 
     with local_ledger_and_storage() as confs:
         ledger_conf, ipfs_conf = confs
@@ -55,6 +56,7 @@ def test_api():
             ledger=ledger,
             admin_private_key=admin_ledger_crypto,
             admin_addr=admin_ledger_crypto.get_address(),
+            stake_denom=stake_denom,
             threshold=THRESHOLD,
             n_max_proxies=n_max_proxies,
         )

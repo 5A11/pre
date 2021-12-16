@@ -1,9 +1,11 @@
-use cosmwasm_std::{from_slice, to_vec, Addr, Order, Storage};
+use crate::state::State;
+use cosmwasm_std::{from_slice, to_vec, Addr, Order, Storage, Uint128};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ProxyState {
     Authorised,
     Registered,
@@ -14,6 +16,7 @@ pub enum ProxyState {
 pub struct Proxy {
     pub state: ProxyState,
     pub proxy_pubkey: Option<String>,
+    pub stake_amount: Uint128,
 }
 
 // Proxy register whitelist
@@ -99,4 +102,13 @@ pub fn get_all_active_proxy_pubkeys(storage: &dyn Storage) -> Vec<String> {
     }
 
     deserialized_keys
+}
+
+// Other
+pub fn maximum_withdrawable_stake_amount(state: &State, proxy: &Proxy) -> u128 {
+    if proxy.stake_amount.u128() > state.minimum_proxy_stake_amount.u128() {
+        proxy.stake_amount.u128() - state.minimum_proxy_stake_amount.u128()
+    } else {
+        0
+    }
 }

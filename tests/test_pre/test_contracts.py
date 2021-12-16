@@ -1,6 +1,7 @@
 from unittest.case import TestCase
 
 import pytest
+from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 
 from apps import admin
 from pre.common import Delegation, DelegationState, ReencryptionRequestState
@@ -57,6 +58,7 @@ class BaseContractTestCase(TestCase):
     FAKE_CONTRACT_ADDR = "fetch18vd9fpwxzck93qlwghaj6arh4p7c5n890l3amr"
     THRESHOLD = 1
     NUM_PROXIES = 10
+    STAKE_DENOM = "atestfet"
 
     @classmethod
     def setUpClass(self):
@@ -89,6 +91,9 @@ class BaseContractTestCase(TestCase):
             self.ledger,
             self.ledger_crypto,
             self.ledger_crypto.get_address(),
+            self.STAKE_DENOM,
+            None,
+            None,
             self.THRESHOLD,
             self.NUM_PROXIES,
         )
@@ -150,8 +155,8 @@ class TestAdminContract(BaseContractTestCase):
                 self.ledger_crypto, proxy_addr=self.proxy_addr
             )
 
-    def test_get_threshold(self):
-        assert self.contract_queries.get_threshold() == self.THRESHOLD
+    def test_get_contract_state(self):
+        assert self.contract_queries.get_contract_state().threshold == self.THRESHOLD
 
     def test_bad_set_contract(self):
         with pytest.raises(
@@ -162,6 +167,9 @@ class TestAdminContract(BaseContractTestCase):
                 self.ledger,
                 self.ledger_crypto,
                 self.ledger_crypto.get_address(),
+                self.STAKE_DENOM,
+                None,
+                None,
                 -1,
                 9999999,
             )
@@ -170,7 +178,7 @@ class TestAdminContract(BaseContractTestCase):
         fake_addr = self.ledger.make_new_crypto().get_address()
         contract_queries = ContractQueries(self.ledger, contract_address=fake_addr)
         with pytest.raises(ContractQueryError):
-            contract_queries.get_threshold()
+            contract_queries.get_contract_state()
 
 
 class TestDelegatorContract(BaseContractTestCase):
@@ -195,13 +203,17 @@ class TestDelegatorContract(BaseContractTestCase):
             self.delegator_contract.get_delegation_state(
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
-            )
+            ).delegation_state
             == DelegationState.non_existing
         )
 
+        contract_state = self.proxy_contract.get_contract_state()
+        minimum_registration_stake = Coin(denom=contract_state.stake_denom,
+                                          amount=str(contract_state.minimum_proxy_stake_amount))
+
         with pytest.raises(UnknownProxy):
             self.proxy_contract.proxy_register(
-                self.ledger_crypto, proxy_pubkey_bytes=self.proxy_pub_key
+                self.ledger_crypto, proxy_pubkey_bytes=self.proxy_pub_key, stake_amount=minimum_registration_stake
             )
 
         self.admin_contract.add_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
@@ -214,12 +226,12 @@ class TestDelegatorContract(BaseContractTestCase):
         assert not self.delegator_contract.get_avaiable_proxies()
 
         self.proxy_contract.proxy_register(
-            self.ledger_crypto, proxy_pubkey_bytes=self.proxy_pub_key
+            self.ledger_crypto, proxy_pubkey_bytes=self.proxy_pub_key, stake_amount=minimum_registration_stake
         )
 
         with pytest.raises(ProxyAlreadyRegistered):
             self.proxy_contract.proxy_register(
-                self.ledger_crypto, proxy_pubkey_bytes=self.proxy_pub_key
+                self.ledger_crypto, proxy_pubkey_bytes=self.proxy_pub_key, stake_amount=minimum_registration_stake
             )
 
         assert self.delegator_contract.get_avaiable_proxies()
@@ -266,7 +278,7 @@ class TestDelegatorContract(BaseContractTestCase):
             self.delegator_contract.get_delegation_state(
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
-            )
+            ).delegation_state
             == DelegationState.active
         )
 
@@ -274,11 +286,17 @@ class TestDelegatorContract(BaseContractTestCase):
             proxy_pubkey_bytes=self.proxy_pub_key
         )
 
+        delegation_state_response = self.delegator_contract.get_delegation_state(
+            delegator_pubkey_bytes=self.delegator_pub_key,
+            delegatee_pubkey_bytes=self.delegatee_pub_key,
+        )
+
         self.delegator_contract.request_reencryption(
             delegator_private_key=self.ledger_crypto,
             delegator_pubkey_bytes=self.delegator_pub_key,
             hash_id=self.hash_id,
             delegatee_pubkey_bytes=self.delegatee_pub_key,
+            stake_amount=delegation_state_response.minimum_request_reward
         )
 
         with pytest.raises(DataEntryDoesNotExist):
@@ -287,6 +305,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 hash_id="Q",
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
+                stake_amount=delegation_state_response.minimum_request_reward
             )
 
         with pytest.raises(DelegationAlreadyAdded):
@@ -295,6 +314,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 hash_id=self.hash_id,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
+                stake_amount=delegation_state_response.minimum_request_reward
             )
 
         with pytest.raises(ReencryptionAlreadyRequested):
@@ -303,6 +323,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 hash_id=self.hash_id,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
+                stake_amount=delegation_state_response.minimum_request_reward
             )
 
         proxy_task = self.proxy_contract.get_next_proxy_task(
@@ -328,7 +349,7 @@ class TestDelegatorContract(BaseContractTestCase):
             self.delegator_contract.get_delegation_state(
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
-            )
+            ).delegation_state
             == DelegationState.active
         )
 

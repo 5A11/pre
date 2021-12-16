@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, IO, List, NamedTuple, Optional, Union
 
+from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 
 Primitive = Union[str, int, bool, float]
 _JSONDict = Dict[Any, Any]  # temporary placeholder
@@ -102,6 +103,11 @@ class DelegationState(Enum):
     waiting_for_delegation_strings = 2
     active = 3
 
+@dataclass
+class GetDelegationStateResponse:
+    delegation_state: DelegationState
+    minimum_request_reward: Coin
+
 
 class ReencryptionRequestState(Enum):
     inaccessible = 1
@@ -117,9 +123,33 @@ class GetFragmentsResponse:
 
 
 @dataclass
+class ContractState:
+    admin: Address
+    threshold: int
+    n_max_proxies: int
+    stake_denom: str
+    minimum_proxy_stake_amount: str
+    minimum_request_reward_amount: str
+
+
+@dataclass
 class DataEntry:
     pubkey: bytes
-    addr: Address
+
+
+class ProxyState(Enum):
+    authorised = 1
+    registered = 2
+    leaving = 3
+
+
+@dataclass
+class ProxyInfo:
+    proxy_address: Address
+    stake_amount: str
+    withdrawable_stake_amount: str
+    proxy_state: ProxyState
+
 
 
 def types_from_annotations(func: Callable) -> Dict:

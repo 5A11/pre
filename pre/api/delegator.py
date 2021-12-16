@@ -1,4 +1,4 @@
-from typing import IO, List, Union
+from typing import IO, List, Optional, Tuple, Union
 
 from pre.common import DelegationState, HashID, PrivateKey
 from pre.contract.base_contract import AbstractDelegatorContract
@@ -93,21 +93,28 @@ class DelegatorAPI:
         delegatee_pubkey_bytes: bytes,
         threshold: int,
     ):
-        if (
-            self._contract.get_delegation_state(
-                delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
-                delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-            )
-            == DelegationState.non_existing
-        ):
+        delegation_state_response = self._contract.get_delegation_state(
+            delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
+            delegatee_pubkey_bytes=delegatee_pubkey_bytes,
+        )
+
+        if delegation_state_response.delegation_state == DelegationState.non_existing:
             self._set_delegation(
                 delegatee_pubkey_bytes=delegatee_pubkey_bytes,
                 threshold=threshold,
             )
+
+            # Update state to get correct minimum_request_reward
+            delegation_state_response = self._contract.get_delegation_state(
+                delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
+                delegatee_pubkey_bytes=delegatee_pubkey_bytes,
+            )
+
         # DelegationState.Active
         self._contract.request_reencryption(
             delegator_private_key=self._ledger_crypto,
             delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
             hash_id=hash_id,
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
+            stake_amount=delegation_state_response.minimum_request_reward
         )

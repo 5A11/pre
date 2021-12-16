@@ -1,4 +1,4 @@
-use cosmwasm_std::{from_slice, to_vec, Addr, StdResult, Storage};
+use cosmwasm_std::{from_slice, to_vec, Addr, StdResult, Storage, Uint128};
 use cosmwasm_storage::{
     singleton, singleton_read, PrefixedStorage, ReadonlyPrefixedStorage, Singleton,
 };
@@ -27,6 +27,11 @@ pub struct State {
     // Total number of re-encryption requests
     pub next_request_id: u64,
     pub next_delegation_id: u64,
+
+    // Staking
+    pub stake_denom: String,
+    pub minimum_proxy_stake_amount: Uint128,
+    pub minimum_request_reward_amount: Uint128,
 }
 
 // Store structures

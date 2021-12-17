@@ -1,4 +1,4 @@
-"""pro_backend URL Configuration
+"""pre_backend URL Configuration
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/3.2/topics/http/urls/
@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.conf.urls.static import static
 from django.urls import include, path, re_path
 
-from pro_backend.utils.views import ConfirmEmailAPIView, ForwardToFrontAPIView
+from pre_backend.utils.views import ConfirmEmailAPIView, ForwardToFrontAPIView
 from rest_auth.views import PasswordResetConfirmView  # type: ignore
 from rest_auth.registration.views import VerifyEmailView
 

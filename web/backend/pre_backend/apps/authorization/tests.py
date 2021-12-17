@@ -86,7 +86,7 @@ class RegistrationTestCase(TestCase):
 class RegistrationTestCaseWithFixtures(TestCase):
     """Test case for Registration endpoint with fixtures."""
 
-    fixtures = ["pro_backend/fixtures/users.json"]
+    fixtures = ["pre_backend/fixtures/users.json"]
 
     def test_registration_negative_user_exists(self):
         """Test registration endpoint for negative result: user exists."""

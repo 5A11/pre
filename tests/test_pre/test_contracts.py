@@ -3,18 +3,17 @@ from unittest.case import TestCase
 import pytest
 from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 
-from apps import admin
 from pre.common import Delegation, DelegationState, ReencryptionRequestState
 from pre.contract.base_contract import (
     BadContractAddress,
     ContractInstantiateFailure,
     ContractQueryError,
     DataAlreadyExist,
-    DataDoesNotExist,
     DataEntryDoesNotExist,
     DelegationAlreadyAdded,
     DelegationAlreadyExist,
-    NotOwner,
+    NotAdminError,
+    NotEnoughStakeToWithdraw,
     ProxyAlreadyExist,
     ProxyAlreadyRegistered,
     ProxyNotRegistered,
@@ -30,19 +29,17 @@ from pre.contract.cosmos_contracts import (
     ProxyContract,
 )
 from pre.crypto.umbral_crypto import UmbralCrypto
-from pre.ledger.cosmos.ledger import BroadcastException, CosmosLedger
+from pre.ledger.cosmos.ledger import CosmosLedger
 from pre.storage.ipfs_storage import IpfsStorage
 
 from tests.constants import (
     DEFAULT_DENOMINATION,
     DEFAULT_FETCH_CHAIN_ID,
-    FETCHD_CONFIGURATION,
     FETCHD_LOCAL_URL,
     FUNDED_FETCHAI_PRIVATE_KEY_1,
-    IPFS_PORT,
     PREFIX,
 )
-from tests.utils import IPFSDaemon, _fetchd_context, local_ledger_and_storage
+from tests.utils import local_ledger_and_storage
 
 
 LOCAL_LEDGER_CONFIG = dict(
@@ -73,8 +70,12 @@ class BaseContractTestCase(TestCase):
         self.ledger = CosmosLedger(**self.ledger_config)
         self.validator = self.ledger.load_crypto_from_str(FUNDED_FETCHAI_PRIVATE_KEY_1)
         self.ledger_crypto = self.ledger.make_new_crypto()
+        self.some_crypto = self.ledger.make_new_crypto()
         self.ledger._send_funds(
             self.validator, self.ledger_crypto.get_address(), amount=10000
+        )
+        self.ledger._send_funds(
+            self.validator, self.some_crypto.get_address(), amount=10000
         )
         self.contract_addr = self._setup_a_contract()
         self.proxy_addr = self.ledger_crypto.get_address()
@@ -88,14 +89,14 @@ class BaseContractTestCase(TestCase):
     @classmethod
     def _setup_a_contract(self):
         contract_address = AdminContract.instantiate_contract(
-            self.ledger,
-            self.ledger_crypto,
-            self.ledger_crypto.get_address(),
-            self.STAKE_DENOM,
-            None,
-            None,
-            self.THRESHOLD,
-            self.NUM_PROXIES,
+            ledger=self.ledger,
+            admin_private_key=self.ledger_crypto,
+            admin_addr=self.ledger_crypto.get_address(),
+            stake_denom=self.STAKE_DENOM,
+            minimum_proxy_stake_amount="100",
+            minimum_request_reward_amount="100",
+            threshold=self.THRESHOLD,
+            n_max_proxies=self.NUM_PROXIES,
         )
         assert contract_address
         return contract_address
@@ -148,6 +149,10 @@ class TestAdminContract(BaseContractTestCase):
                 self.ledger_crypto, proxy_addr=self.proxy_addr
             )
 
+        with pytest.raises(NotAdminError):
+            self.admin_contract.add_proxy(
+                self.some_crypto, proxy_addr=self.some_crypto.get_address()
+            )
         self.admin_contract.remove_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
 
         with pytest.raises(ProxyNotRegistered):
@@ -234,10 +239,27 @@ class TestDelegatorContract(BaseContractTestCase):
             proxy_pubkey_bytes=self.proxy_pub_key,
             stake_amount=minimum_registration_stake,
         )
-
+        # same proxy
         with pytest.raises(ProxyAlreadyRegistered):
             self.proxy_contract.proxy_register(
                 self.ledger_crypto,
+                proxy_pubkey_bytes=self.proxy_pub_key,
+                stake_amount=minimum_registration_stake,
+            )
+        # different proxy addr, same pubkey
+        with pytest.raises(UnknownProxy):
+            self.proxy_contract.proxy_register(
+                self.some_crypto,
+                proxy_pubkey_bytes=self.proxy_pub_key,
+                stake_amount=minimum_registration_stake,
+            )
+
+        self.admin_contract.add_proxy(
+            self.ledger_crypto, proxy_addr=self.some_crypto.get_address()
+        )
+        with pytest.raises(ProxyAlreadyRegistered):
+            self.proxy_contract.proxy_register(
+                self.some_crypto,
                 proxy_pubkey_bytes=self.proxy_pub_key,
                 stake_amount=minimum_registration_stake,
             )
@@ -334,6 +356,12 @@ class TestDelegatorContract(BaseContractTestCase):
                 stake_amount=delegation_state_response.minimum_request_reward,
             )
 
+        proxy_info = self.proxy_contract.get_proxy_info(self.proxy_pub_key)
+        assert proxy_info
+
+        proxy_info = self.proxy_contract.get_proxy_info(b"some bad key")
+        assert not proxy_info
+
         proxy_task = self.proxy_contract.get_next_proxy_task(
             proxy_pubkey_bytes=self.proxy_pub_key
         )
@@ -410,3 +438,9 @@ class TestDelegatorContract(BaseContractTestCase):
 
         data_entry = self.contract_queries.get_data_entry("hashid not exists")
         assert not data_entry
+
+        with pytest.raises(NotEnoughStakeToWithdraw):
+            self.proxy_contract.withdraw_stake(self.ledger_crypto)
+
+        with pytest.raises(NotEnoughStakeToWithdraw):
+            self.proxy_contract.withdraw_stake(self.ledger_crypto, "1000")

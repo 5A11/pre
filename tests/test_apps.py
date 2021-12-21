@@ -21,17 +21,8 @@ from pre.contract.base_contract import (
 )
 from pre.ledger.cosmos.ledger import BroadcastException, CosmosLedger
 
-from tests.constants import (
-    DEFAULT_DENOMINATION,
-    DEFAULT_FETCH_CHAIN_ID,
-    FETCHD_CONFIGURATION,
-    FETCHD_LOCAL_URL,
-    FUNDED_FETCHAI_PRIVATE_KEY_1,
-    IPFS_PORT,
-    LOCAL_LEDGER_CONFIG,
-    PREFIX,
-)
-from tests.utils import IPFSDaemon, _fetchd_context, local_ledger_and_storage
+from tests.constants import FUNDED_FETCHAI_PRIVATE_KEY_1, IPFS_PORT, LOCAL_LEDGER_CONFIG
+from tests.utils import local_ledger_and_storage
 
 
 class TestApps(TestCase):
@@ -392,9 +383,6 @@ class TestApps(TestCase):
             f"Data {hash_id} is ready!", result.output, re.MULTILINE
         ), result.output
 
-        delegator_pubkey = self.get_pubkey_for_encryption_key(
-            self.delegator_encryption_key
-        )
         result_data_file = self.tdir / "decrypted.data"
         result = self.runner.invoke(
             reader_cli,

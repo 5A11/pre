@@ -32,6 +32,8 @@ from pre.contract.base_contract import (
     DataEntryDoesNotExist,
     DelegationAlreadyAdded,
     DelegationAlreadyExist,
+    NotAdminError,
+    NotEnoughStakeToWithdraw,
     ProxyAlreadyExist,
     ProxyAlreadyRegistered,
     ProxyNotRegistered,
@@ -99,6 +101,10 @@ class ContractExecuteExceptionMixIn:
             raise BadContractAddress(raw_log, error_code, res)
         elif re.search("Data entry doesn't exist", raw_log):
             raise DataEntryDoesNotExist(raw_log, error_code, res)
+        elif re.search("Only admin can execute this method", raw_log):
+            raise NotAdminError(raw_log, error_code, res)
+        elif "Not enough stake to withdraw: execute wasm contract failed" in raw_log:
+            raise NotEnoughStakeToWithdraw(raw_log, error_code, res)
         raise ContractExecutionError(
             f"Contract execution failed: {raw_log}", error_code, res
         )  # pragma: nocover
@@ -213,7 +219,7 @@ class ContractQueries(AbstractContractQueries):
 
     def get_proxy_info(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyInfo]:
         state_msg: Dict = {
-            "get_proxy_info": {"proxy_info": encode_bytes(proxy_pubkey_bytes)}
+            "get_proxy_info": {"proxy_pubkey": encode_bytes(proxy_pubkey_bytes)}
         }
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
 
@@ -488,8 +494,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         res, error_code = self.ledger.send_execute_msg(
             proxy_private_key, self.contract_address, submit_msg
         )
-        if error_code != 0:
-            raise ValueError(f"Contract execution failed: {error_code} {res}")
+        self._exception_from_res(error_code, res)
 
     def get_contract_state(self) -> ContractState:
         return ContractQueries(
@@ -497,7 +502,9 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         ).get_contract_state()
 
     def get_proxy_info(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyInfo]:
-        pass
+        return ContractQueries(
+            ledger=self.ledger, contract_address=self.contract_address
+        ).get_proxy_info(proxy_pubkey_bytes)
 
 
 class CosmosContract:  # pylint: disable=too-few-public-methods

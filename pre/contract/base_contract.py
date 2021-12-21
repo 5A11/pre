@@ -190,7 +190,8 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
     @abstractmethod
     def withdraw_stake(
         self,
-        stake_amount: Optional[str],
+        proxy_private_key: AbstractLedgerCrypto,
+        stake_amount: Optional[str] = None,
     ):
         """Withdraw proxy stake."""
 
@@ -213,6 +214,10 @@ class ContractExecutionError(Exception):
 
 class ProxyAlreadyExist(ContractExecutionError):
     """Proxy already exists exception."""
+
+
+class NotAdminError(ContractExecutionError):
+    """Only admin can execute some contract methods."""
 
 
 class UnknownProxy(ContractExecutionError):
@@ -277,3 +282,7 @@ class BadContractAddress(ContractExecutionError):
 
 class DelegationAlreadyAdded(ContractExecutionError):
     """Delegation already added."""
+
+
+class NotEnoughStakeToWithdraw(ContractExecutionError):
+    """Not enough stake to withdraw."""

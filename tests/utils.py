@@ -14,17 +14,10 @@ import docker
 
 from tests import conftest
 from tests.constants import (
-    DEFAULT_DENOMINATION,
-    DEFAULT_FETCH_CHAIN_ID,
     DEFAULT_FETCH_DOCKER_IMAGE_TAG,
     DEFAULT_FETCH_LEDGER_ADDR,
     DEFAULT_FETCH_LEDGER_RPC_PORT,
     FETCHD_CONFIGURATION,
-    FETCHD_LOCAL_URL,
-    FUNDED_FETCHAI_PRIVATE_KEY_1,
-    LOCAL_IPFS_CONFIG,
-    LOCAL_LEDGER_CONFIG,
-    PREFIX,
 )
 from tests.docker_image import DockerImage, FetchLedgerDockerImage
 

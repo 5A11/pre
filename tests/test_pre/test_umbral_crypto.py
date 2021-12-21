@@ -118,3 +118,4 @@ def test_keys_dump_load():
     restored_key = UmbralCrypto.load_key(bytes(key))
     assert bytes(key.public_key) == bytes(restored_key.public_key)
     pub_key = UmbralPublicKey.from_bytes(bytes(key.public_key))
+    assert pub_key

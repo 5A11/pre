@@ -1,18 +1,15 @@
-import unittest
-
 import pytest
 
-from pre.common import EncryptedData, ReencryptedFragment
+from pre.common import EncryptedData
 from pre.storage.base_storage import (
     ServerUnreachable,
     StorageError,
-    StorageNetworkError,
     StorageNotConnected,
     StorageTimeout,
 )
 from pre.storage.ipfs_storage import IpfsStorage
 
-from tests.utils import IPFSDaemon, local_ledger_and_storage
+from tests.utils import local_ledger_and_storage
 
 
 def test_storage_errors():

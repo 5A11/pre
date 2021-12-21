@@ -16,7 +16,6 @@ from pre.common import (
     ProxyTask,
     ReencryptionRequestState,
 )
-from pre.contract.cosmos_contracts import AdminContract
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.storage.base_storage import AbstractStorage
 
@@ -120,7 +119,6 @@ def test_admin_api():
     ledger = Mock()
     admin_api = AdminAPI(ledger_crypto, contract)
 
-    delegatee_pubkey_bytes = b"reader pub key"
     threshold = 2
     hash_id = "hash_id"
     data = b"bytes"
@@ -135,7 +133,7 @@ def test_admin_api():
     stake_denom = "atestfet"
 
     with patch.object(AdminAPI.CONTRACT_CLASS, "instantiate_contract") as mock:
-        contract_address = admin_api.instantiate_contract(
+        admin_api.instantiate_contract(
             ledger_crypto,
             ledger,
             admin_address,
@@ -183,9 +181,7 @@ def test_proxy_api():
     crypto: AbstractCrypto = Mock()
     ledger_crypto = Mock()
 
-    threshold = 2
     hash_id = "hash_id"
-    data = b"bytes"
     delegator_pubkey_bytes = b"delegator_pubkey"
     delegatee_pubkey_bytes = b"degelatee_pubkey"
     encryption_private_key.public_key = b"pubkey"

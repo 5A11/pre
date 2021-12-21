@@ -24,12 +24,12 @@ Capsule = bytes
 class AbstractConfig(ABC):
     @classmethod
     @abstractmethod
-    def validate(cls, data: Dict) -> Dict:
+    def validate(cls, data: Any) -> Any:
         """Validate config."""
 
     @classmethod
     @abstractmethod
-    def make_default(cls) -> Dict:
+    def make_default(cls) -> Any:
         """Generate default config."""
 
 

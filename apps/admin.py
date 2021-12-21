@@ -58,8 +58,8 @@ def instantiate_contract(
     )
 
     click.echo("instantiate contract with options:")
-    for k, v in kwargs.items():
-        click.echo(f" * {k}: {v}")
+    for key, value in kwargs.items():
+        click.echo(f" * {key}: {value}")
 
     if app_config.do_fund:
         ledger = app_config.get_ledger_instance()
@@ -71,8 +71,8 @@ def instantiate_contract(
         ledger_crypto,
         ledger,
         contract_cls=app_config.CONTRACT_CLASS.ADMIN_CONTRACT,
-        **kwargs,
-    )  # type: ignore
+        **kwargs,  # type: ignore
+    )
     click.echo()
     click.echo(f"Contract was set succesfully. Contract address is {contract_addr}")
 
@@ -118,6 +118,6 @@ def remove_proxy(
 
 
 if __name__ == "__main__":
-    cli(
+    cli(  # pylint: disable=unexpected-keyword-arg
         prog_name=PROG_NAME
-    )  # pragma: no cover  # pylint: disable=unexpected-keyword-arg
+    )  # pragma: no cover

@@ -1,9 +1,6 @@
 from pathlib import Path
 
 import click
-import yaml
-
-from pre.common import AbstractConfig
 
 
 def file_argument_with_rewrite(*args, **kwargs):
@@ -11,7 +8,9 @@ def file_argument_with_rewrite(*args, **kwargs):
         raise ValueError("Argument name not specified!")
 
     def deco(func):
-        def check_rewrite(ctx: click.Context, param, value):
+        def check_rewrite(
+            ctx: click.Context, param, value
+        ):  # pylint: disable=unused-argument
             rewrite = ctx.params.pop("rewrite")
             if Path(value).exists() and not rewrite:
                 click.echo(
@@ -69,35 +68,6 @@ def private_key_file_option(name: str, *args, **kwargs):
             type=file_exists_type,
             **kwargs,
         )(func)
-        return func
-
-    return deco
-
-
-def config_option(option_name: str, config_class: AbstractConfig, **options):
-    def _load_and_check_config(ctx: click.Context, param, value):
-        del ctx
-        del param
-        if not value:
-            return config_class.make_default()
-        data = yaml.safe_load(Path(value).read_text())
-        return config_class.validate(data)
-
-    def deco(func):
-        func = click.option(
-            option_name,
-            expose_value=True,
-            callback=_load_and_check_config,
-            type=click.Path(
-                exists=True,
-                file_okay=True,
-                dir_okay=False,
-                readable=True,
-                path_type=Path,
-            ),
-            **options,
-        )(func)
-
         return func
 
     return deco

@@ -1,12 +1,13 @@
 from enum import Enum
 from functools import update_wrapper
 from pathlib import Path
-from typing import Callable, Dict, List, cast
+from typing import Any, Callable, Dict, List, cast
 
 import click
+import yaml
 
-from apps.utils import config_option, private_key_file_option
-from pre.common import PrivateKey
+from apps.utils import file_exists_type, private_key_file_option
+from pre.common import AbstractConfig, PrivateKey
 from pre.contract.base_contract import (
     AbstractAdminContract,
     AbstractContractQueries,
@@ -22,6 +23,42 @@ from pre.storage.base_storage import AbstractStorage
 from pre.storage.ipfs_storage import IpfsStorage
 
 
+class ContractAddressConfig(AbstractConfig):
+    @classmethod
+    def validate(cls, data: Any) -> Any:
+        # todo: validate contract address
+        return data
+
+    @classmethod
+    def make_default(cls) -> Any:
+        return None
+
+
+class ThresholdConfig(AbstractConfig):
+    @classmethod
+    def validate(cls, data: Any) -> Any:
+        # todo: validate contract address
+        return data
+
+    @classmethod
+    def make_default(cls) -> Any:
+        return None
+
+
+class PrivateKeyConfig(AbstractConfig):
+    @classmethod
+    def validate(cls, data: Any) -> Path:
+        # todo: validate contract address
+        path = Path(data)
+        if not path.exists():
+            raise ValueError(f"File {path} does not exist")
+        return path
+
+    @classmethod
+    def make_default(cls) -> Any:
+        return None
+
+
 class AppConf:
     ctx_key = "app_config"
 
@@ -31,6 +68,7 @@ class AppConf:
         LEDGER_PRIVATE_KEY = "ledger_private_key"
         ENCRYPTION_PRIVATE_KEY = "encryption_private_key"
         CONTRACT_ADDRESS = "contract_address"
+        GLOBAL_CONFIG = "config"
         DO_FUND = "fund"
         THRESHOLD = "threshold"
 
@@ -39,16 +77,83 @@ class AppConf:
     LEDGER_CLASS = CosmosLedger
     CONTRACT_CLASS = CosmosContract
 
+    @classmethod
+    def _make_global_config_class(cls):
+        class GlobalConfig(AbstractConfig):
+            SECTIONS = {
+                cls.Params.LEDGER_CONFIG.value: cls.LEDGER_CLASS.CONFIG_CLASS,
+                cls.Params.STORAGE_CONFIG.value: cls.STORAGE_CLASS.CONFIG_CLASS,
+                cls.Params.CONTRACT_ADDRESS.value: ContractAddressConfig,
+                cls.Params.LEDGER_PRIVATE_KEY.value: PrivateKeyConfig,
+                cls.Params.ENCRYPTION_PRIVATE_KEY.value: PrivateKeyConfig,
+                cls.Params.THRESHOLD.value: ThresholdConfig,
+            }
+
+            @classmethod
+            def validate(cls, data: Dict) -> Dict:
+                result_data = {}
+                for section_name, section_conf_class in cls.SECTIONS.items():
+                    if section_name not in data:
+                        continue
+                    result_data[section_name] = section_conf_class.validate(
+                        data[section_name]
+                    )
+                return result_data
+
+            @classmethod
+            def make_default(cls) -> Dict:
+                result_data = {}
+                for section_name, section_conf_class in cls.SECTIONS.items():
+                    default = section_conf_class.make_default()
+                    if default is not None:
+                        result_data[section_name] = default
+                return result_data
+
+        return GlobalConfig
+
     def __init__(self, options: Dict, enabled_options: List[str]):
-        self.options = {}
-        for o in enabled_options:
-            self.options[o] = options.pop(o, None)
+        self.options = options.pop(self.Params.GLOBAL_CONFIG.value, None) or {}
+        for option_name in enabled_options:
+            if option_name is self.Params.GLOBAL_CONFIG.value:
+                continue
+
+            self.options[option_name] = options.pop(option_name) or self.options.get(
+                option_name
+            )
+
+    @classmethod
+    def config_option(cls, *args, config_class: AbstractConfig, **options):
+        def _load_and_check_config(
+            ctx: click.Context, param, value
+        ):  # pylint: disable=unused-argument
+            if not value:
+                return value
+            data = cls._load_config_from_file(value)
+            return config_class.validate(data)
+
+        def deco(func):
+            func = click.option(
+                *args,
+                callback=_load_and_check_config,
+                type=file_exists_type,
+                **options,
+            )(func)
+            return func
+
+        return deco
+
+    @classmethod
+    def _load_config_from_file(cls, filename: Path) -> Dict:
+        return yaml.safe_load(Path(filename).read_text(encoding="utf-8"))
 
     @classmethod
     def opt_ledger_config(cls):
         return (
-            config_option(
-                "--ledger-config", cls.LEDGER_CLASS.CONFIG_CLASS, required=False
+            cls.config_option(
+                "--ledger-config",
+                cls.Params.LEDGER_CONFIG.value,
+                config_class=cls.LEDGER_CLASS.CONFIG_CLASS,
+                required=False,
             ),
             cls.Params.LEDGER_CONFIG.value,
         )
@@ -56,23 +161,11 @@ class AppConf:
     @classmethod
     def opt_storage_config(cls):
         return (
-            config_option(
-                "--ipfs-config", cls.STORAGE_CLASS.CONFIG_CLASS, required=False
-            ),
-            cls.Params.STORAGE_CONFIG.value,
-        )
-        return (
-            click.option(
+            cls.config_option(
                 "--ipfs-config",
                 cls.Params.STORAGE_CONFIG.value,
-                expose_value=True,
-                type=click.Path(
-                    exists=True,
-                    file_okay=True,
-                    dir_okay=False,
-                    readable=True,
-                    path_type=Path,
-                ),
+                config_class=cls.STORAGE_CLASS.CONFIG_CLASS,
+                required=False,
             ),
             cls.Params.STORAGE_CONFIG.value,
         )
@@ -84,6 +177,19 @@ class AppConf:
                 "--ledger-private-key", "--lpk", cls.Params.LEDGER_PRIVATE_KEY.value
             ),
             cls.Params.LEDGER_PRIVATE_KEY.value,
+        )
+
+    @classmethod
+    def opt_global_config(cls):
+        return (
+            cls.config_option(
+                "--config",
+                "-c",
+                cls.Params.GLOBAL_CONFIG.value,
+                config_class=cls._make_global_config_class(),
+                required=False,
+            ),
+            cls.Params.GLOBAL_CONFIG.value,
         )
 
     @classmethod
@@ -104,7 +210,7 @@ class AppConf:
                 "--contract-address",
                 cls.Params.CONTRACT_ADDRESS.value,
                 type=str,
-                required=True,
+                required=False,
             ),
             cls.Params.CONTRACT_ADDRESS.value,
         )
@@ -116,6 +222,8 @@ class AppConf:
                 "--fund",
                 cls.Params.DO_FUND.value,
                 is_flag=True,
+                required=True,
+                default=False,
             ),
             cls.Params.DO_FUND.value,
         )
@@ -133,26 +241,30 @@ class AppConf:
         )
 
     @classmethod
-    def deco(cls, *options, expose_app_config=False):
-        def deco_(fn):
+    def deco(cls, *options, expose_app_config=False, global_config=True):
+        options = list(options)
+        if global_config:
+            options.append(cls.opt_global_config)
+
+        def deco_(func):
             enabled_options = []
             for opt_callable in options:
                 option, name = opt_callable()
                 enabled_options.append(name)
-                fn = option(fn)
+                func = option(func)
 
             def wrapper(*args, **kwargs):
                 app_config = cls(kwargs, enabled_options)
-                return fn(*args, app_config=app_config, **kwargs)
+                return func(*args, app_config=app_config, **kwargs)
 
             if expose_app_config:
-                return update_wrapper(cast(Callable, wrapper), fn)
+                return update_wrapper(cast(Callable, wrapper), func)
 
-            return fn
+            return func
 
         return deco_
 
-    def _get_option(self, opt_name, check_none=True):
+    def _get_option(self, opt_name):
         value = self.options.get(opt_name)
         if value is None:
             raise ValueError(f"{opt_name} was not specified")
@@ -168,7 +280,10 @@ class AppConf:
 
     @property
     def do_fund(self):
-        return self._get_option(self.Params.DO_FUND.value)
+        try:
+            return self._get_option(self.Params.DO_FUND.value)
+        except ValueError:
+            return False
 
     @property
     def threshold(self):
@@ -222,24 +337,3 @@ class AppConf:
 
     def get_query_contract(self) -> AbstractContractQueries:
         return self._get_contract(self.CONTRACT_CLASS.QUERIES_CONTRACT)
-
-
-PROG_NAME = "keys"
-
-
-@click.group(name=PROG_NAME)
-def cli():
-    """Generate private keys for ledger and encryption."""
-
-
-@cli.command(name="generate-ledger-key")
-@AppConf.deco(AppConf.opt_ledger_config, expose_app_config=True)
-def generate_ledger_key(ledger_config: Dict, app_config):
-    """Generate private key for ledger."""
-    print(app_config.options)
-
-
-if __name__ == "__main__":
-    cli(
-        prog_name=PROG_NAME
-    )  # pragma: no cover  # pylint: disable=unexpected-keyword-arg

@@ -15,7 +15,7 @@ class ProxyAPI:
         encryption_private_key: PrivateKey,
         ledger_crypto: AbstractLedgerCrypto,
         contract: AbstractProxyContract,
-        storage: AbstractStorage,
+        storage: Optional[AbstractStorage],
         crypto: AbstractCrypto,
     ):
         self._encryption_private_key = encryption_private_key
@@ -49,6 +49,8 @@ class ProxyAPI:
         return self._contract.get_next_proxy_task(self._pub_key_as_bytes())
 
     def process_reencryption_request(self, proxy_task: ProxyTask):
+        if self._storage is None:  # pragma: nocover
+            raise ValueError("Storage was not set!")
         hash_id = proxy_task.hash_id
         delegatee_pubkey_bytes = proxy_task.delegatee_pubkey
         capsule = self._storage.get_capsule(hash_id)

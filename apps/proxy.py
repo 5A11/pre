@@ -17,9 +17,9 @@ DEFAULT_SLEEP_TIME = 5
 @AppConf.deco(
     AppConf.opt_ledger_private_key,
     AppConf.opt_encryption_private_key,
-    AppConf.opt_storage_config,
     AppConf.opt_ledger_config,
     AppConf.opt_contract_address,
+    AppConf.opt_storage_config,
     AppConf.opt_do_fund,
     expose_app_config=True,
 )
@@ -37,7 +37,7 @@ def register(ctx):
         app_config.get_cryto_key(),
         app_config.get_ledger_crypto(),
         contract=app_config.get_proxy_contract(),
-        storage=app_config.get_storage_instance(),
+        storage=None,
         crypto=app_config.get_crypto_instance(),
     )
 
@@ -60,7 +60,7 @@ def unregister(ctx):
         app_config.get_cryto_key(),
         app_config.get_ledger_crypto(),
         contract=app_config.get_proxy_contract(),
-        storage=app_config.get_storage_instance(),
+        storage=None,
         crypto=app_config.get_crypto_instance(),
     )
     proxy_api.unregister()
@@ -68,10 +68,10 @@ def unregister(ctx):
 
 
 @cli.command(name="run")
+@click.pass_context
 @click.option(
     "--run-once-and-exit", is_flag=True, hidden=True, help="for test purposes"
 )
-@click.pass_context
 def run(ctx, run_once_and_exit: bool):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
     proxy_api = ProxyAPI(
@@ -113,6 +113,6 @@ def run(ctx, run_once_and_exit: bool):
 
 
 if __name__ == "__main__":
-    cli(
+    cli(  # pylint: disable=unexpected-keyword-arg
         prog_name=PROG_NAME
-    )  # pragma: no cover  # pylint: disable=unexpected-keyword-arg
+    )  # pragma: no cover

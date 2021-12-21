@@ -37,7 +37,7 @@ def generate_crypto_key(private_key_file: Path):
 @cli.command(name="get-ledger-address")
 @private_key_file_argument("ledger-private-key", required=True)
 @AppConf.deco(AppConf.opt_ledger_config, expose_app_config=True)
-def get_ledger_private_key(
+def get_ledger_address(
     ledger_private_key,
     app_config: AppConf,
 ):
@@ -61,6 +61,6 @@ def get_public_key(
 
 
 if __name__ == "__main__":
-    cli(
+    cli(  # pylint: disable=unexpected-keyword-arg
         prog_name=PROG_NAME
-    )  # pragma: no cover  # pylint: disable=unexpected-keyword-arg
+    )  # pragma: no cover

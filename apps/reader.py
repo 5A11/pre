@@ -82,6 +82,6 @@ def get_data(
 
 
 if __name__ == "__main__":
-    cli(
+    cli(  # pylint: disable=unexpected-keyword-arg
         prog_name=PROG_NAME
-    )  # pragma: no cover  # pylint: disable=unexpected-keyword-arg
+    )  # pragma: no cover

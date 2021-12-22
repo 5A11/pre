@@ -27,4 +27,6 @@ check:
 
 loaddata:
 	docker-compose run backend python manage.py loaddata \
+		pre_backend/fixtures/data_accesses.json \
+		pre_backend/fixtures/user_profiles.json \
 		pre_backend/fixtures/users.json \

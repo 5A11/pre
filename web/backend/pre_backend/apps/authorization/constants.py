@@ -1,0 +1,7 @@
+"""Module with constants of Authorization app."""
+
+ENCRYPTION_MAX_LENGTH = 100
+ENCRYPTION_MIN_LENGTH = 100
+
+LEDGER_MAX_LENGTH = 100
+LEDGER_MIN_LENGTH = 100

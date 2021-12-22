@@ -1,0 +1,24 @@
+[
+    {
+        "model":"data_accesses.dataaccess",
+        "pk":1,
+        "fields":{
+            "data_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "owner":1,
+            "readers":[
+                2
+            ]
+        }
+    },
+    {
+        "model":"data_accesses.dataaccess",
+        "pk":2,
+        "fields":{
+            "data_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "owner":2,
+            "readers":[
+                1
+            ]
+        }
+    }
+]

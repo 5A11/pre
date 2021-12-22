@@ -50,6 +50,9 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "rest_auth",
     "rest_auth.registration",
+    # Internal apps
+    "pre_backend.apps.authorization",
+    "pre_backend.apps.data_accesses",
 ]
 
 MIDDLEWARE = [
@@ -158,9 +161,9 @@ REST_FRAMEWORK = {
 
 # Add next if custom authentication is needed (i.e. via email)
 # AUTHENTICATION_BACKENDS = ["pre_backend.apps.authorization.backends.EmailBackend"]
-# REST_AUTH_REGISTER_SERIALIZERS = {
-#     "REGISTER_SERIALIZER": "pre_backend.apps.authorization.serializers.RegisterSerializer"
-# }
+REST_AUTH_REGISTER_SERIALIZERS = {
+    "REGISTER_SERIALIZER": "pre_backend.apps.authorization.serializers.RegisterSerializer"
+}
 
 # email verification settings
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

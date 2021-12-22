@@ -4,6 +4,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from .constants import ENCRYPTION_MAX_LENGTH, LEDGER_MAX_LENGTH
+
 
 User = get_user_model()
 
@@ -11,6 +13,9 @@ User = get_user_model()
 HTTP_OK = 200
 HTTP_CREATED = 201
 HTTP_BAD_REQUEST = 400
+
+ENCRYPTION_EXAMPLE = "a" * ENCRYPTION_MAX_LENGTH
+LEDGER_EXAMPLE = "b" * LEDGER_MAX_LENGTH
 
 
 class RegistrationTestCase(TestCase):
@@ -25,6 +30,8 @@ class RegistrationTestCase(TestCase):
             "email": "email@example.com",
             "password1": "p@ssw00rd",
             "password2": "p@ssw00rd",
+            "encryption": ENCRYPTION_EXAMPLE,
+            "ledger": LEDGER_EXAMPLE,
         }
         response = self.client.post(url, data)
         result, status_code = response.json(), response.status_code
@@ -37,7 +44,12 @@ class RegistrationTestCase(TestCase):
         # expected_result = {"detail": "Verification e-mail sent."}
         # self.assertEqual(result, expected_result)
 
-        self.assertTrue(User.objects.filter(username=username).exists())
+        queryset = User.objects.filter(username=username)
+        self.assertTrue(queryset.exists())
+
+        # Check UserProfile is created
+        obj = queryset.first()
+        self.assertTrue(hasattr(obj, "userprofile"))
 
     def test_registration_negative_invalid_data(self):
         """Test registration endpoint for negative result: invalid data provided."""
@@ -48,6 +60,8 @@ class RegistrationTestCase(TestCase):
             "email": "email",  # Invalid email
             "password1": "111",  # Bad password
             "password2": "111",
+            "encryption": ENCRYPTION_EXAMPLE + "a",
+            "ledger": LEDGER_EXAMPLE + "b",
         }
         response = self.client.post(url, data)
         result, status_code = response.json(), response.status_code
@@ -57,6 +71,12 @@ class RegistrationTestCase(TestCase):
                 "This password is too short. It must contain at least 8 characters.",
                 "This password is too common.",
                 "This password is entirely numeric.",
+            ],
+            "encryption": [
+                f"Ensure this field has no more than {ENCRYPTION_MAX_LENGTH} characters."
+            ],
+            "ledger": [
+                f"Ensure this field has no more than {LEDGER_MAX_LENGTH} characters."
             ],
         }
         self.assertEqual(status_code, HTTP_BAD_REQUEST)
@@ -72,6 +92,8 @@ class RegistrationTestCase(TestCase):
             "email": "email@example.com",
             "password1": "p@ssw00rd",
             "password2": "passwoord",
+            "encryption": ENCRYPTION_EXAMPLE,
+            "ledger": LEDGER_EXAMPLE,
         }
         response = self.client.post(url, data)
         result, status_code = response.json(), response.status_code
@@ -97,6 +119,8 @@ class RegistrationTestCaseWithFixtures(TestCase):
             "email": "email@example.com",
             "password1": "p@ssw00rd",
             "password2": "p@ssw00rd",
+            "encryption": ENCRYPTION_EXAMPLE,
+            "ledger": LEDGER_EXAMPLE,
         }
         response = self.client.post(url, data)
         result, status_code = response.json(), response.status_code

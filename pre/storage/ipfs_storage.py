@@ -4,6 +4,7 @@ from typing import Dict, IO, Optional, Union, cast
 
 import ipfshttpclient  # type: ignore
 from ipfshttpclient.client import Client  # type: ignore
+from ipfshttpclient.exceptions import CommunicationError
 from ipfshttpclient.http_common import ReadableStreamWrapper  # type: ignore
 
 from pre.common import (
@@ -15,9 +16,9 @@ from pre.common import (
 )
 from pre.storage.base_storage import (
     AbstractStorage,
-    ServerUnreachable,
     StorageError,
     StorageNetworkError,
+    StorageNotAvailable,
     StorageNotConnected,
     StorageTimeout,
 )
@@ -75,8 +76,6 @@ class IpfsStorage(AbstractStorage):
         except ipfshttpclient.exceptions.TimeoutError as e:
             raise StorageTimeout(e)
         except ipfshttpclient.exceptions.ConnectionError as e:
-            if "Failed to establish a new connection" in str(e):
-                raise ServerUnreachable(e.original)
             raise StorageNetworkError(e.original)
         except ipfshttpclient.exceptions.CommunicationError as e:  # pragma: nocover
             raise StorageError(e)
@@ -85,9 +84,13 @@ class IpfsStorage(AbstractStorage):
         if self._client is not None:
             raise StorageError("Already connected!")
 
-        with self._wrap_exceptions():
+        try:
             self._client = ipfshttpclient.connect(
                 **self._storage_config, timeout=self.timeout
+            )
+        except CommunicationError:
+            raise StorageNotAvailable(
+                f"Storage is not avaiable with address: {self._storage_config['addr']}"
             )
 
     def disconnect(self):

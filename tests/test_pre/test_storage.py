@@ -2,8 +2,8 @@ import pytest
 
 from pre.common import EncryptedData
 from pre.storage.base_storage import (
-    ServerUnreachable,
     StorageError,
+    StorageNotAvailable,
     StorageNotConnected,
     StorageTimeout,
 )
@@ -21,9 +21,7 @@ def test_storage_errors():
         with pytest.raises(StorageError, match="is not connected"):
             storage.disconnect()
 
-        with pytest.raises(
-            ServerUnreachable, match=" Failed to establish a new connection"
-        ):
+        with pytest.raises(StorageNotAvailable, match="is not avaiable with address:"):
             storage = IpfsStorage(**{**ipfs_conf, "port": 65001})
             storage.connect()
 

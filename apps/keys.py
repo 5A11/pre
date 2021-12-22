@@ -19,7 +19,7 @@ def cli():
 @file_argument_with_rewrite("private-key-file")
 def generate_ledger_key(private_key_file: Path, app_config: AppConf):
     """Generate private key for ledger."""
-    ledger = app_config.get_ledger_instance()
+    ledger = app_config.get_ledger_instance(check_availability=False)
     pkey = ledger.make_new_crypto()
     private_key_file.write_text(pkey.as_str())
     click.echo(f"Private key written to `{private_key_file}`")
@@ -42,7 +42,7 @@ def get_ledger_address(
     app_config: AppConf,
 ):
     # TODO: proxy address validation
-    ledger = app_config.get_ledger_instance()
+    ledger = app_config.get_ledger_instance(check_availability=False)
     ledger_crypto = ledger.load_crypto_from_file(ledger_private_key)
     click.echo(
         f"Ledger address for key {ledger_private_key} is {ledger_crypto.get_address()}"

@@ -53,6 +53,7 @@ from pre.common import (
     get_defaults,
     types_from_annotations,
 )
+from pre.ledger.base_ledger import LedgerServerNotAvailable
 from pre.ledger.cosmos.crypto import CosmosCrypto
 from pre.utils.loggers import get_logger
 
@@ -903,3 +904,13 @@ class CosmosLedger:
         send_msg_packed.Pack(msg_send, type_url_prefix="/")  # type: ignore
 
         return send_msg_packed
+
+    def check_availability(self):
+        try:
+            result = json.loads(self.rpc_client.get("/node_info"))
+            if result["node_info"]["network"] != self.chain_id:
+                raise ValueError("Bad chain id")
+        except Exception as e:
+            raise LedgerServerNotAvailable(
+                f"ledger server is not available with address: {self.node_address}: {e}"
+            ) from e

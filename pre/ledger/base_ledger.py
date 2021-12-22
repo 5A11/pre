@@ -56,3 +56,11 @@ class AbstractLedger:
         self, keyfile_path: str, **kwargs
     ) -> AbstractLedgerCrypto:
         """Load ledger crypto private key from file."""
+
+    @abstractmethod
+    def check_availability(self):
+        """Check ledger host avaiable."""
+
+
+class LedgerServerNotAvailable(Exception):
+    """Ledger server is not avaiable by address provided."""

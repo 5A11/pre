@@ -33,6 +33,14 @@ class AbstractStorage(ABC):
     def get_encrypted_part(self, hash_id: HashID) -> ReencryptedFragment:
         """Get reencryption part by it's hash id."""
 
+    @abstractmethod
+    def connect(self):
+        pass
+
+    @abstractmethod
+    def disconnect(self):
+        pass
+
 
 class StorageError(Exception):
     """Generic storage error."""
@@ -51,4 +59,8 @@ class StorageTimeout(StorageError):
 
 
 class ServerUnreachable(StorageNetworkError):
+    pass
+
+
+class StorageNotAvailable(StorageNetworkError):
     pass

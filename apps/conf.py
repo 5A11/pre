@@ -301,8 +301,11 @@ class AppConf:
     def ledger_private_key(self):
         return self._get_option(self.Params.LEDGER_PRIVATE_KEY.value)
 
-    def get_ledger_instance(self) -> AbstractLedger:
-        return self.LEDGER_CLASS(**self.ledger_config)
+    def get_ledger_instance(self, check_availability=True) -> AbstractLedger:
+        ledger = self.LEDGER_CLASS(**self.ledger_config)
+        if check_availability:
+            ledger.check_availability()
+        return ledger
 
     def get_storage_instance(self) -> AbstractStorage:
         storage = self.STORAGE_CLASS(**self.storage_config)
@@ -310,7 +313,7 @@ class AppConf:
         return storage
 
     def get_ledger_crypto(self) -> AbstractLedgerCrypto:
-        ledger = self.get_ledger_instance()
+        ledger = self.get_ledger_instance(check_availability=False)
         return ledger.load_crypto_from_file(self.ledger_private_key)
 
     def get_cryto_key(self) -> PrivateKey:

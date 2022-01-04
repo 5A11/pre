@@ -73,6 +73,18 @@
     {
       "type": "object",
       "required": [
+        "get_staking_config"
+      ],
+      "properties": {
+        "get_staking_config": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "get_next_proxy_task"
       ],
       "properties": {
@@ -93,10 +105,10 @@
     {
       "type": "object",
       "required": [
-        "get_delegation_state"
+        "get_delegation_status"
       ],
       "properties": {
-        "get_delegation_state": {
+        "get_delegation_status": {
           "type": "object",
           "required": [
             "delegatee_pubkey",
@@ -141,10 +153,10 @@
     {
       "type": "object",
       "required": [
-        "get_proxy_info"
+        "get_proxy_status"
       ],
       "properties": {
-        "get_proxy_info": {
+        "get_proxy_status": {
           "type": "object",
           "required": [
             "proxy_pubkey"

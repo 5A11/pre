@@ -6,13 +6,13 @@ from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 
 from pre.common import (
     Address,
-    ContractState,
     Delegation,
-    GetDelegationStateResponse,
+    ProxyStatus,
     GetFragmentsResponse,
     HashID,
-    ProxyInfo,
     ProxyTask,
+    ContractState,
+    DelegationStatus, StakingConfig,
 )
 from pre.ledger.base_ledger import AbstractLedger, AbstractLedgerCrypto
 
@@ -42,6 +42,10 @@ class AbstractContractQueries(BaseAbstractContract):
     @abstractmethod
     def get_contract_state(self) -> ContractState:
         """Get contract default parameters."""
+
+    @abstractmethod
+    def get_staking_config(self) -> ContractState:
+        """Get contract staking config."""
 
     @abstractmethod
     def get_data_entry(self, data_id: HashID) -> Optional[DataEntry]:
@@ -77,6 +81,7 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         stake_denom: str,
         minimum_proxy_stake_amount: Optional[str],
         minimum_request_reward_amount: Optional[str],
+
         threshold: Optional[int],
         n_max_proxies: Optional[int],
         proxies: List[Address],
@@ -116,11 +121,11 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         """Add delegations."""
 
     @abstractmethod
-    def get_delegation_state(  # FIXME(LR) duplicate of get_selected_proxies_for_delegation
+    def get_delegation_status(  # FIXME(LR) duplicate of get_selected_proxies_for_delegation
         self,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
-    ) -> GetDelegationStateResponse:
+    ) -> DelegationStatus:
         """Check delegation exists."""
 
     @abstractmethod
@@ -196,11 +201,23 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         """Withdraw proxy stake."""
 
     @abstractmethod
+    def add_stake(
+        self,
+        proxy_private_key: AbstractLedgerCrypto,
+        stake_amount: Coin,
+    ):
+        """Add stake to the proxy."""
+
+    @abstractmethod
     def get_contract_state(self) -> ContractState:
         """Get contract constants."""
 
     @abstractmethod
-    def get_proxy_info(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyInfo]:
+    def get_staking_config(self) -> StakingConfig:
+        """Get contract constants."""
+
+    @abstractmethod
+    def get_proxy_status(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyStatus]:
         """Get proxy state."""
 
 

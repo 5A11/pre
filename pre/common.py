@@ -106,7 +106,7 @@ class DelegationState(Enum):
 
 
 @dataclass
-class GetDelegationStateResponse:
+class DelegationStatus:
     delegation_state: DelegationState
     minimum_request_reward: Coin
 
@@ -129,6 +129,9 @@ class ContractState:
     admin: Address
     threshold: int
     n_max_proxies: int
+
+@dataclass
+class StakingConfig:
     stake_denom: str
     minimum_proxy_stake_amount: str
     minimum_request_reward_amount: str
@@ -146,7 +149,7 @@ class ProxyState(Enum):
 
 
 @dataclass
-class ProxyInfo:
+class ProxyStatus:
     proxy_address: Address
     stake_amount: str
     withdrawable_stake_amount: str

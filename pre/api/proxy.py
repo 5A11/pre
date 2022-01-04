@@ -28,11 +28,10 @@ class ProxyAPI:
         return bytes(self._encryption_private_key.public_key)
 
     def register(self):
-        contract_state = self._contract.get_contract_state()
+        staking_config = self._contract.get_staking_config()
         minimum_registration_stake = Coin(
-            denom=contract_state.stake_denom,
-            amount=str(contract_state.minimum_proxy_stake_amount),
-        )
+            denom=staking_config.stake_denom,
+            amount=str(staking_config.minimum_proxy_stake_amount))
 
         self._contract.proxy_register(
             proxy_private_key=self._ledger_crypto,

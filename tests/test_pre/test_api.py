@@ -11,10 +11,10 @@ from pre.common import (
     ContractState,
     DelegationState,
     EncryptedData,
-    GetDelegationStateResponse,
     GetFragmentsResponse,
     ProxyTask,
     ReencryptionRequestState,
+    DelegationStatus, ContractState, StakingConfig,
 )
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.storage.base_storage import AbstractStorage
@@ -46,7 +46,7 @@ def test_delegator_api():
 
     minimum_request_reward = Coin(denom="atestfet", amount=str(100))
 
-    contract.get_delegation_state.return_value = GetDelegationStateResponse(
+    contract.get_delegation_status.return_value = DelegationStatus(
         delegation_state=DelegationState.non_existing,
         minimum_request_reward=minimum_request_reward,
     )
@@ -141,6 +141,7 @@ def test_admin_api():
             threshold,
             None,
             None,
+            None,
             max_proxies,
             proxies,
             label,
@@ -151,6 +152,7 @@ def test_admin_api():
             admin_address,
             stake_denom,
             threshold,
+            None,
             None,
             None,
             max_proxies,
@@ -170,11 +172,12 @@ def test_proxy_api():
     contract.get_contract_state.return_value = ContractState(
         admin="admin",
         threshold=1,
-        n_max_proxies=1,
+        n_max_proxies=1)
+
+    contract.get_staking_config.return_value = StakingConfig(
         stake_denom="atestfet",
         minimum_proxy_stake_amount="1000",
-        minimum_request_reward_amount="100",
-    )
+        minimum_request_reward_amount="100")
 
     storage: AbstractStorage = Mock()
     encryption_private_key = Mock()

@@ -44,6 +44,16 @@
       "format": "uint32",
       "minimum": 0.0
     },
+    "per_request_slash_stake_amount": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "proxies": {
       "type": [
         "array",

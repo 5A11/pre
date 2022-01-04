@@ -5,7 +5,7 @@ use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use cw_proxy_reencryption::msg::{
     ExecuteMsg, GetAvailableProxiesResponse, GetContractStateResponse, GetDataIDResponse,
-    GetDelegationStateResponse, GetFragmentsResponse, GetNextProxyTaskResponse,
+    GetDelegationStatusResponse, GetFragmentsResponse, GetNextProxyTaskResponse,
     GetSelectedProxiesForDelegationResponse, InstantiateMsg, QueryMsg,
 };
 
@@ -23,7 +23,7 @@ fn main() {
     export_schema(&schema_for!(GetFragmentsResponse), &out_dir);
     export_schema(&schema_for!(GetContractStateResponse), &out_dir);
     export_schema(&schema_for!(GetNextProxyTaskResponse), &out_dir);
-    export_schema(&schema_for!(GetDelegationStateResponse), &out_dir);
+    export_schema(&schema_for!(GetDelegationStatusResponse), &out_dir);
     export_schema(
         &schema_for!(GetSelectedProxiesForDelegationResponse),
         &out_dir,

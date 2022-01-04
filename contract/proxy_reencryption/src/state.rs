@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 // Singletons
 static STATE_KEY: &[u8] = b"State";
 
+static STAKING_CONFIG_KEY: &[u8] = b"StakingConfig";
+
 // Maps
 
 // Map data_id: String -> data_entry: DataEntry
@@ -25,13 +27,16 @@ pub struct State {
     pub n_max_proxies: u32,
 
     // Total number of re-encryption requests
-    pub next_request_id: u64,
+    pub next_proxy_request_id: u64,
     pub next_delegation_id: u64,
+}
 
-    // Staking
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct StakingConfig {
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Uint128,
     pub minimum_request_reward_amount: Uint128,
+    pub per_request_slash_stake_amount: Uint128,
 }
 
 // Store structures
@@ -50,6 +55,19 @@ pub fn get_state(storage: &dyn Storage) -> StdResult<State> {
 pub fn set_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
     let mut singl: Singleton<State> = singleton(storage, STATE_KEY);
     singl.save(state)
+}
+
+// STAKING_CONFIG
+pub fn get_staking_config(storage: &dyn Storage) -> StdResult<StakingConfig> {
+    singleton_read(storage, STAKING_CONFIG_KEY).load()
+}
+
+pub fn set_staking_config(
+    storage: &mut dyn Storage,
+    staking_config: &StakingConfig,
+) -> StdResult<()> {
+    let mut singl: Singleton<StakingConfig> = singleton(storage, STAKING_CONFIG_KEY);
+    singl.save(staking_config)
 }
 
 // DATA_ENTRIES

@@ -1,4 +1,4 @@
-use crate::state::State;
+use crate::state::StakingConfig;
 use cosmwasm_std::{from_slice, to_vec, Addr, Order, Storage, Uint128};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
@@ -20,7 +20,7 @@ pub struct Proxy {
 }
 
 // Proxy register whitelist
-// Map proxy: Addr -> proxy: Proxy
+// Map proxy_addr: Addr -> proxy: Proxy
 static PROXIES_KEY: &[u8] = b"Proxies";
 
 // Map proxy_pubkey: String -> proxy: Addr
@@ -32,19 +32,19 @@ static IS_PROXY_ACTIVE: &[u8] = b"IsProxyActive";
 // Getters and setters
 
 // PROXIES_KEY
-pub fn set_proxy(storage: &mut dyn Storage, proxy_addr: &Addr, proxy: &Proxy) {
+pub fn set_proxy_entry(storage: &mut dyn Storage, proxy_addr: &Addr, proxy: &Proxy) {
     let mut store = PrefixedStorage::new(storage, PROXIES_KEY);
 
     store.set(proxy_addr.as_bytes(), &to_vec(proxy).unwrap());
 }
 
-pub fn remove_proxy(storage: &mut dyn Storage, proxy_addr: &Addr) {
+pub fn remove_proxy_entry(storage: &mut dyn Storage, proxy_addr: &Addr) {
     let mut store = PrefixedStorage::new(storage, PROXIES_KEY);
 
     store.remove(proxy_addr.as_bytes());
 }
 
-pub fn get_proxy(storage: &dyn Storage, proxy_addr: &Addr) -> Option<Proxy> {
+pub fn get_proxy_entry(storage: &dyn Storage, proxy_addr: &Addr) -> Option<Proxy> {
     let store = ReadonlyPrefixedStorage::new(storage, PROXIES_KEY);
 
     store
@@ -105,9 +105,9 @@ pub fn get_all_active_proxy_pubkeys(storage: &dyn Storage) -> Vec<String> {
 }
 
 // Other
-pub fn maximum_withdrawable_stake_amount(state: &State, proxy: &Proxy) -> u128 {
-    if proxy.stake_amount.u128() > state.minimum_proxy_stake_amount.u128() {
-        proxy.stake_amount.u128() - state.minimum_proxy_stake_amount.u128()
+pub fn maximum_withdrawable_stake_amount(staking_config: &StakingConfig, proxy: &Proxy) -> u128 {
+    if proxy.stake_amount.u128() > staking_config.minimum_proxy_stake_amount.u128() {
+        proxy.stake_amount.u128() - staking_config.minimum_proxy_stake_amount.u128()
     } else {
         0
     }

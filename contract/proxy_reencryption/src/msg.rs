@@ -21,7 +21,7 @@ pub struct ProxyTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct ProxyInfo {
+pub struct ProxyStatus {
     pub proxy_address: Addr,
     pub stake_amount: Uint128,
     pub withdrawable_stake_amount: Uint128,
@@ -40,6 +40,7 @@ pub struct InstantiateMsg {
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Option<Uint128>,
     pub minimum_request_reward_amount: Option<Uint128>,
+    pub per_request_slash_stake_amount: Option<Uint128>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -69,6 +70,7 @@ pub enum ExecuteMsg {
     WithdrawStake {
         stake_amount: Option<Uint128>,
     },
+    AddStake {},
 
     // Delegator actions
     AddData {
@@ -102,10 +104,12 @@ pub enum QueryMsg {
         delegatee_pubkey: String,
     },
     GetContractState {},
+    GetStakingConfig {},
+
     GetNextProxyTask {
         proxy_pubkey: String,
     },
-    GetDelegationState {
+    GetDelegationStatus {
         delegator_pubkey: String,
         delegatee_pubkey: String,
     },
@@ -113,7 +117,7 @@ pub enum QueryMsg {
         delegator_pubkey: String,
         delegatee_pubkey: String,
     },
-    GetProxyInfo {
+    GetProxyStatus {
         proxy_pubkey: String,
     },
 }
@@ -141,6 +145,10 @@ pub struct GetContractStateResponse {
     pub admin: Addr,
     pub threshold: u32,
     pub n_max_proxies: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct GetStakingConfigResponse {
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Uint128,
     pub minimum_request_reward_amount: Uint128,
@@ -152,7 +160,7 @@ pub struct GetNextProxyTaskResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct GetDelegationStateResponse {
+pub struct GetDelegationStatusResponse {
     pub delegation_state: DelegationState,
     pub minimum_request_reward: Coin,
 }
@@ -163,6 +171,6 @@ pub struct GetSelectedProxiesForDelegationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct GetProxyInfoResponse {
-    pub proxy_info: Option<ProxyInfo>,
+pub struct GetProxyStatusResponse {
+    pub proxy_status: Option<ProxyStatus>,
 }

@@ -1,3 +1,4 @@
+use crate::proxies::{get_proxy_address, get_proxy_entry};
 use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
@@ -258,4 +259,28 @@ pub fn remove_proxy_delegations(storage: &mut dyn Storage, proxy_pubkey: &str) -
         }
     }
     Ok(())
+}
+
+pub fn get_n_available_proxies_from_delegation(
+    storage: &dyn Storage,
+    delegator_pubkey: &str,
+    delegatee_pubkey: &str,
+    proxy_withdrawn_stake_amount: &u128,
+) -> u32 {
+    // Get number of proxies from delegation with enough stake to get re-encryption request
+    let delegation_proxies =
+        get_all_proxies_from_delegation(storage, delegator_pubkey, delegatee_pubkey);
+
+    let mut n_active_proxies: u32 = 0;
+    for proxy_pubkey in delegation_proxies {
+        // Check if proxy has enough stake
+        let proxy_addr = get_proxy_address(storage, &proxy_pubkey).unwrap();
+        let proxy = get_proxy_entry(storage, &proxy_addr).unwrap();
+
+        if &proxy.stake_amount.u128() >= proxy_withdrawn_stake_amount {
+            // Proxy cannot be selected for insufficient amount
+            n_active_proxies += 1;
+        }
+    }
+    n_active_proxies
 }

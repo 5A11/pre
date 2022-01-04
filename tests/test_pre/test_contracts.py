@@ -175,6 +175,7 @@ class TestAdminContract(BaseContractTestCase):
                 self.STAKE_DENOM,
                 None,
                 None,
+                None,
                 -1,
                 9999999,
             )
@@ -205,18 +206,16 @@ class TestDelegatorContract(BaseContractTestCase):
                 delegations=[Delegation(self.proxy_pub_key, b"somedata")],
             )
         assert (
-            self.delegator_contract.get_delegation_state(
+            self.delegator_contract.get_delegation_status(
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
             ).delegation_state
             == DelegationState.non_existing
         )
 
-        contract_state = self.proxy_contract.get_contract_state()
-        minimum_registration_stake = Coin(
-            denom=contract_state.stake_denom,
-            amount=str(contract_state.minimum_proxy_stake_amount),
-        )
+        staking_config = self.proxy_contract.get_staking_config()
+        minimum_registration_stake = Coin(denom=staking_config.stake_denom,
+                                          amount=str(staking_config.minimum_proxy_stake_amount))
 
         with pytest.raises(UnknownProxy):
             self.proxy_contract.proxy_register(
@@ -305,7 +304,7 @@ class TestDelegatorContract(BaseContractTestCase):
             )
 
         assert (
-            self.delegator_contract.get_delegation_state(
+            self.delegator_contract.get_delegation_status(
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
             ).delegation_state
@@ -316,7 +315,7 @@ class TestDelegatorContract(BaseContractTestCase):
             proxy_pubkey_bytes=self.proxy_pub_key
         )
 
-        delegation_state_response = self.delegator_contract.get_delegation_state(
+        delegation_state_response = self.delegator_contract.get_delegation_status(
             delegator_pubkey_bytes=self.delegator_pub_key,
             delegatee_pubkey_bytes=self.delegatee_pub_key,
         )
@@ -382,7 +381,7 @@ class TestDelegatorContract(BaseContractTestCase):
         )
 
         assert (
-            self.delegator_contract.get_delegation_state(
+            self.delegator_contract.get_delegation_status(
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
             ).delegation_state

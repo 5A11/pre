@@ -88,7 +88,7 @@ class DelegatorAPI:
         delegatee_pubkey_bytes: bytes,
         threshold: int,
     ):
-        delegation_state_response = self._contract.get_delegation_state(
+        delegation_state_response = self._contract.get_delegation_status(
             delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
         )
@@ -100,7 +100,7 @@ class DelegatorAPI:
             )
 
             # Update state to get correct minimum_request_reward
-            delegation_state_response = self._contract.get_delegation_state(
+            delegation_state_response = self._contract.get_delegation_status(
                 delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
                 delegatee_pubkey_bytes=delegatee_pubkey_bytes,
             )

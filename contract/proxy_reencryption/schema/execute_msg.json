@@ -141,6 +141,18 @@
     {
       "type": "object",
       "required": [
+        "add_stake"
+      ],
+      "properties": {
+        "add_stake": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "add_data"
       ],
       "properties": {

@@ -10,14 +10,25 @@ from pre.storage.base_storage import AbstractStorage
 
 
 class ProxyAPI:
+    """Proxy API to perform key reencryption by request from contact side."""
+
     def __init__(
         self,
         encryption_private_key: PrivateKey,
         ledger_crypto: AbstractLedgerCrypto,
         contract: AbstractProxyContract,
-        storage: Optional[AbstractStorage],
+        storage: AbstractStorage,
         crypto: AbstractCrypto,
     ):
+        """
+        Init api isntance.
+
+        :param encryption_private_key: PrivateKey,
+        :param ledger_crypto: ledger private key instance,
+        :param contract: instance of proxy contract implementation,
+        :param storage: instance of abstract storage implementation,
+        :param crypto: instance of abstract crypto implementation,
+        """
         self._encryption_private_key = encryption_private_key
         self._ledger_crypto = ledger_crypto
         self._contract = contract
@@ -25,13 +36,16 @@ class ProxyAPI:
         self._crypto = crypto
 
     def _pub_key_as_bytes(self) -> bytes:
+        """Get proxy crypto public key in bytes."""
         return bytes(self._encryption_private_key.public_key)
 
     def register(self):
+        """Register a proxy on the specific contract."""
         staking_config = self._contract.get_staking_config()
         minimum_registration_stake = Coin(
             denom=staking_config.stake_denom,
-            amount=str(staking_config.minimum_proxy_stake_amount))
+            amount=str(staking_config.minimum_proxy_stake_amount),
+        )
 
         self._contract.proxy_register(
             proxy_private_key=self._ledger_crypto,
@@ -40,14 +54,26 @@ class ProxyAPI:
         )
 
     def unregister(self):
+        """Unregister proxy."""
         self._contract.proxy_unregister(self._ledger_crypto)
 
     def get_next_reencryption_request(
         self,
     ) -> Optional[ProxyTask]:
+        """
+        Get next reencryption task from the contract.
+
+        :return: ProxyTask or None
+        """
         return self._contract.get_next_proxy_task(self._pub_key_as_bytes())
 
     def process_reencryption_request(self, proxy_task: ProxyTask):
+        """
+        Process reencryption request.
+        Make reencrypted fragment, store it on a storage, register its hash_id in the contract.
+
+        :param proxy_task: ProxyTask instance from get_next_reencryption_request
+        """
         if self._storage is None:  # pragma: nocover
             raise ValueError("Storage was not set!")
         hash_id = proxy_task.hash_id

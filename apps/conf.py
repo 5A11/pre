@@ -26,7 +26,7 @@ from pre.storage.ipfs_storage import IpfsStorage
 class ContractAddressConfig(AbstractConfig):
     @classmethod
     def validate(cls, data: Any) -> Any:
-        # todo: validate contract address
+        # validation is made in app config class cause bound to contract class
         return data
 
     @classmethod
@@ -36,9 +36,12 @@ class ContractAddressConfig(AbstractConfig):
 
 class ThresholdConfig(AbstractConfig):
     @classmethod
-    def validate(cls, data: Any) -> Any:
-        # todo: validate contract address
-        return data
+    def validate(cls, data: Any) -> int:
+        if not isinstance(data, int):
+            raise ValueError("Threshold is not int value!")
+        if data <= 0:
+            raise ValueError("Threshold is not int  positive value!")
+        return int(data)
 
     @classmethod
     def make_default(cls) -> Any:
@@ -48,7 +51,6 @@ class ThresholdConfig(AbstractConfig):
 class PrivateKeyConfig(AbstractConfig):
     @classmethod
     def validate(cls, data: Any) -> Path:
-        # todo: validate contract address
         path = Path(data)
         if not path.exists():
             raise ValueError(f"File {path} does not exist")
@@ -276,7 +278,9 @@ class AppConf:
 
     @property
     def contract_address(self):
-        return self._get_option(self.Params.CONTRACT_ADDRESS.value)
+        addr = self._get_option(self.Params.CONTRACT_ADDRESS.value)
+        self.CONTRACT_CLASS.validate_contract_address(addr)
+        return addr
 
     @property
     def do_fund(self):
@@ -340,3 +344,15 @@ class AppConf:
 
     def get_query_contract(self) -> AbstractContractQueries:
         return self._get_contract(self.CONTRACT_CLASS.QUERIES_CONTRACT)
+
+    def fund_if_needed(self) -> bool:
+        if self.do_fund:
+            ledger = self.get_ledger_instance()
+            addr = self.get_ledger_crypto().get_address()
+            if not ledger.get_balance(addr):
+                ledger.ensure_funds([addr])
+                return True
+        return False
+
+    def validate_address(self, address: str):
+        self.LEDGER_CLASS.validate_address(address)

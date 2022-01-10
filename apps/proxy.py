@@ -41,12 +41,8 @@ def register(ctx):
         crypto=app_config.get_crypto_instance(),
     )
 
-    if app_config.do_fund:
-        ledger = app_config.get_ledger_instance()
-        addr = proxy_api._ledger_crypto.get_address()
-        if not ledger.get_balance(addr):
-            click.echo(f"funding {addr}")
-            ledger.ensure_funds([addr])
+    if app_config.fund_if_needed():
+        click.echo(f"{app_config.pp_config.get_ledger_crypto()} was funded")
 
     proxy_api.register()
     click.echo("Proxy was registered")
@@ -82,12 +78,8 @@ def run(ctx, run_once_and_exit: bool):
         crypto=app_config.get_crypto_instance(),
     )
 
-    if app_config.do_fund:
-        ledger = app_config.get_ledger_instance()
-        addr = proxy_api._ledger_crypto.get_address()
-        if not ledger.get_balance(addr):
-            click.echo(f"funding {addr}")
-            ledger.ensure_funds([addr])
+    if app_config.fund_if_needed():
+        click.echo(f"{app_config.pp_config.get_ledger_crypto()} was funded")
 
     try:
         proxy_api.register()
@@ -113,6 +105,6 @@ def run(ctx, run_once_and_exit: bool):
 
 
 if __name__ == "__main__":
-    cli(  # pylint: disable=unexpected-keyword-arg
+    cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
         prog_name=PROG_NAME
     )  # pragma: no cover

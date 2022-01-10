@@ -140,7 +140,7 @@ class TestApps(TestCase):
         self.fund(admin_address)
         self.fund(proxy_address)
         self.fund(delegator_address)
-        some_proxy_addr = "some_proxy_addr"
+        some_proxy_addr = "fetch18vd9fpwxzck93qlwghaj6arh4p7c5n890l3am1"
 
         result = self.runner.invoke(
             admin_cli,

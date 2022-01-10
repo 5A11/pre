@@ -1,11 +1,12 @@
 import binascii
 import gzip
 import json
+import re
 import time
 from enum import Enum
 from os import urandom
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 from cosmpy.auth.rest_client import AuthRestClient
@@ -53,7 +54,7 @@ from pre.common import (
     get_defaults,
     types_from_annotations,
 )
-from pre.ledger.base_ledger import LedgerServerNotAvailable
+from pre.ledger.base_ledger import AbstractLedger, LedgerServerNotAvailable
 from pre.ledger.cosmos.crypto import CosmosCrypto
 from pre.utils.loggers import get_logger
 
@@ -108,8 +109,10 @@ class CosmosLedgerConfig(AbstractConfig):
 
 
 # Class that provides interface to communicate with CosmWasm/Fetch blockchain
-class CosmosLedger:
+class CosmosLedger(AbstractLedger):
     CONFIG_CLASS = CosmosLedgerConfig
+
+    _ADDR_RE = re.compile("^fetch[0-9a-z]{39}$")
 
     def __init__(
         self,
@@ -151,6 +154,7 @@ class CosmosLedger:
         self.denom = denom
         self.prefix = prefix
 
+        self.validator_crypto: Optional[CosmosCrypto] = None
         if validator_pk is not None:
             self.validator_crypto = self.load_crypto_from_str(
                 validator_pk, prefix=prefix
@@ -186,6 +190,9 @@ class CosmosLedger:
     def make_new_crypto(self, prefix: Optional[str] = None) -> CosmosCrypto:
         key_str = self._generate_key()
         return self.load_crypto_from_str(key_str, prefix)
+
+    def _sleep(self, seconds: Union[float, int]):
+        time.sleep(seconds)
 
     def deploy_contract(
         self,
@@ -231,11 +238,11 @@ class CosmosLedger:
                 _logger.warning(
                     f"Failed to deploy contract code due BroadcastException: {e}"
                 )
-                time.sleep(self.msg_failed_retry_interval)
+                self._sleep(self.msg_failed_retry_interval)
                 attempt += 1
                 continue
 
-        if code_id is None or res is None:
+        if code_id is None or res is None:  # pragma: nocover
             raise BroadcastException(
                 f"Failed to deploy contract code after multiple attempts: {last_exception}"
             )
@@ -285,13 +292,13 @@ class CosmosLedger:
                 res = self.broadcast_tx(tx)
 
                 raw_log = json.loads(res.tx_response.raw_log)  # pylint: disable=E1101
-                assert (
+                if (
                     raw_log[0]["events"][1]["attributes"][0]["key"]
                     == "contract_address"
-                )
-                contract_address = str(
-                    raw_log[0]["events"][1]["attributes"][0]["value"]
-                )
+                ):
+                    contract_address = str(
+                        raw_log[0]["events"][1]["attributes"][0]["value"]
+                    )
             except BroadcastException as e:
                 # Failure due to wrong sequence, signature, etc.
                 last_exception = e
@@ -304,7 +311,7 @@ class CosmosLedger:
                 )
 
             if contract_address is None:
-                time.sleep(self.msg_failed_retry_interval)
+                self._sleep(self.msg_failed_retry_interval)
                 elapsed_time += 1
 
         if contract_address is None or res is None:
@@ -350,7 +357,7 @@ class CosmosLedger:
             except Exception as e:  # pylint: disable=W0703
                 last_exception = e
                 _logger.warning(f"Cannot get contract state: {e}")
-                time.sleep(self.msg_failed_retry_interval)
+                self._sleep(self.msg_failed_retry_interval)
 
         if res is None:
             raise BroadcastException(
@@ -411,7 +418,7 @@ class CosmosLedger:
                 _logger.warning(
                     f"Failed to deploy contract code due BroadcastException: {e}"
                 )
-                time.sleep(self.msg_failed_retry_interval)
+                self._sleep(self.msg_failed_retry_interval)
 
         if res is None:
             raise BroadcastException(
@@ -433,9 +440,9 @@ class CosmosLedger:
         """
 
         if self.faucet_url is not None:
-            self.__refill_wealth_from_faucet(addresses, amount)
+            self._refill_wealth_from_faucet(addresses, amount)
         elif self.validator_crypto is not None:
-            self.__refill_wealth_from_validator(addresses, amount)
+            self._refill_wealth_from_validator(addresses, amount)
         else:
             raise RuntimeError(
                 "Faucet or validator was not specified, cannot refill addresses"
@@ -469,19 +476,21 @@ class CosmosLedger:
         if denom is None:
             denom = self.denom
 
-        elapsed_time = 0
         res = None
         last_exception: Optional[Exception] = None
-        while res is None and elapsed_time < self.n_total_msg_retries:
+        for _ in range(self.n_total_msg_retries):
             try:
                 res = self.bank_client.Balance(
                     QueryBalanceRequest(address=str(address), denom=denom)
                 )
+                if res is not None:
+                    break
             except Exception as e:  # pylint: disable=W0703
                 last_exception = e
                 _logger.warning(f"Cannot get balance: {e}")
-                time.sleep(self.msg_retry_interval)
+                self._sleep(self.msg_retry_interval)
                 continue
+
         if res is None:
             raise BroadcastException(
                 f"Getting balance failed after multiple attempts: {last_exception}"
@@ -489,7 +498,7 @@ class CosmosLedger:
 
         return int(res.balance.amount)
 
-    def __refill_wealth_from_faucet(self, addresses, amount: Optional[int] = None):
+    def _refill_wealth_from_faucet(self, addresses, amount: Optional[int] = None):
         """
         Uses faucet api to refill balance of addresses
 
@@ -528,17 +537,17 @@ class CosmosLedger:
                             )
 
                         # Wait for wealth to be refilled
-                        time.sleep(self.faucet_retry_interval)
+                        self._sleep(self.faucet_retry_interval)
                         continue
-
                     _logger.info(f"Balance of {str(address)} is {str(balance)}")
                     break
                 except Exception as e:  # pylint: disable=W0703
                     _logger.exception(
                         f"Failed to refill the balance from faucet, retry in {self.faucet_retry_interval} second: {e} ({type(e)})"
                     )
-                    time.sleep(self.faucet_retry_interval)
+                    self._sleep(self.faucet_retry_interval)
                     continue
+        # todo: add result of execution?
 
     def _send_funds(
         self,
@@ -595,7 +604,7 @@ class CosmosLedger:
             account = self._query_account_data(crypto.get_address())
             crypto.account_number = account.account_number  # pylint: disable=E1101
 
-    def __refill_wealth_from_validator(
+    def _refill_wealth_from_validator(
         self, addresses: List[str], amount: Optional[int] = None
     ):
         """
@@ -688,19 +697,20 @@ class CosmosLedger:
         """
         # Get account data for signing
 
-        elapsed_time = 0
         last_exception: Optional[Exception] = None
         account_response = None
-        while account_response is None and elapsed_time < self.n_total_msg_retries:
+        for _ in range(self.n_total_msg_retries):
             try:
                 account_response = self.auth_client.Account(
                     QueryAccountRequest(address=str(address))
                 )
+                break
             except Exception as e:  # pylint: disable=W0703
                 last_exception = e
                 _logger.warning(f"Cannot query account data: {e}")
-                time.sleep(self.msg_retry_interval)
+                self._sleep(self.msg_retry_interval)
                 continue
+
         if account_response is None:
             raise BroadcastException(
                 f"Getting account data failed after multiple attempts: {last_exception}"
@@ -787,7 +797,7 @@ class CosmosLedger:
             except Exception as e:  # pylint: disable=W0703
                 last_exception = e
                 _logger.warning(f"Transaction broadcasting failed: {e}")
-                time.sleep(self.msg_retry_interval)
+                self._sleep(self.msg_retry_interval)
 
         if broad_tx_resp is None:
             raise BroadcastException(
@@ -800,7 +810,10 @@ class CosmosLedger:
             raise BroadcastException(f"Transaction cannot be broadcast: {raw_log}")
 
         # Wait for transaction to settle
-        tx_request = GetTxRequest(hash=broad_tx_resp.tx_response.txhash)
+        return self._make_tx_request(txhash=broad_tx_resp.tx_response.txhash)
+
+    def _make_tx_request(self, txhash):
+        tx_request = GetTxRequest(hash=txhash)
         last_exception = None
         tx_response = None
 
@@ -812,7 +825,7 @@ class CosmosLedger:
             except Exception as e:  # pylint: disable=W0703
                 # This fails when Tx is not on chain yet - not an actual error
                 last_exception = e
-                time.sleep(self.get_response_retry_interval)
+                self._sleep(self.get_response_retry_interval)
                 continue
 
         if tx_response is None:
@@ -914,3 +927,8 @@ class CosmosLedger:
             raise LedgerServerNotAvailable(
                 f"ledger server is not available with address: {self.node_address}: {e}"
             ) from e
+
+    @classmethod
+    def validate_address(cls, address: str):
+        if not cls._ADDR_RE.match(address):
+            raise ValueError(f"Contract address {address} is invalid")

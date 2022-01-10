@@ -43,12 +43,8 @@ def add_data(
         crypto=app_config.get_crypto_instance(),
     )
 
-    if app_config.do_fund:
-        ledger = app_config.get_ledger_instance()
-        addr = delegator_api._ledger_crypto.get_address()
-        if not ledger.get_balance(addr):
-            click.echo(f"funding {addr}")
-            ledger.ensure_funds([addr])
+    if app_config.fund_if_needed():
+        click.echo(f"{app_config.pp_config.get_ledger_crypto()} was funded")
 
     data = data_file.read_bytes()
     hash_id = delegator_api.add_data(data)
@@ -56,15 +52,11 @@ def add_data(
 
 
 @cli.command(name="grant-access")
-# @click.option("--threshold", type=int, required=False, default=1)
-# @click.option("--proxies", type=str, required=False, default="")
 @click.argument("hash_id", type=str, required=True)
 @click.argument("reader-public-key", type=str, required=True)
 @click.pass_context
 def grant_access(
     ctx,
-    # threshold: int,
-    # proxies: str,
     hash_id: str,
     reader_public_key: str,
 ):
@@ -90,6 +82,6 @@ def grant_access(
 
 
 if __name__ == "__main__":
-    cli(  # pylint: disable=unexpected-keyword-arg
+    cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
         prog_name=PROG_NAME
     )  # pragma: no cover

@@ -8,6 +8,8 @@ from pre.storage.base_storage import AbstractStorage
 
 
 class DelegatorAPI:
+    """Delegator API to add encrypted data and grant access to a specific delegatee."""
+
     _contract: AbstractDelegatorContract
 
     def __init__(
@@ -18,6 +20,15 @@ class DelegatorAPI:
         storage: AbstractStorage,
         crypto: AbstractCrypto,
     ):
+        """
+        Init api isntance.
+
+        :param encryption_private_key: PrivateKey,
+        :param ledger_crypto: ledger private key instance,
+        :param contract: instance of delegator contract implementation,
+        :param storage: instance of abstract storage implementation,
+        :param crypto: instance of abstract crypto implementation,
+        """
         self._encryption_private_key = encryption_private_key
         self._ledger_crypto = ledger_crypto
         self._contract = contract
@@ -26,12 +37,21 @@ class DelegatorAPI:
 
     @property
     def _encryption_public_key(self) -> bytes:
+        """
+        Get encryption public key.
+
+        :return: bytes
+        """
         return bytes(self._encryption_private_key.public_key)
 
     def add_data(self, data: Union[bytes, IO]) -> HashID:
-        return self._add_data(data)
+        """
+        Register data to be encrypted and published on the storage
 
-    def _add_data(self, data: Union[bytes, IO]) -> HashID:
+        :param data: bytes
+
+        :return: str, hash id of the encrypteed data published
+        """
         encrypted_data = self._crypto.encrypt(
             data, self._encryption_private_key.public_key
         )
@@ -47,6 +67,13 @@ class DelegatorAPI:
         self,
         delegatee_pubkey_bytes: bytes,
     ) -> List[bytes]:
+        """
+        Get list of proxies pub keys for delegation
+
+        :param delegatee_pubkey_bytes: reader public key in bytes
+
+        :return: List[bytes], list of proxies public keys in bytes
+        """
         return self._contract.get_selected_proxies_for_delegation(
             self._encryption_public_key,
             delegatee_pubkey_bytes,
@@ -57,6 +84,13 @@ class DelegatorAPI:
         delegatee_pubkey_bytes: bytes,
         threshold: int,
     ):
+        """
+        Set permanent delegation for a specific delegatee.
+
+        :param delegatee_pubkey_bytes: reader public key in bytes
+        :param threshold: int
+        """
+
         proxies_list = self.get_selected_proxies_for_delegation(delegatee_pubkey_bytes)
         if not proxies_list:
             # request proxies from contract
@@ -88,6 +122,13 @@ class DelegatorAPI:
         delegatee_pubkey_bytes: bytes,
         threshold: int,
     ):
+        """
+        Grant access for specific data for specific delegatee.
+
+        :param hash_id: str, hash id of the encrypted data published
+        :param delegatee_pubkey_bytes: reader public key in bytes
+        :param threshold: int
+        """
         delegation_state_response = self._contract.get_delegation_status(
             delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,

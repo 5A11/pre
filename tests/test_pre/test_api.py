@@ -10,11 +10,12 @@ from pre.api.proxy import ProxyAPI
 from pre.common import (
     ContractState,
     DelegationState,
+    DelegationStatus,
     EncryptedData,
     GetFragmentsResponse,
     ProxyTask,
     ReencryptionRequestState,
-    DelegationStatus, ContractState, StakingConfig,
+    StakingConfig,
 )
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.storage.base_storage import AbstractStorage
@@ -170,14 +171,14 @@ def test_admin_api():
 def test_proxy_api():
     contract = Mock()
     contract.get_contract_state.return_value = ContractState(
-        admin="admin",
-        threshold=1,
-        n_max_proxies=1)
+        admin="admin", threshold=1, n_max_proxies=1
+    )
 
     contract.get_staking_config.return_value = StakingConfig(
         stake_denom="atestfet",
         minimum_proxy_stake_amount="1000",
-        minimum_request_reward_amount="100")
+        minimum_request_reward_amount="100",
+    )
 
     storage: AbstractStorage = Mock()
     encryption_private_key = Mock()

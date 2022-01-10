@@ -44,6 +44,7 @@ _loggers: Dict = {}
 
 
 def get_logger(name, name_length=1):
+    """Get logger by name."""
     global _loggers  # pylint: disable=W0603
     splitted = name.split(".")
     logger_name = ".".join(splitted[-name_length:])

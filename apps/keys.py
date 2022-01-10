@@ -41,7 +41,6 @@ def get_ledger_address(
     ledger_private_key,
     app_config: AppConf,
 ):
-    # TODO: proxy address validation
     ledger = app_config.get_ledger_instance(check_availability=False)
     ledger_crypto = ledger.load_crypto_from_file(ledger_private_key)
     click.echo(
@@ -54,13 +53,12 @@ def get_ledger_address(
 def get_public_key(
     encryption_private_key,
 ):
-    # TODO: proxy address validation
     pkey = AppConf.CRYPTO_CLASS.load_key(encryption_private_key.read_bytes())
     pubkey_hex = pkey.public_key.__bytes__().hex()
     click.echo(f"Public key hex for {encryption_private_key} is {pubkey_hex}")
 
 
 if __name__ == "__main__":
-    cli(  # pylint: disable=unexpected-keyword-arg
+    cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
         prog_name=PROG_NAME
     )  # pragma: no cover

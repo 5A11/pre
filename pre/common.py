@@ -22,10 +22,18 @@ Capsule = bytes
 
 
 class AbstractConfig(ABC):
+    """Interface for component config."""
+
     @classmethod
     @abstractmethod
     def validate(cls, data: Any) -> Any:
-        """Validate config."""
+        """
+        Validate config and construct a valid one.
+
+        :param data: input config
+
+        :return: cleaned up config
+        """
 
     @classmethod
     @abstractmethod
@@ -66,15 +74,15 @@ class PrivateKey(ABC):
 
 @dataclass
 class Delegation:
+    """Delegation dataclass."""
+
     proxy_pub_key: bytes
     delegation_string: bytes
 
-    def __init__(self, proxy_pub_key: bytes, delegation_string: bytes):
-        self.proxy_pub_key = proxy_pub_key
-        self.delegation_string = delegation_string
-
 
 class EncryptedData(NamedTuple):
+    """Encrypted data dataclass."""
+
     data: Union[bytes, IO]
     capsule: bytes
 
@@ -83,6 +91,8 @@ ReencryptedFragment = bytes
 
 
 class ProxyTask:
+    """Proxy task data class."""
+
     def __init__(
         self,
         hash_id: HashID,
@@ -100,6 +110,10 @@ class ProxyTask:
 
 
 class DelegationState(Enum):
+    """Delegation states enumeration."""
+
+    # pylint: disable=invalid-name
+    # for compatibility with contract api responses
     non_existing = 1
     waiting_for_delegation_strings = 2
     active = 3
@@ -108,11 +122,17 @@ class DelegationState(Enum):
 
 @dataclass
 class DelegationStatus:
+    """Delegation status data class."""
+
     delegation_state: DelegationState
     minimum_request_reward: Coin
 
 
 class ReencryptionRequestState(Enum):
+    """Reencryption request states enumeration."""
+
+    # pylint: disable=invalid-name
+    # for compatibility with contract api responses
     inaccessible = 1
     ready = 2
     granted = 3
@@ -121,6 +141,8 @@ class ReencryptionRequestState(Enum):
 
 @dataclass
 class GetFragmentsResponse:
+    """Get reencypteed fragments response data class."""
+
     reencryption_request_state: ReencryptionRequestState
     fragments: List[HashID]
     threshold: int
@@ -128,9 +150,12 @@ class GetFragmentsResponse:
 
 @dataclass
 class ContractState:
+    """Contract state data class."""
+
     admin: Address
     threshold: int
     n_max_proxies: int
+
 
 @dataclass
 class StakingConfig:
@@ -141,10 +166,16 @@ class StakingConfig:
 
 @dataclass
 class DataEntry:
+    """DataEntry data class."""
+
     pubkey: bytes
 
 
 class ProxyState(Enum):
+    """Proxy state enumeration."""
+
+    # pylint: disable=invalid-name
+    # for compatibility with contract api responses
     authorised = 1
     registered = 2
     leaving = 3
@@ -152,6 +183,8 @@ class ProxyState(Enum):
 
 @dataclass
 class ProxyStatus:
+    """Proxy status data class."""
+
     proxy_address: Address
     stake_amount: str
     withdrawable_stake_amount: str
@@ -159,6 +192,7 @@ class ProxyStatus:
 
 
 def types_from_annotations(func: Callable) -> Dict:
+    """Get types annotation for the function."""
     types = {}
     for name, type_ in func.__annotations__.items():
         if typing.get_origin(type_) is typing.Union:  # for optional
@@ -169,6 +203,7 @@ def types_from_annotations(func: Callable) -> Dict:
 
 
 def filter_data_with_types(data: Dict, types: Dict, allow_extras=True) -> Dict:
+    """Filter data according to data types defined."""
     extra_keys = set(data.keys()) - set(types.keys())
     if extra_keys and not allow_extras:  # pragma: nocover
         raise ValueError(f'Extra keys found `{", ".join(extra_keys)}`')
@@ -182,6 +217,7 @@ def filter_data_with_types(data: Dict, types: Dict, allow_extras=True) -> Dict:
 
 
 def get_defaults(func: Callable) -> Dict:
+    """Get default values for kwargs of the function."""
     varnames = func.__code__.co_varnames
     defaults = func.__defaults__  # type: ignore
     return dict(zip(varnames[-len(defaults) :], defaults))

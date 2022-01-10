@@ -25,8 +25,17 @@ from pre.storage.base_storage import (
 
 
 class IpfsStorageConfig(AbstractConfig):
+    """Ipfs storage config class."""
+
     @classmethod
-    def validate(cls, data: Dict):
+    def validate(cls, data: Dict) -> Dict:
+        """
+        Validate config and construct a valid one.
+
+        :param data: dictinput config
+
+        :return: cleaned up config as dict
+        """
         config_dict = cls.make_default()
         config_dict["addr"] = data.get("addr") or config_dict["addr"]
         config_dict["port"] = data.get("port") or config_dict["port"]
@@ -45,10 +54,17 @@ class IpfsStorageConfig(AbstractConfig):
 
     @classmethod
     def make_default(cls) -> Dict:
+        """
+        Generate default config.
+
+        :return: dict
+        """
         return {"addr": "localhost", "port": 5001, "timeout": 10}
 
 
 class IpfsStorage(AbstractStorage):
+    """IPFS storage implementation."""
+
     CONFIG_CLASS = IpfsStorageConfig
 
     def __init__(
@@ -58,29 +74,43 @@ class IpfsStorage(AbstractStorage):
         timeout: int = 10,
         storage_config: Optional[Dict] = None,
     ):
+        """
+        Init ipfs storage.
+
+        :param addr: optional str
+        :param port: option int port number
+        :param timeout: int, network operations timeout in seconds
+        :param storage_config" dict with kwargs for ipfs client
+        """
         self._storage_config = storage_config or {}
         self._client: Optional[Client] = None
         if addr and port:
             url = "/dns/" + str(addr) + "/tcp/" + str(port) + "/http"
             self._storage_config["addr"] = url
+        elif "addr" not in self._storage_config:
+            raise ValueError("Provide `addr` value in storage_config or addr and port ")
         self.timeout = timeout
 
     def _check_connected(self):
+        """Check storage connected - raise exception if not."""
         if self._client is None:
             raise StorageNotConnected("IPFS storage is not connected! Connect first!")
 
+    @staticmethod
     @contextlib.contextmanager
-    def _wrap_exceptions(self):
+    def _wrap_exceptions():
+        """Wrap exception with context manager to reraise proper exception."""
         try:
             yield
         except ipfshttpclient.exceptions.TimeoutError as e:
-            raise StorageTimeout(e)
-        except ipfshttpclient.exceptions.ConnectionError as e:
-            raise StorageNetworkError(e.original)
+            raise StorageTimeout(e) from e
+        except ipfshttpclient.exceptions.ConnectionError as e:  # pragma: nocover
+            raise StorageNetworkError(e.original) from e
         except ipfshttpclient.exceptions.CommunicationError as e:  # pragma: nocover
-            raise StorageError(e)
+            raise StorageError(e) from e
 
     def connect(self):
+        """Connect storage."""
         if self._client is not None:
             raise StorageError("Already connected!")
 
@@ -88,17 +118,19 @@ class IpfsStorage(AbstractStorage):
             self._client = ipfshttpclient.connect(
                 **self._storage_config, timeout=self.timeout
             )
-        except CommunicationError:
+        except CommunicationError as e:
             raise StorageNotAvailable(
                 f"Storage is not avaiable with address: {self._storage_config['addr']}"
-            )
+            ) from e
 
     def disconnect(self):
+        """Disconnect storage."""
         self._check_connected()
         self._client.close()
         self._client = None
 
     def _get_object(self, hash_id: HashID, stream: bool = False) -> Union[bytes, IO]:
+        """Get object from ipfs client."""
         self._check_connected()
         with self._wrap_exceptions():
             return (
@@ -108,6 +140,7 @@ class IpfsStorage(AbstractStorage):
             )
 
     def _add_object(self, data: Union[bytes, IO]) -> HashID:
+        """Add object to ipfs."""
         self._check_connected()
         with self._wrap_exceptions():
             if isinstance(data, bytes):
@@ -116,6 +149,12 @@ class IpfsStorage(AbstractStorage):
             return HashID(res["Hash"])
 
     def store_encrypted_data(self, encrypted_data: EncryptedData) -> HashID:
+        """
+        Store encrypted data container to storage and return hash_id of the container.
+
+        :param encrypted_data: EncryptedData instance
+        :return: hash_id
+        """
         objects = {
             "data": self._add_object(encrypted_data.data),
             "capsule": self._add_object(encrypted_data.capsule),
@@ -125,6 +164,14 @@ class IpfsStorage(AbstractStorage):
     def get_encrypted_data(
         self, hash_id: HashID, stream: bool = False
     ) -> EncryptedData:
+        """
+        Get encrypted data by container hash id.
+
+        :param hash_id:, str, hash_id of the encrypted data stored
+        :param stream: bool, return as IO stream if True else return bytes
+
+        :return: EncryptedData instance
+        """
         links = self._read_container(hash_id)
         return EncryptedData(
             data=self._get_object(links["data"], stream=stream),
@@ -132,21 +179,50 @@ class IpfsStorage(AbstractStorage):
         )
 
     def get_capsule(self, hash_id: HashID) -> Capsule:
+        """
+        Get capsule of encrypted data by container hash id.
+
+        :param hash_id:, str, hash_id of the encrypted data stored
+
+        :return: Capsule instance
+        """
         links = self._read_container(hash_id)
         object_bytes = cast(bytes, self._get_object(links["capsule"], stream=False))
         return object_bytes
 
     def get_data(self, hash_id: HashID, stream: bool = False) -> Union[bytes, IO]:
+        """
+        Get data of encrypted data by container hash id.
+
+        :param hash_id:, str, hash_id of the encrypted data stored
+        :param stream: bool, return as IO stream if True else return bytes
+
+        :return: bytes or IO stream
+        """
         links = self._read_container(hash_id)
         return self._get_object(links["data"], stream=stream)
 
     def store_encrypted_part(self, encrypted_part: ReencryptedFragment) -> HashID:
+        """
+        Store reencryption part and return hash id.
+
+        :param encrypted_part: ReencryptedFragment
+        :return: str, hash_id
+        """
         return self._add_object(encrypted_part)
 
     def get_encrypted_part(self, hash_id: HashID) -> ReencryptedFragment:
+        """
+        Get reencryption part by it's hash id.
+
+        :param hash_id:, str, hash_id of the reencrypted fragment data stored
+
+        :return: ReencryptedFragment instance
+        """
         return cast(ReencryptedFragment, self._get_object(hash_id, stream=False))
 
     def _add_to_container(self, objects: Dict) -> HashID:
+        """Add object to one container."""
         self._check_connected()
         with self._wrap_exceptions():
             res = self._client.object.new()  # type: ignore
@@ -157,6 +233,7 @@ class IpfsStorage(AbstractStorage):
             return HashID(container_id)
 
     def _read_container(self, container_id: HashID) -> Dict[str, HashID]:
+        """Read content of container."""
         with self._wrap_exceptions():
             return {
                 i["Name"]: i["Hash"] for i in self._client.object.links(container_id, timeout=self.timeout)["Links"]  # type: ignore

@@ -14,6 +14,7 @@ from pre.contract.base_contract import (
     DelegationAlreadyExist,
     NotAdminError,
     NotEnoughStakeToWithdraw,
+    ProxiesAreTooBusy,
     ProxyAlreadyExist,
     ProxyAlreadyRegistered,
     ProxyNotRegistered,
@@ -25,6 +26,7 @@ from pre.contract.base_contract import (
 from pre.contract.cosmos_contracts import (
     AdminContract,
     ContractQueries,
+    CosmosContract,
     DelegatorContract,
     ProxyContract,
 )
@@ -80,6 +82,11 @@ class BaseContractTestCase(TestCase):
         self.contract_addr = self._setup_a_contract()
         self.proxy_addr = self.ledger_crypto.get_address()
         self.proxy_pub_key = b"proxy pub key"
+
+        self.proxy_pub_key2 = b"proxy pub key"
+        self.proxy_crypto2 = self.ledger.make_new_crypto()
+        self.proxy_addr2 = self.proxy_crypto2.get_address()
+
         self.delegator_pub_key = b"delegator_pub_key"
         self.delegatee_pub_key = b"pub_key"
         self.hash_id = "hash_id"
@@ -93,6 +100,7 @@ class BaseContractTestCase(TestCase):
             admin_private_key=self.ledger_crypto,
             admin_addr=self.ledger_crypto.get_address(),
             stake_denom=self.STAKE_DENOM,
+            per_request_slash_stake_amount="100",
             minimum_proxy_stake_amount="100",
             minimum_request_reward_amount="100",
             threshold=self.THRESHOLD,
@@ -214,8 +222,10 @@ class TestDelegatorContract(BaseContractTestCase):
         )
 
         staking_config = self.proxy_contract.get_staking_config()
-        minimum_registration_stake = Coin(denom=staking_config.stake_denom,
-                                          amount=str(staking_config.minimum_proxy_stake_amount))
+        minimum_registration_stake = Coin(
+            denom=staking_config.stake_denom,
+            amount=str(staking_config.minimum_proxy_stake_amount),
+        )
 
         with pytest.raises(UnknownProxy):
             self.proxy_contract.proxy_register(
@@ -315,6 +325,8 @@ class TestDelegatorContract(BaseContractTestCase):
             proxy_pubkey_bytes=self.proxy_pub_key
         )
 
+        assert self.proxy_contract.get_contract_state()
+
         delegation_state_response = self.delegator_contract.get_delegation_status(
             delegator_pubkey_bytes=self.delegator_pub_key,
             delegatee_pubkey_bytes=self.delegatee_pub_key,
@@ -355,6 +367,16 @@ class TestDelegatorContract(BaseContractTestCase):
                 stake_amount=delegation_state_response.minimum_request_reward,
             )
 
+        staking_config = self.proxy_contract.get_staking_config()
+
+        self.proxy_contract.add_stake(
+            proxy_private_key=self.ledger_crypto,
+            stake_amount=Coin(
+                denom=staking_config.stake_denom,
+                amount=str(staking_config.minimum_proxy_stake_amount),
+            ),
+        )
+
         proxy_status = self.proxy_contract.get_proxy_status(self.proxy_pub_key)
         assert proxy_status
 
@@ -379,6 +401,15 @@ class TestDelegatorContract(BaseContractTestCase):
             delegatee_pubkey_bytes=self.delegatee_pub_key,
             fragment_hash_id=self.fragment_hash_id,
         )
+
+        with pytest.raises(ReencryptionAlreadyRequested):
+            self.delegator_contract.request_reencryption(
+                delegator_private_key=self.ledger_crypto,
+                delegator_pubkey_bytes=self.delegator_pub_key,
+                hash_id=self.hash_id,
+                delegatee_pubkey_bytes=self.delegatee_pub_key,
+                stake_amount=delegation_state_response.minimum_request_reward,
+            )
 
         assert (
             self.delegator_contract.get_delegation_status(
@@ -443,3 +474,12 @@ class TestDelegatorContract(BaseContractTestCase):
 
         with pytest.raises(NotEnoughStakeToWithdraw):
             self.proxy_contract.withdraw_stake(self.ledger_crypto, "1000")
+
+
+def test_contract_validate_contract_address():
+    CosmosContract.validate_contract_address(
+        "fetch18vd9fpwxzck93qlwghaj6arh4p7c5n890l3amr"
+    )
+
+    with pytest.raises(ValueError):
+        CosmosContract.validate_contract_address("fetch18v")

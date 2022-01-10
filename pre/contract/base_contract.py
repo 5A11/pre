@@ -1,29 +1,39 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 
 from pre.common import (
     Address,
+    ContractState,
     Delegation,
-    ProxyStatus,
+    DelegationStatus,
     GetFragmentsResponse,
     HashID,
+    ProxyStatus,
     ProxyTask,
-    ContractState,
-    DelegationStatus, StakingConfig,
+    StakingConfig,
 )
 from pre.ledger.base_ledger import AbstractLedger, AbstractLedgerCrypto
 
 
 class BaseAbstractContract(ABC):
+    """Base abstract contract."""
+
     def __init__(self, ledger: AbstractLedger, contract_address: Address):
+        """
+        Init the contract.
+
+        :param ledger: ledger instance
+        :param contract_address: str, address of contract deployed
+        """
         self._contract_address = contract_address
         self.ledger = ledger
 
     @property
-    def contract_address(self):
+    def contract_address(self) -> Address:
+        """Get contract address."""
         if not self._contract_address:
             raise ValueError("Empty contract address!")  # pragma: nocover
         return self._contract_address
@@ -31,25 +41,58 @@ class BaseAbstractContract(ABC):
 
 @dataclass
 class DataEntry:
+    """Pubkey container."""
+
     pubkey: bytes
 
 
 class AbstractContractQueries(BaseAbstractContract):
+    """Interface for contract queries."""
+
     @abstractmethod
     def get_avaiable_proxies(self) -> List[bytes]:
-        """Get proxies registered with contract."""
+        """
+        Get proxies registered with contract.
+
+        :return: list of proxies pubkeys as bytes
+        """
 
     @abstractmethod
     def get_contract_state(self) -> ContractState:
-        """Get contract default parameters."""
+        """
+        Get contract default parameters.
+
+        :return: ContractState instance
+        """
 
     @abstractmethod
-    def get_staking_config(self) -> ContractState:
+    def get_delegation_status(
+        self,
+        delegator_pubkey_bytes: bytes,
+        delegatee_pubkey_bytes: bytes,
+    ) -> DelegationStatus:
+        """
+        Get status of delegation.
+
+        :param delegator_pubkey_bytes: Delegator public key as bytes
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
+
+        :return: DelegationStatus instance
+        """
+
+    @abstractmethod
+    def get_staking_config(self) -> StakingConfig:
         """Get contract staking config."""
 
     @abstractmethod
     def get_data_entry(self, data_id: HashID) -> Optional[DataEntry]:
-        """Get data entry."""
+        """
+        Get data entry.
+
+        :param data_id: str, hash id of the data set on contract
+
+        :return: DataEntry instance or None
+        """
 
     @abstractmethod
     def get_selected_proxies_for_delegation(
@@ -57,20 +100,42 @@ class AbstractContractQueries(BaseAbstractContract):
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> List[bytes]:
-        """Get selected proxy for delegation."""
+        """
+        Get selected proxy for delegation.
+
+        :param delegator_pubkey_bytes: Delegator public key as bytes
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
+
+        :return: list of proxies keys as bytes
+        """
 
     @abstractmethod
     def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
-        """Get next proxy task."""
+        """
+        Get next proxy task for proxy specified by proxy public key.
+
+        :param proxy_pubkey_bytes: bytes, proxy public key
+
+        :return: ProxyTask instance or None if no tasks left
+        """
 
     @abstractmethod
     def get_fragments_response(
         self, hash_id: HashID, delegatee_pubkey_bytes: bytes
     ) -> GetFragmentsResponse:
-        """Get fragments."""
+        """
+        Get reencryption fragments for data_id and specific delegatee.
+
+        :param hash_id: str, hash id of the data set on contract
+        :param delegatee_pubkey_bytes: Delegator public key as bytes
+
+        :return: GetFragmentsResponse instance
+        """
 
 
 class AbstractAdminContract(BaseAbstractContract, ABC):
+    """Interface for admin contract."""
+
     @classmethod
     @abstractmethod
     def instantiate_contract(
@@ -79,28 +144,61 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         admin_private_key: AbstractLedgerCrypto,
         admin_addr: Address,
         stake_denom: str,
-        minimum_proxy_stake_amount: Optional[str],
-        minimum_request_reward_amount: Optional[str],
-
-        threshold: Optional[int],
-        n_max_proxies: Optional[int],
-        proxies: List[Address],
+        minimum_proxy_stake_amount: Optional[str] = None,
+        minimum_request_reward_amount: Optional[str] = None,
+        per_request_slash_stake_amount: Optional[str] = None,
+        threshold: Optional[int] = None,
+        n_max_proxies: Optional[int] = None,
+        proxies: Optional[List[Address]] = None,
         label: str = "PRE",
     ) -> Address:
-        """Instantiate contract."""
+        """
+        Instantiate contract.
+        Deploys contract over the ledger.
+
+        :param ledger: ledger instance to perform contract deployment
+        :param admin_private_key: private ledger key instance
+        :param admin_addr: address of contract administator
+        :param stake_denom: str,
+        :param minimum_proxy_stake_amount: Optional[str]
+        :param minimum_request_reward_amount: Optional[str] = None
+        :param per_request_slash_stake_amount: Optional[str] = None
+        :param threshold: int threshold ,
+        :param n_max_proxies: max amount of proxy allowed to register,
+        :param proxies: optional list of proxies addresses,
+        :param label: str, contract label
+
+        :return: str, deloyed contract address
+        """
 
     @abstractmethod
     def add_proxy(self, admin_private_key: AbstractLedgerCrypto, proxy_addr: Address):
-        """Add proxy."""
+        """
+        Add proxy to allowed proxies list.
+
+        :param admin_private_key: private ledger key instance
+        :param proxy_addres: str
+
+        :return: None
+        """
 
     @abstractmethod
     def remove_proxy(
         self, admin_private_key: AbstractLedgerCrypto, proxy_addr: Address
     ):
-        """Remove proxy."""
+        """
+        Remove proxy from allowed proxies list.
+
+        :param admin_private_key: private ledger key instance
+        :param proxy_addres: str
+
+        :return: None
+        """
 
 
 class AbstractDelegatorContract(BaseAbstractContract, ABC):
+    """Interface for delegator contract."""
+
     @abstractmethod
     def add_data(
         self,
@@ -108,7 +206,13 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         delegator_pubkey_bytes: bytes,
         hash_id: HashID,
     ):
-        """Register data in contract."""
+        """
+        Register data in the contract.
+
+        :param delegator_private_key: Delegator ledger private key
+        :param delegator_pubkey_bytes: Delegator public key as bytes
+        :param hash_id: str, hash_id the encrypteed data published
+        """
 
     @abstractmethod
     def add_delegations(
@@ -118,7 +222,14 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         delegatee_pubkey_bytes: bytes,
         delegations: List[Delegation],
     ):
-        """Add delegations."""
+        """
+        Add delegations.
+
+        :param delegator_private_key: Delegator ledger private key
+        :param delegator_pubkey_bytes: Delegator public key as bytes
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
+        :param deleations: list of Delegation for the proies selected
+        """
 
     @abstractmethod
     def get_delegation_status(  # FIXME(LR) duplicate of get_selected_proxies_for_delegation
@@ -126,7 +237,14 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> DelegationStatus:
-        """Check delegation exists."""
+        """
+        Get state of delegation.
+
+        :param delegator_pubkey_bytes: Delegator public key as bytes
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
+
+        :return: DelegationStatus instance
+        """
 
     @abstractmethod
     def get_selected_proxies_for_delegation(
@@ -134,7 +252,14 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> List[bytes]:
-        """Get selected proxies for delegation."""
+        """
+        Get selected proxies for delegation.
+
+        :param delegator_pubkey_bytes: Delegator public key as bytes
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
+
+        :return:  List of proxy public keys as bytes
+        """
 
     @abstractmethod
     def request_proxies_for_delegation(
@@ -143,7 +268,15 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> List[bytes]:
-        """Request proxies for delegation."""
+        """
+        Request proxies for delegation.
+
+        :param delegator_private_key: Delegator ledger private key
+        :param delegator_pubkey_bytes: Delegator public key as bytes
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
+
+        :return:  List of proxy public keys as bytes
+        """
 
     @abstractmethod
     def request_reencryption(
@@ -154,14 +287,28 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         delegatee_pubkey_bytes: bytes,
         stake_amount: Coin,
     ):
-        """Request reencryption for the data with proxies selected for delegation."""
+        """
+        Request reencryption for the data with proxies selected for delegation.
+
+        :param delegator_private_key: Delegator ledger private key
+        :param delegator_pubkey_bytes: Delegator public key as bytes
+        :param hash_id: str, hash_id the encrypteed data published
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
+        :param stake_amount: Coin instance
+        """
 
     @abstractmethod
     def get_avaiable_proxies(self) -> List[bytes]:
-        """Get list of proxies registered."""
+        """
+        Get list of proxies registered.
+
+        :return:  List of proxy public keys as bytes
+        """
 
 
 class AbstractProxyContract(BaseAbstractContract, ABC):
+    """Interface for proxy contract."""
+
     @abstractmethod
     def proxy_register(
         self,
@@ -169,18 +316,33 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         proxy_pubkey_bytes: bytes,
         stake_amount: Coin,
     ):
-        """Register the proxy."""
+        """
+        Register the proxy with contract.
+
+        :param proxy_private_key: Proxy ledger private key
+        :param proxy_pubkey_bytes: Proxy public key as bytes
+        :param stake_amount: Coin instance
+        """
 
     @abstractmethod
     def proxy_unregister(
         self,
         proxy_private_key: AbstractLedgerCrypto,
     ):
-        """Unregister the proxy."""
+        """
+        Unregister the proxy.
+
+        :param proxy_private_key: Proxy ledger private key
+        """
 
     @abstractmethod
     def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
-        """Get next proxy task."""
+        """
+        Get next proxy task.
+
+        :param proxy_pubkey_bytes: Proxy public key as bytes
+        :return: None or ProxyTask instance
+        """
 
     @abstractmethod
     def provide_reencrypted_fragment(
@@ -190,7 +352,14 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         delegatee_pubkey_bytes: bytes,
         fragment_hash_id: HashID,
     ):
-        """Provide reencrypted fragment for specific reencryption request."""
+        """
+        Provide reencrypted fragment for specific reencryption request.
+
+        :param proxy_private_key: Proxy ledger private key
+        :param hash_id: str, hash_id the encrypteed data published
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
+        :param fragment_hash_id: str, hash_id of the fragment reencrypted
+        """
 
     @abstractmethod
     def withdraw_stake(
@@ -198,7 +367,12 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         proxy_private_key: AbstractLedgerCrypto,
         stake_amount: Optional[str] = None,
     ):
-        """Withdraw proxy stake."""
+        """
+        Withdraw proxy stake.
+
+        :param proxy_private_key: Proxy ledger private key
+        :param stake_amount: Optional str, amount to transfer
+        """
 
     @abstractmethod
     def add_stake(
@@ -210,19 +384,44 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
 
     @abstractmethod
     def get_contract_state(self) -> ContractState:
-        """Get contract constants."""
+        """
+        Get contract constants.
+
+        :return: ContractState instance
+        """
 
     @abstractmethod
     def get_staking_config(self) -> StakingConfig:
-        """Get contract constants."""
+        """
+        Get contract staking config.
+
+        :return: StakingConfig instance
+        """
 
     @abstractmethod
     def get_proxy_status(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyStatus]:
-        """Get proxy state."""
+        """
+        Get proxy status.
+
+        :param proxy_pubkey_bytes: proxy public key as bytes
+
+        :return: None or ProxyStatus instance
+        """
 
 
 class ContractExecutionError(Exception):
-    def __init__(self, msg, resp_code=None, resp=None):
+    """Generic contract execution error."""
+
+    def __init__(
+        self, msg: str, resp_code: Optional[int] = None, resp: Optional[Dict] = None
+    ):
+        """
+        Init exception.
+
+        :param msg: str, error message
+        :param resp_code: optional int
+        :param resp: body of the network request response
+        """
         self.msg = msg
         self.resp = resp
         self.resp_code = resp_code

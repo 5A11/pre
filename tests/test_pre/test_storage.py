@@ -54,6 +54,12 @@ def test_storage_errors():
         ):
             storage.disconnect()
 
+        # do not allow to run without proper options
+        with pytest.raises(
+            ValueError, match="Provide `addr` value in storage_config or addr and port"
+        ):
+            IpfsStorage()
+
 
 def test_storage_config():
     IpfsStorage.CONFIG_CLASS.validate(IpfsStorage.CONFIG_CLASS.make_default())

@@ -23,11 +23,13 @@ from pre.crypto.base_crypto import (
 
 
 class UmbralPublicKey(PublicKey):
+    """Umbral public key implementation."""
+
     def __init__(self, umbral_key: _PublicKey):
         self._key = umbral_key
 
     @property
-    def _umbral_key(self) -> _PublicKey:
+    def umbral_key(self) -> _PublicKey:
         return self._key
 
     def __bytes__(self) -> bytes:
@@ -39,11 +41,13 @@ class UmbralPublicKey(PublicKey):
 
 
 class UmbralPrivateKey(PrivateKey):
+    """Umbral private key implementation."""
+
     def __init__(self, umbral_key: _SecretKey) -> None:
         self._key = umbral_key
 
     @property
-    def _umbral_key(self) -> _SecretKey:
+    def umbral_key(self) -> _SecretKey:
         return self._key
 
     @property
@@ -63,11 +67,13 @@ class UmbralPrivateKey(PrivateKey):
 
 
 class UmbralCapsule:
+    """Umbral capsule implementation."""
+
     def __init__(self, umbral_capsule: _Capsule) -> None:
         self._capsule = umbral_capsule
 
     @property
-    def _umbral_capsule(self) -> _Capsule:
+    def umbral_capsule(self) -> _Capsule:
         return self._capsule
 
     def __bytes__(self) -> bytes:
@@ -79,6 +85,8 @@ class UmbralCapsule:
 
 
 class _Delegation:
+    """Umbral deleation internal implementation."""
+
     def __init__(self, capsule: _Capsule, data: bytes):
         self.capsule = capsule
         self.data = data
@@ -95,11 +103,13 @@ class _Delegation:
 
 
 class UmbralDelegation:
+    """Umbral deleation implementation."""
+
     def __init__(self, umbral_delegation: _Delegation) -> None:
         self._delegation = umbral_delegation
 
     @property
-    def _umbral_delegation(self) -> _Delegation:
+    def umbral_delegation(self) -> _Delegation:
         return self._delegation
 
     def __bytes__(self) -> bytes:
@@ -114,11 +124,13 @@ class UmbralDelegation:
 
 
 class UmbralReencryptedFragment:
+    """Umbral reencryption fragment implementation."""
+
     def __init__(self, umbral_reenc_cap_frag: _VerifiedCapsuleFrag) -> None:
-        self._reenc_cap_frag = umbral_reenc_cap_frag
+        self.reenc_cap_frag = umbral_reenc_cap_frag
 
     def __bytes__(self) -> bytes:
-        return bytes(self._reenc_cap_frag)
+        return bytes(self.reenc_cap_frag)
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "UmbralReencryptedFragment":
@@ -126,14 +138,21 @@ class UmbralReencryptedFragment:
 
 
 class UmbralCrypto(AbstractCrypto):
-    def __init__(self) -> None:
-        pass
+    """Umbral crypto implementation."""
 
     def encrypt(
         self, data: Union[bytes, IO], delegator_public_key: PublicKey
     ) -> EncryptedData:
+        """
+        Encrypt data with delegatorm public key.
+
+        :param data: bytes or IO stream
+        :param delegator_public_key: delegator encryption public key
+
+        :return: EncryptedData instance
+        """
         # FIXME(LR) maybe composition with an enum would be better than inheritence
-        umb_public_key = cast(UmbralPublicKey, delegator_public_key)._umbral_key
+        umb_public_key = cast(UmbralPublicKey, delegator_public_key).umbral_key
 
         capsule, ciphertext = encrypt(umb_public_key, data)
         return EncryptedData(ciphertext, bytes(UmbralCapsule(capsule)))
@@ -145,12 +164,22 @@ class UmbralCrypto(AbstractCrypto):
         proxies_pubkeys_bytes: List[bytes],
         delegator_private_key: PrivateKey,
     ) -> List[Delegation]:
+        """
+        Generate delegations.
+
+        :param threshold: int
+        :param delegatee_pubkey_bytes: reader public key in bytes
+        :param proxies_pubkeys_bytes: List[bytes], list of proxies public keys in bytes
+        :param delegator_private_key:delegator encryption private key
+
+        :return: List of Delegation
+        """
         umb_delegatee_public_key = UmbralPublicKey.from_bytes(
             delegatee_pubkey_bytes
-        )._umbral_key
+        ).umbral_key
         umb_delegator_private_key = cast(
             UmbralPrivateKey, delegator_private_key
-        )._umbral_key
+        ).umbral_key
 
         kfrags = generate_kfrags(
             delegating_sk=umb_delegator_private_key,
@@ -165,7 +194,7 @@ class UmbralCrypto(AbstractCrypto):
         for i, kfrag in enumerate(kfrags):
             proxy_public_key = UmbralPublicKey.from_bytes(
                 proxies_pubkeys_bytes[i]
-            )._umbral_key
+            ).umbral_key
 
             encrypted_frag = encrypt(proxy_public_key, bytes(kfrag))
             delegations.append(
@@ -187,17 +216,26 @@ class UmbralCrypto(AbstractCrypto):
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
     ) -> bytes:
-        umb_capsule = UmbralCapsule.from_bytes(capsule_bytes)._umbral_capsule
-        umb_delegation = UmbralDelegation.from_bytes(
-            delegation_bytes
-        )._umbral_delegation
-        umb_proxy_private_key = cast(UmbralPrivateKey, proxy_private_key)._umbral_key
+        """
+        Reencrypt data using capsule, proxy private key.
+
+        :param capsule_bytes: capsule in bytes
+        :param delegation_bytes: delegation in bytes
+        :param proxy_private_key: proxy encryption private key
+        :param delegator_public_key: delegator encryption public key
+        :param delegatee_pubkey_bytes: reader public key in bytes
+
+        :return: bytes representation of reencryption fragment
+        """
+        umb_capsule = UmbralCapsule.from_bytes(capsule_bytes).umbral_capsule
+        umb_delegation = UmbralDelegation.from_bytes(delegation_bytes).umbral_delegation
+        umb_proxy_private_key = cast(UmbralPrivateKey, proxy_private_key).umbral_key
         umb_delegator_public_key = UmbralPublicKey.from_bytes(
             delegator_pubkey_bytes
-        )._umbral_key
+        ).umbral_key
         umb_delegatee_public_key = UmbralPublicKey.from_bytes(
             delegatee_pubkey_bytes
-        )._umbral_key
+        ).umbral_key
 
         try:
             dec_kfrag = decrypt_original(
@@ -225,18 +263,28 @@ class UmbralCrypto(AbstractCrypto):
         delegatee_private_key: PrivateKey,
         delegator_pubkey_bytes: bytes,
     ) -> Union[bytes, IO]:
+        """
+        Decrypt data using reencryption fragments and private key.
+
+        :param encrypted_data: EncryptedData instance
+        :param encrypted_data_fragments_bytes: list of bytes of reencryption fragments
+        :param delegatee_private_key: delegatee encryption private key
+        :param delegator_pubkey_bytes: delegator encryption public
+
+        :return: bytes of the decrypted data
+        """
         umb_delegator_public_key = UmbralPublicKey.from_bytes(
             delegator_pubkey_bytes
-        )._umbral_key
+        ).umbral_key
         umb_delegatee_private_key = cast(
             UmbralPrivateKey, delegatee_private_key
-        )._umbral_key
-        umb_capsule = UmbralCapsule.from_bytes(encrypted_data.capsule)._umbral_capsule
+        ).umbral_key
+        umb_capsule = UmbralCapsule.from_bytes(encrypted_data.capsule).umbral_capsule
 
         cfrags = []
         for frag_bytes in encrypted_data_fragments_bytes:
             frag = UmbralReencryptedFragment.from_bytes(frag_bytes)
-            reenc_frag = cast(UmbralReencryptedFragment, frag)._reenc_cap_frag
+            reenc_frag = cast(UmbralReencryptedFragment, frag).reenc_cap_frag
             cfrag = CapsuleFrag.from_bytes(bytes(reenc_frag))
             try:
                 cfrag = cfrag.verify(
@@ -266,8 +314,20 @@ class UmbralCrypto(AbstractCrypto):
 
     @classmethod
     def make_new_key(cls) -> UmbralPrivateKey:
+        """
+        Make new private key.
+
+        :return: new private key instance
+        """
         return UmbralPrivateKey.random()
 
     @classmethod
     def load_key(cls, data: bytes) -> UmbralPrivateKey:
+        """
+        Load private key from bytes.
+
+        :param data: bytes of private key
+
+        :return: private key instance
+        """
         return UmbralPrivateKey.from_bytes(data)

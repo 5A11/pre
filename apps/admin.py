@@ -36,18 +36,22 @@ def instantiate_contract(
     stake_denom: str = "atestfet",
     proxies: str = "",
 ):
-    # TODO: admin address validation
-    # TODO: proxy address validation
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
+
     ledger = app_config.get_ledger_instance()
     ledger_crypto = app_config.get_ledger_crypto()
 
     if not admin_address:
         admin_address = ledger_crypto.get_address()
 
+    app_config.validate_address(admin_address)
+
     proxies_list = []
     if proxies:
         proxies_list = proxies.split(",")
+
+    for proxy_addr in proxies_list:
+        app_config.validate_address(proxy_addr)
 
     kwargs = dict(
         admin_address=admin_address,
@@ -89,7 +93,7 @@ def add_proxy(
     app_config: AppConf,
     proxy_address: str,
 ):
-    # TODO: proxy address validation
+    app_config.validate_address(proxy_address)
     ledger_crypto = app_config.get_ledger_crypto()
     contract = app_config.get_admin_contract()
     api = AdminAPI(ledger_crypto=ledger_crypto, contract=contract)
@@ -109,7 +113,7 @@ def remove_proxy(
     app_config: AppConf,
     proxy_address: str,
 ):
-    # TODO: proxy address validation
+    app_config.validate_address(proxy_address)
     ledger_crypto = app_config.get_ledger_crypto()
     contract = app_config.get_admin_contract()
     api = AdminAPI(ledger_crypto=ledger_crypto, contract=contract)
@@ -118,6 +122,6 @@ def remove_proxy(
 
 
 if __name__ == "__main__":
-    cli(  # pylint: disable=unexpected-keyword-arg
+    cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
         prog_name=PROG_NAME
     )  # pragma: no cover

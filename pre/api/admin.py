@@ -7,6 +7,8 @@ from pre.ledger.base_ledger import AbstractLedger, AbstractLedgerCrypto
 
 
 class AdminAPI:
+    """Admin API class to set contract and perform contract administration."""
+
     _contract: AbstractAdminContract
     CONTRACT_CLASS = AdminContract
 
@@ -15,6 +17,13 @@ class AdminAPI:
         ledger_crypto: AbstractLedgerCrypto,
         contract: AbstractAdminContract,
     ):
+        """
+        Init AdminAPI instance.
+
+        :param ledger_crypto: ledger private key instance to perform ledger operations
+        :param contract: AdminContract instance.
+        """
+
         self._ledger_crypto = ledger_crypto
         self._contract = contract
 
@@ -34,6 +43,22 @@ class AdminAPI:
         label: str = "PRE",
         contract_cls: Optional[Type[AbstractAdminContract]] = None,
     ) -> Address:
+        """
+        Instantiate contract.
+
+        :param ledger_crypto: private ledger key instance
+        :param ledger: ledger instance to perform contract deployment
+        :param admin_address: address of contract administator
+        :param stake_denom: str,
+        :param minimum_proxy_stake_amount: Optional[str],
+        :param minimum_request_reward_amount: Optional[str] = None,
+        :param threshold: int threshold ,
+        :param n_max_proxies: max amount of proxy allowed to register,
+        :param proxies: optional list of proxies addresses,
+        :param label: str, contract label
+        :param contract_cls: Optional[Type[AbstractAdminContract]] = None,
+        """
+
         contract_cls = contract_cls or cls.CONTRACT_CLASS
         contract_address = contract_cls.instantiate_contract(
             ledger,
@@ -51,7 +76,21 @@ class AdminAPI:
         return contract_address
 
     def add_proxy(self, proxy_address: Address):
+        """
+        Add proxy to allowed proxy list.
+
+        :param proxy_addres: str
+        :return: None
+        """
         self._contract.add_proxy(self._ledger_crypto, proxy_address)
 
     def remove_proxy(self, proxy_address: Address):
+        """
+        Remove proxy from allowed proxy list.
+
+        :param proxy_addres: str
+
+        :return: None
+        """
+
         self._contract.remove_proxy(self._ledger_crypto, proxy_address)

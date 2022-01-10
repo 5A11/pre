@@ -20,7 +20,7 @@ from pre.contract.base_contract import (
     ReencryptedCapsuleFragAlreadyProvided,
     ReencryptionAlreadyRequested,
     UnknownProxy,
-    UnkownReencryptionRequest,
+    UnkownReencryptionRequest, ProxiesAreTooBusy,
 )
 from pre.contract.cosmos_contracts import (
     AdminContract,
@@ -346,7 +346,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 stake_amount=delegation_state_response.minimum_request_reward,
             )
 
-        with pytest.raises(ReencryptionAlreadyRequested):
+        with pytest.raises(ProxiesAreTooBusy):
             self.delegator_contract.request_reencryption(
                 delegator_private_key=self.ledger_crypto,
                 delegator_pubkey_bytes=self.delegator_pub_key,
@@ -355,11 +355,11 @@ class TestDelegatorContract(BaseContractTestCase):
                 stake_amount=delegation_state_response.minimum_request_reward,
             )
 
-        proxy_info = self.proxy_contract.get_proxy_info(self.proxy_pub_key)
-        assert proxy_info
+        proxy_status = self.proxy_contract.get_proxy_status(self.proxy_pub_key)
+        assert proxy_status
 
-        proxy_info = self.proxy_contract.get_proxy_info(b"some bad key")
-        assert not proxy_info
+        proxy_status = self.proxy_contract.get_proxy_status(b"some bad key")
+        assert not proxy_status
 
         proxy_task = self.proxy_contract.get_next_proxy_task(
             proxy_pubkey_bytes=self.proxy_pub_key

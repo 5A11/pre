@@ -7,7 +7,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct ProxyDelegation {
+pub struct ProxyDelegationString {
     pub proxy_pubkey: String,
     pub delegation_string: String,
 }
@@ -84,7 +84,7 @@ pub enum ExecuteMsg {
     AddDelegation {
         delegator_pubkey: String,
         delegatee_pubkey: String,
-        proxy_delegations: Vec<ProxyDelegation>,
+        proxy_delegations: Vec<ProxyDelegationString>,
     },
     RequestReencryption {
         data_id: String,

@@ -103,6 +103,7 @@ class DelegationState(Enum):
     non_existing = 1
     waiting_for_delegation_strings = 2
     active = 3
+    proxies_are_too_busy = 4
 
 
 @dataclass
@@ -115,6 +116,7 @@ class ReencryptionRequestState(Enum):
     inaccessible = 1
     ready = 2
     granted = 3
+    abandoned = 4
 
 
 @dataclass

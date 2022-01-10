@@ -303,3 +303,7 @@ class DelegationAlreadyAdded(ContractExecutionError):
 
 class NotEnoughStakeToWithdraw(ContractExecutionError):
     """Not enough stake to withdraw."""
+
+
+class ProxiesAreTooBusy(ContractExecutionError):
+    """Proxies are too busy error."""

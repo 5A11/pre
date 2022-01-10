@@ -23,28 +23,30 @@ pub struct Proxy {
 // Map proxy_addr: Addr -> proxy: Proxy
 static PROXIES_KEY: &[u8] = b"Proxies";
 
+// To get proxy address from proxy pubkey
 // Map proxy_pubkey: String -> proxy: Addr
 static PROXY_ADDRESS_KEY: &[u8] = b"ProxyAddress";
 
+// Active proxies
 // Map proxy_pubkey: String -> is_active: bool
 static IS_PROXY_ACTIVE: &[u8] = b"IsProxyActive";
 
 // Getters and setters
 
 // PROXIES_KEY
-pub fn set_proxy_entry(storage: &mut dyn Storage, proxy_addr: &Addr, proxy: &Proxy) {
+pub fn store_set_proxy_entry(storage: &mut dyn Storage, proxy_addr: &Addr, proxy: &Proxy) {
     let mut store = PrefixedStorage::new(storage, PROXIES_KEY);
 
     store.set(proxy_addr.as_bytes(), &to_vec(proxy).unwrap());
 }
 
-pub fn remove_proxy_entry(storage: &mut dyn Storage, proxy_addr: &Addr) {
+pub fn store_remove_proxy_entry(storage: &mut dyn Storage, proxy_addr: &Addr) {
     let mut store = PrefixedStorage::new(storage, PROXIES_KEY);
 
     store.remove(proxy_addr.as_bytes());
 }
 
-pub fn get_proxy_entry(storage: &dyn Storage, proxy_addr: &Addr) -> Option<Proxy> {
+pub fn store_get_proxy_entry(storage: &dyn Storage, proxy_addr: &Addr) -> Option<Proxy> {
     let store = ReadonlyPrefixedStorage::new(storage, PROXIES_KEY);
 
     store
@@ -55,19 +57,19 @@ pub fn get_proxy_entry(storage: &dyn Storage, proxy_addr: &Addr) -> Option<Proxy
 // ACTIVE_PROXIES_ADDRESSES_KEY
 
 // PROXY_ADDRESS
-pub fn set_proxy_address(storage: &mut dyn Storage, proxy_pubkey: &str, proxy_addr: &Addr) {
+pub fn store_set_proxy_address(storage: &mut dyn Storage, proxy_pubkey: &str, proxy_addr: &Addr) {
     let mut storage = PrefixedStorage::new(storage, PROXY_ADDRESS_KEY);
 
     storage.set(proxy_pubkey.as_bytes(), proxy_addr.as_bytes());
 }
 
-pub fn remove_proxy_address(storage: &mut dyn Storage, proxy_pubkey: &str) {
+pub fn store_remove_proxy_address(storage: &mut dyn Storage, proxy_pubkey: &str) {
     let mut storage = PrefixedStorage::new(storage, PROXY_ADDRESS_KEY);
 
     storage.remove(proxy_pubkey.as_bytes());
 }
 
-pub fn get_proxy_address(storage: &dyn Storage, proxy_pubkey: &str) -> Option<Addr> {
+pub fn store_get_proxy_address(storage: &dyn Storage, proxy_pubkey: &str) -> Option<Addr> {
     let store = ReadonlyPrefixedStorage::new(storage, PROXY_ADDRESS_KEY);
 
     let res = store.get(proxy_pubkey.as_bytes());
@@ -75,7 +77,11 @@ pub fn get_proxy_address(storage: &dyn Storage, proxy_pubkey: &str) -> Option<Ad
 }
 
 // IS_PROXY_ACTIVE
-pub fn set_is_proxy_active(storage: &mut dyn Storage, proxy_pubkey: &str, is_proxy_active: bool) {
+pub fn store_set_is_proxy_active(
+    storage: &mut dyn Storage,
+    proxy_pubkey: &str,
+    is_proxy_active: bool,
+) {
     let mut store = PrefixedStorage::new(storage, IS_PROXY_ACTIVE);
 
     // Any value in store means true - &[1]
@@ -85,13 +91,13 @@ pub fn set_is_proxy_active(storage: &mut dyn Storage, proxy_pubkey: &str, is_pro
     }
 }
 
-pub fn get_is_proxy_active(storage: &dyn Storage, proxy_pubkey: &str) -> bool {
+pub fn store_get_is_proxy_active(storage: &dyn Storage, proxy_pubkey: &str) -> bool {
     let store = ReadonlyPrefixedStorage::new(storage, IS_PROXY_ACTIVE);
 
     store.get(proxy_pubkey.as_bytes()).is_some()
 }
 
-pub fn get_all_active_proxy_pubkeys(storage: &dyn Storage) -> Vec<String> {
+pub fn store_get_all_active_proxy_pubkeys(storage: &dyn Storage) -> Vec<String> {
     let store = ReadonlyPrefixedStorage::new(storage, IS_PROXY_ACTIVE);
 
     let mut deserialized_keys: Vec<String> = Vec::new();

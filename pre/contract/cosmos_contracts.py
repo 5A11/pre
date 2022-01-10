@@ -41,7 +41,7 @@ from pre.contract.base_contract import (
     ReencryptedCapsuleFragAlreadyProvided,
     ReencryptionAlreadyRequested,
     UnknownProxy,
-    UnkownReencryptionRequest,
+    UnkownReencryptionRequest, ProxiesAreTooBusy,
 )
 from pre.ledger.base_ledger import AbstractLedgerCrypto
 from pre.ledger.cosmos.ledger import BroadcastException, CosmosLedger
@@ -105,6 +105,8 @@ class ContractExecuteExceptionMixIn:
             raise NotAdminError(raw_log, error_code, res)
         elif "Not enough stake to withdraw: execute wasm contract failed" in raw_log:
             raise NotEnoughStakeToWithdraw(raw_log, error_code, res)
+        elif "Proxies are too busy, try again later" in raw_log:
+            raise ProxiesAreTooBusy(raw_log, error_code, res)
         raise ContractExecutionError(
             f"Contract execution failed: {raw_log}", error_code, res
         )  # pragma: nocover
@@ -221,7 +223,7 @@ class ContractQueries(AbstractContractQueries):
 
     def get_proxy_status(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyStatus]:
         state_msg: Dict = {
-            "get_proxy_status": {"proxy_status": encode_bytes(proxy_pubkey_bytes)}
+            "get_proxy_status": {"proxy_pubkey": encode_bytes(proxy_pubkey_bytes)}
         }
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
 
@@ -524,7 +526,16 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         ).get_staking_config()
 
     def get_proxy_status(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyStatus]:
-        pass
+        """
+        Get proxy status.
+
+        :param proxy_pubkey_bytes: proxy public key as bytes
+
+        :return: None or ProxyStatus instance
+        """
+        return ContractQueries(
+            ledger=self.ledger, contract_address=self.contract_address
+        ).get_proxy_status(proxy_pubkey_bytes)
 
 
 class CosmosContract:  # pylint: disable=too-few-public-methods

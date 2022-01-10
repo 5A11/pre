@@ -35,7 +35,8 @@
       "enum": [
         "non_existing",
         "waiting_for_delegation_strings",
-        "active"
+        "active",
+        "proxies_are_busy"
       ]
     },
     "Uint128": {

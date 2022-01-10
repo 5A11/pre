@@ -1,6 +1,6 @@
 use crate::common::add_bank_msg;
-use crate::proxies::{get_proxy_address, get_proxy_entry, set_proxy_entry};
-use crate::state::{get_staking_config, get_state};
+use crate::proxies::{store_get_proxy_address, store_get_proxy_entry, store_set_proxy_entry};
+use crate::state::{store_get_staking_config, store_get_state};
 use cosmwasm_std::{from_slice, to_vec, Addr, Order, Response, StdResult, Storage, Uint128};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
@@ -36,7 +36,7 @@ pub struct ProxyReencryptionRequest {
 
     // Incentives params
     pub reward_amount: Uint128,
-    pub proxy_withdrawn_stake_amount: Uint128,
+    pub proxy_slashed_amount: Uint128,
 }
 
 // Parent re-encryption request
@@ -58,10 +58,11 @@ pub enum ReencryptionRequestState {
     Inaccessible,
     Ready,
     Granted,
+    Abandoned,
 }
 
 // PROXY_REENCRYPTION_REQUESTS_STORE_KEY
-pub fn set_proxy_reencryption_request(
+pub fn store_set_proxy_reencryption_request(
     storage: &mut dyn Storage,
     proxy_reencryption_request_id: &u64,
     reencryption_request: &ProxyReencryptionRequest,
@@ -74,7 +75,7 @@ pub fn set_proxy_reencryption_request(
     );
 }
 
-pub fn get_proxy_reencryption_request(
+pub fn store_get_proxy_reencryption_request(
     storage: &dyn Storage,
     proxy_reencryption_request_id: &u64,
 ) -> Option<ProxyReencryptionRequest> {
@@ -85,7 +86,7 @@ pub fn get_proxy_reencryption_request(
         .map(|data| from_slice(&data).unwrap())
 }
 
-pub fn remove_proxy_reencryption_request(
+pub fn store_remove_proxy_reencryption_request(
     storage: &mut dyn Storage,
     proxy_reencryption_request_id: &u64,
 ) {
@@ -95,7 +96,7 @@ pub fn remove_proxy_reencryption_request(
 }
 
 // DELEGATEE_REQUESTS_STORE
-pub fn add_delegatee_proxy_reencryption_request(
+pub fn store_add_delegatee_proxy_reencryption_request(
     storage: &mut dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
@@ -117,7 +118,7 @@ pub fn add_delegatee_proxy_reencryption_request(
     );
 }
 
-pub fn get_delegatee_proxy_reencryption_request(
+pub fn store_get_delegatee_proxy_reencryption_request(
     storage: &mut dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
@@ -137,7 +138,7 @@ pub fn get_delegatee_proxy_reencryption_request(
         .map(|data| u64::from_le_bytes(data.try_into().unwrap()))
 }
 
-pub fn get_all_delegatee_proxy_reencryption_requests(
+pub fn store_get_all_delegatee_proxy_reencryption_requests(
     storage: &dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
@@ -161,7 +162,7 @@ pub fn get_all_delegatee_proxy_reencryption_requests(
     deserialized_keys
 }
 
-pub fn remove_delegatee_proxy_reencryption_request(
+pub fn store_remove_delegatee_proxy_reencryption_request(
     storage: &mut dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
@@ -180,7 +181,7 @@ pub fn remove_delegatee_proxy_reencryption_request(
 }
 
 // PROXY_REQUESTS_QUEUE_STORE_KEY
-pub fn add_proxy_reencryption_request_to_queue(
+pub fn store_add_proxy_reencryption_request_to_queue(
     storage: &mut dyn Storage,
     proxy_pubkey: &str,
     proxy_reencryption_request_id: &u64,
@@ -194,7 +195,7 @@ pub fn add_proxy_reencryption_request_to_queue(
     store.set(&proxy_reencryption_request_id.to_le_bytes(), &[1]);
 }
 
-pub fn remove_proxy_reencryption_request_from_queue(
+pub fn store_remove_proxy_reencryption_request_from_queue(
     storage: &mut dyn Storage,
     proxy_pubkey: &str,
     proxy_reencryption_request_id: &u64,
@@ -207,7 +208,7 @@ pub fn remove_proxy_reencryption_request_from_queue(
     store.remove(&proxy_reencryption_request_id.to_le_bytes());
 }
 
-pub fn is_proxy_reencryption_request_in_queue(
+pub fn store_is_proxy_reencryption_request_in_queue(
     storage: &dyn Storage,
     proxy_pubkey: &str,
     proxy_reencryption_request_id: &u64,
@@ -222,7 +223,7 @@ pub fn is_proxy_reencryption_request_in_queue(
         .is_some()
 }
 
-pub fn get_all_proxy_reencryption_requests_in_queue(
+pub fn store_get_all_proxy_reencryption_requests_in_queue(
     storage: &dyn Storage,
     proxy_pubkey: &str,
 ) -> Vec<u64> {
@@ -242,7 +243,7 @@ pub fn get_all_proxy_reencryption_requests_in_queue(
 }
 
 // PARENT_REENCRYPTION_REQUESTS_STORE_KEY
-pub fn set_parent_reencryption_request(
+pub fn store_set_parent_reencryption_request(
     storage: &mut dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
@@ -256,7 +257,7 @@ pub fn set_parent_reencryption_request(
     store.set(delegatee_pubkey.as_bytes(), &to_vec(request).unwrap());
 }
 
-pub fn remove_parent_reencryption_request(
+pub fn store_remove_parent_reencryption_request(
     storage: &mut dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
@@ -269,7 +270,7 @@ pub fn remove_parent_reencryption_request(
     store.remove(delegatee_pubkey.as_bytes());
 }
 
-pub fn get_parent_reencryption_request(
+pub fn store_get_parent_reencryption_request(
     storage: &dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
@@ -291,10 +292,11 @@ pub fn get_reencryption_request_state(
     data_id: &str,
     delegatee_pubkey: &str,
 ) -> ReencryptionRequestState {
-    let parent_request = match get_parent_reencryption_request(storage, data_id, delegatee_pubkey) {
-        None => return ReencryptionRequestState::Inaccessible,
-        Some(parent_request) => parent_request,
-    };
+    let parent_request =
+        match store_get_parent_reencryption_request(storage, data_id, delegatee_pubkey) {
+            None => return ReencryptionRequestState::Inaccessible,
+            Some(parent_request) => parent_request,
+        };
 
     parent_request.state
 }
@@ -305,15 +307,15 @@ pub fn remove_proxy_reencryption_requests(
     proxy_pubkey: &str,
     response: &mut Response,
 ) -> StdResult<()> {
-    let staking_config = get_staking_config(storage)?;
-    let state = get_state(storage)?;
+    let staking_config = store_get_staking_config(storage)?;
+    let state = store_get_state(storage)?;
 
     let mut delegator_retrieve_funds_amount: HashMap<Addr, u128> = HashMap::new();
 
-    for re_request_id in get_all_proxy_reencryption_requests_in_queue(storage, proxy_pubkey) {
-        let mut re_request = get_proxy_reencryption_request(storage, &re_request_id).unwrap();
+    for re_request_id in store_get_all_proxy_reencryption_requests_in_queue(storage, proxy_pubkey) {
+        let mut re_request = store_get_proxy_reencryption_request(storage, &re_request_id).unwrap();
 
-        let mut parent_request = get_parent_reencryption_request(
+        let mut parent_request = store_get_parent_reencryption_request(
             storage,
             &re_request.data_id,
             &re_request.delegatee_pubkey,
@@ -321,9 +323,9 @@ pub fn remove_proxy_reencryption_requests(
         .unwrap();
 
         // Slash current proxy -> Move withdrawn stake to parent_request pool
-        let acquired_stake = re_request.proxy_withdrawn_stake_amount.u128();
-        re_request.proxy_withdrawn_stake_amount = Uint128::new(0);
-        set_proxy_reencryption_request(storage, &re_request_id, &re_request);
+        let acquired_stake = re_request.proxy_slashed_amount.u128();
+        re_request.proxy_slashed_amount = Uint128::new(0);
+        store_set_proxy_reencryption_request(storage, &re_request_id, &re_request);
 
         // Add acquired stake to stake reserved for repaying delegator when request fails to be completed
         parent_request.slashed_stake_amount =
@@ -333,7 +335,7 @@ pub fn remove_proxy_reencryption_requests(
             // Delete other proxies related requests because request cannot be completed without this proxy
 
             // Get all neighbour re-encryption request
-            for i_re_request_id in get_all_delegatee_proxy_reencryption_requests(
+            for i_re_request_id in store_get_all_delegatee_proxy_reencryption_requests(
                 storage,
                 &re_request.data_id,
                 &re_request.delegatee_pubkey,
@@ -352,23 +354,10 @@ pub fn remove_proxy_reencryption_requests(
                 parent_request.slashed_stake_amount.u128(),
             );
 
-            // Delete parent request
-            remove_parent_reencryption_request(
-                storage,
-                &re_request.data_id,
-                &re_request.delegatee_pubkey,
-            );
+            // Update parent request
+            parent_request.state = ReencryptionRequestState::Abandoned;
         } else {
             // Delete only current proxy unfinished request
-
-            // Update parent request
-            parent_request.n_proxy_requests -= 1;
-            set_parent_reencryption_request(
-                storage,
-                &re_request.data_id,
-                &re_request.delegatee_pubkey,
-                &parent_request,
-            );
 
             resolve_proxy_reencryption_requests(
                 storage,
@@ -376,6 +365,15 @@ pub fn remove_proxy_reencryption_requests(
                 &mut delegator_retrieve_funds_amount,
             );
         }
+
+        // Update parent request
+        parent_request.n_proxy_requests -= 1;
+        store_set_parent_reencryption_request(
+            storage,
+            &re_request.data_id,
+            &re_request.delegatee_pubkey,
+            &parent_request,
+        );
     }
 
     // Return stake from unfinished requests to delegators
@@ -397,10 +395,13 @@ pub fn resolve_proxy_reencryption_requests(
     re_request_id: &u64,
     delegator_retrieve_funds_amount: &mut HashMap<Addr, u128>,
 ) {
-    let re_request = get_proxy_reencryption_request(storage, re_request_id).unwrap();
-    let parent_request =
-        get_parent_reencryption_request(storage, &re_request.data_id, &re_request.delegatee_pubkey)
-            .unwrap();
+    let re_request = store_get_proxy_reencryption_request(storage, re_request_id).unwrap();
+    let parent_request = store_get_parent_reencryption_request(
+        storage,
+        &re_request.data_id,
+        &re_request.delegatee_pubkey,
+    )
+    .unwrap();
 
     // Update delegator stake before deleting entry
     update_retrieved_delegator_stake_map(
@@ -410,23 +411,26 @@ pub fn resolve_proxy_reencryption_requests(
     );
 
     // Return remaining stake to proxies if weren't slashed
-    if re_request.proxy_withdrawn_stake_amount.u128() > 0 {
-        let proxy_addr = get_proxy_address(storage, &re_request.proxy_pubkey).unwrap();
-        let mut proxy_entry = get_proxy_entry(storage, &proxy_addr).unwrap();
-        proxy_entry.stake_amount = Uint128(
-            proxy_entry.stake_amount.u128() + re_request.proxy_withdrawn_stake_amount.u128(),
-        );
-        set_proxy_entry(storage, &proxy_addr, &proxy_entry);
+    if re_request.proxy_slashed_amount.u128() > 0 {
+        let proxy_addr = store_get_proxy_address(storage, &re_request.proxy_pubkey).unwrap();
+        let mut proxy_entry = store_get_proxy_entry(storage, &proxy_addr).unwrap();
+        proxy_entry.stake_amount =
+            Uint128(proxy_entry.stake_amount.u128() + re_request.proxy_slashed_amount.u128());
+        store_set_proxy_entry(storage, &proxy_addr, &proxy_entry);
     }
 
-    remove_delegatee_proxy_reencryption_request(
+    store_remove_delegatee_proxy_reencryption_request(
         storage,
         &re_request.data_id,
         &re_request.delegatee_pubkey,
         &re_request.proxy_pubkey,
     );
-    remove_proxy_reencryption_request_from_queue(storage, &re_request.proxy_pubkey, re_request_id);
-    remove_proxy_reencryption_request(storage, re_request_id);
+    store_remove_proxy_reencryption_request_from_queue(
+        storage,
+        &re_request.proxy_pubkey,
+        re_request_id,
+    );
+    store_remove_proxy_reencryption_request(storage, re_request_id);
 }
 
 pub fn get_all_fragments(
@@ -436,9 +440,9 @@ pub fn get_all_fragments(
 ) -> Vec<String> {
     let mut fragments: Vec<String> = Vec::new();
     for request_id in
-        get_all_delegatee_proxy_reencryption_requests(storage, data_id, delegatee_pubkey)
+        store_get_all_delegatee_proxy_reencryption_requests(storage, data_id, delegatee_pubkey)
     {
-        let request = get_proxy_reencryption_request(storage, &request_id).unwrap();
+        let request = store_get_proxy_reencryption_request(storage, &request_id).unwrap();
 
         match request.fragment {
             None => continue,

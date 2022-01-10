@@ -48,21 +48,21 @@ pub struct DataEntry {
 // Getters and setters
 
 // STATE
-pub fn get_state(storage: &dyn Storage) -> StdResult<State> {
+pub fn store_get_state(storage: &dyn Storage) -> StdResult<State> {
     singleton_read(storage, STATE_KEY).load()
 }
 
-pub fn set_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
+pub fn store_set_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
     let mut singl: Singleton<State> = singleton(storage, STATE_KEY);
     singl.save(state)
 }
 
 // STAKING_CONFIG
-pub fn get_staking_config(storage: &dyn Storage) -> StdResult<StakingConfig> {
+pub fn store_get_staking_config(storage: &dyn Storage) -> StdResult<StakingConfig> {
     singleton_read(storage, STAKING_CONFIG_KEY).load()
 }
 
-pub fn set_staking_config(
+pub fn store_set_staking_config(
     storage: &mut dyn Storage,
     staking_config: &StakingConfig,
 ) -> StdResult<()> {
@@ -71,12 +71,12 @@ pub fn set_staking_config(
 }
 
 // DATA_ENTRIES
-pub fn set_data_entry(storage: &mut dyn Storage, data_id: &str, data_entry: &DataEntry) {
+pub fn store_set_data_entry(storage: &mut dyn Storage, data_id: &str, data_entry: &DataEntry) {
     let mut store = PrefixedStorage::new(storage, DATA_ENTRIES_KEY);
     store.set(data_id.as_bytes(), &to_vec(data_entry).unwrap());
 }
 
-pub fn get_data_entry(storage: &dyn Storage, data_id: &str) -> Option<DataEntry> {
+pub fn store_get_data_entry(storage: &dyn Storage, data_id: &str) -> Option<DataEntry> {
     let store = ReadonlyPrefixedStorage::new(storage, DATA_ENTRIES_KEY);
 
     store
@@ -85,7 +85,7 @@ pub fn get_data_entry(storage: &dyn Storage, data_id: &str) -> Option<DataEntry>
 }
 
 // DELEGATOR_ADDRESS
-pub fn set_delegator_address(
+pub fn store_set_delegator_address(
     storage: &mut dyn Storage,
     delegator_pubkey: &str,
     delegator_addr: &Addr,
@@ -95,7 +95,7 @@ pub fn set_delegator_address(
     storage.set(delegator_pubkey.as_bytes(), delegator_addr.as_bytes());
 }
 
-pub fn get_delegator_address(storage: &dyn Storage, delegator_pubkey: &str) -> Option<Addr> {
+pub fn store_get_delegator_address(storage: &dyn Storage, delegator_pubkey: &str) -> Option<Addr> {
     let store = ReadonlyPrefixedStorage::new(storage, DELEGATOR_ADDRESS_KEY);
 
     let res = store.get(delegator_pubkey.as_bytes());

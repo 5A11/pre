@@ -29,7 +29,8 @@
       "enum": [
         "inaccessible",
         "ready",
-        "granted"
+        "granted",
+        "abandoned"
       ]
     }
   }

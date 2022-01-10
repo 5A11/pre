@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .constants import ENCRYPTION_MAX_LENGTH, LEDGER_MAX_LENGTH
+from .models import UserProfile
 
 
 User = get_user_model()
@@ -13,6 +14,7 @@ User = get_user_model()
 HTTP_OK = 200
 HTTP_CREATED = 201
 HTTP_BAD_REQUEST = 400
+HTTP_NOT_FOUND = 404
 
 ENCRYPTION_EXAMPLE = "a" * ENCRYPTION_MAX_LENGTH
 LEDGER_EXAMPLE = "b" * LEDGER_MAX_LENGTH
@@ -164,4 +166,90 @@ class LoginTestCase(TestCase):
             "non_field_errors": ["Unable to log in with provided credentials."]
         }
         self.assertEqual(status_code, HTTP_BAD_REQUEST)
+        self.assertEqual(result, expected_result)
+
+
+class UserProfileAPIViewTestCase(TestCase):
+    """Test case for UserProfileAPIView."""
+
+    fixtures = [
+        "pre_backend/fixtures/users.json",
+        "pre_backend/fixtures/user_profiles.json",
+    ]
+
+    def test_get_user_profile_positive(self):
+        """Test Get user profile for positive result."""
+        username = "admin"
+        self.client.login(username=username, password="admin")
+
+        user_profile = UserProfile.objects.get(user__username=username)
+
+        url = reverse("user-profile")
+        response = self.client.get(url)
+        result, status_code = response.json(), response.status_code
+        self.assertEqual(status_code, HTTP_OK)
+        expected_result = {
+            "encryption": user_profile.encryption,
+            "ledger": user_profile.ledger,
+        }
+        self.assertEqual(result, expected_result)
+
+    def test_get_user_profile_negative(self):
+        """Test Get user profile for negative result: user does not have UserProfile."""
+        username = "new_user"
+        password = "p@ssw0rd"
+        email = "email@example.com"
+        User.objects.create_user(username, email, password)
+
+        self.client.login(username=username, password=password)
+
+        url = reverse("user-profile")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, HTTP_NOT_FOUND)
+
+    def test_update_user_profile_positive(self):
+        """Test update UseProfile for positive result."""
+        username = "admin"
+        self.client.login(username=username, password="admin")
+
+        url = reverse("user-profile")
+        data = {
+            "encryption": "e" * ENCRYPTION_MAX_LENGTH,
+            "ledger": "f" * LEDGER_MAX_LENGTH,
+        }
+        response = self.client.put(
+            url,
+            data,
+            content_type="application/json",
+        )
+        result, status_code = response.json(), response.status_code
+        self.assertEqual(status_code, HTTP_OK)
+        expected_result = data
+        self.assertEqual(result, expected_result)
+
+    def test_update_user_profile_negative(self):
+        """Test update UseProfile for negative result."""
+        username = "admin"
+        self.client.login(username=username, password="admin")
+
+        url = reverse("user-profile")
+        data = {
+            "encryption": "e" * (ENCRYPTION_MAX_LENGTH + 1),
+            "ledger": "f" * (LEDGER_MAX_LENGTH + 1),
+        }
+        response = self.client.put(
+            url,
+            data,
+            content_type="application/json",
+        )
+        result, status_code = response.json(), response.status_code
+        self.assertEqual(status_code, HTTP_BAD_REQUEST)
+        expected_result = {
+            "encryption": [
+                f"Ensure this field has no more than {ENCRYPTION_MAX_LENGTH} characters."
+            ],
+            "ledger": [
+                f"Ensure this field has no more than {LEDGER_MAX_LENGTH} characters."
+            ],
+        }
         self.assertEqual(result, expected_result)

@@ -49,5 +49,6 @@ urlpatterns = [
     path("rest-auth/registration/", include("rest_auth.registration.urls")),
     
     # Internal URLs
+    path("authorization/", include("pre_backend.apps.authorization.urls")),
     path("data-accesses/", include("pre_backend.apps.data_accesses.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -12,6 +12,7 @@ from .constants import (
     LEDGER_MIN_LENGTH,
 )
 from .helpers import create_user_profile
+from .models import UserProfile
 
 
 class RegisterSerializer(BaseRegisterSerializer):
@@ -32,3 +33,16 @@ class RegisterSerializer(BaseRegisterSerializer):
         )
         create_user_profile(user, encryption, ledger)
         user.save()
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """UserProfile serializer."""
+
+    class Meta:
+        """DataAccess list serializer setup."""
+
+        model = UserProfile
+        fields = (
+            "encryption",
+            "ledger",
+        )

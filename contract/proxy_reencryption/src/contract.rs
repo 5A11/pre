@@ -16,10 +16,11 @@ use crate::state::{
 };
 
 use crate::delegations::{
-    get_delegation_state, get_n_available_proxies_from_delegation, remove_proxy_delegations,
-    store_add_per_proxy_delegation, store_get_all_proxies_from_delegation, store_get_delegation,
-    store_get_proxy_delegation_id, store_is_proxy_delegation_empty, store_set_delegation,
-    store_set_delegation_id, ProxyDelegation,
+    get_delegation_state, get_n_available_proxies_from_delegation,
+    get_n_minimum_proxies_for_refund, remove_proxy_delegations, store_add_per_proxy_delegation,
+    store_get_all_proxies_from_delegation, store_get_delegation, store_get_proxy_delegation_id,
+    store_is_proxy_delegation_empty, store_set_delegation, store_set_delegation_id,
+    ProxyDelegation,
 };
 use crate::reencryption_requests::{
     get_all_fragments, get_reencryption_request_state, remove_proxy_reencryption_requests,
@@ -65,12 +66,6 @@ pub fn instantiate(
         return generic_err!("Threshold cannot be 0");
     }
 
-    if state.n_max_proxies < state.threshold {
-        return generic_err!("Value of n_max_proxies cannot be lower than threshold.");
-    }
-
-    store_set_state(deps.storage, &state)?;
-
     let staking_config = StakingConfig {
         stake_denom: msg.stake_denom,
         minimum_proxy_stake_amount: msg
@@ -84,6 +79,14 @@ pub fn instantiate(
             .unwrap_or_else(|| Uint128::new(DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT)),
     };
     store_set_staking_config(deps.storage, &staking_config)?;
+
+    if state.n_max_proxies < get_n_minimum_proxies_for_refund(&state, &staking_config) {
+        return generic_err!(
+            "Value of n_max_proxies cannot be lower than minimum proxies to refund delegator."
+        );
+    }
+
+    store_set_state(deps.storage, &state)?;
 
     let new_proxy = Proxy {
         state: ProxyState::Authorised,
@@ -700,13 +703,15 @@ fn try_request_reencryption(
         &staking_config.minimum_request_reward_amount.u128(),
     );
 
+    let n_minimum_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
+
     // Not enough request can be created
-    if n_available_proxies < state.threshold {
+    if n_available_proxies < n_minimum_proxies {
         return generic_err!(format!(
-            "Proxies are too busy, try again later. Available {} proxies out of {}, threshold is {}",
+            "Proxies are too busy, try again later. Available {} proxies out of {}, minimum is {}",
             n_available_proxies,
             proxy_pubkeys.len(),
-            state.threshold
+            n_minimum_proxies
         ));
     }
 
@@ -1061,13 +1066,17 @@ fn ensure_stake(
 
 fn select_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<String>> {
     let state: State = store_get_state(store)?;
+    let staking_config: StakingConfig = store_get_staking_config(store)?;
+
     let proxy_pubkeys = store_get_all_active_proxy_pubkeys(store);
 
     // Select n_max_proxies or maximum possible
     let n_proxies = std::cmp::min(state.n_max_proxies as usize, proxy_pubkeys.len());
 
-    if n_proxies < state.threshold as usize {
-        return generic_err!("Less proxies than threshold registered");
+    let n_min_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
+
+    if n_proxies < n_min_proxies as usize {
+        return generic_err!("Less than minimum proxies registered");
     }
 
     Ok(proxy_pubkeys[0..n_proxies].to_vec())

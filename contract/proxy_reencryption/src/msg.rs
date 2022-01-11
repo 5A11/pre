@@ -130,7 +130,6 @@ pub struct GetAvailableProxiesResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetDataIDResponse {
     pub data_entry: Option<DataEntry>,
-    // OTHER
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

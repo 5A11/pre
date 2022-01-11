@@ -1,5 +1,5 @@
 use crate::proxies::{store_get_proxy_address, store_get_proxy_entry};
-use crate::state::{store_get_staking_config, store_get_state};
+use crate::state::{store_get_staking_config, store_get_state, StakingConfig, State};
 use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
@@ -253,7 +253,7 @@ pub fn get_delegation_state(
                 delegatee_pubkey,
                 &staking_config.per_request_slash_stake_amount.u128(),
             );
-            if n_available_proxies < state.threshold {
+            if n_available_proxies < get_n_minimum_proxies_for_refund(&state, &staking_config) {
                 DelegationState::ProxiesAreBusy
             } else {
                 DelegationState::Active
@@ -319,4 +319,33 @@ pub fn get_n_available_proxies_from_delegation(
         }
     }
     n_available_proxies
+}
+
+pub fn get_n_minimum_proxies_for_refund(state: &State, staking_config: &StakingConfig) -> u32 {
+    // n_minimum_proxies = (threshold-1) + ceil((reward_amount*(threshold-1))/slash_amount)
+
+    // Prevent zero division
+    if staking_config.per_request_slash_stake_amount.u128() == 0 {
+        return state.threshold;
+    }
+
+    // n_maximum proxies that can finish job when re-encryption can still fail
+    let fail_threshold: u32 = state.threshold - 1;
+
+    // Worst case scenario of refunding
+    let maximum_amount_to_refund: u128 =
+        staking_config.minimum_request_reward_amount.u128() * fail_threshold as u128;
+
+    // Number of extra proxies needed to refund
+    // n_extra_proxies = CEIL(maximum_amount_to_refund/per_request_slash_stake_amount)
+    let mut n_extra_proxies =
+        maximum_amount_to_refund / staking_config.per_request_slash_stake_amount.u128();
+
+    // Ceiling division
+    if maximum_amount_to_refund % staking_config.per_request_slash_stake_amount.u128() != 0 {
+        n_extra_proxies += 1;
+    }
+
+    // Limit minimum to threshold
+    std::cmp::max(fail_threshold + n_extra_proxies as u32, state.threshold)
 }

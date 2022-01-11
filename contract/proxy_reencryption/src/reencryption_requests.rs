@@ -356,6 +356,7 @@ pub fn remove_proxy_reencryption_requests(
 
             // Update parent request
             parent_request.state = ReencryptionRequestState::Abandoned;
+            parent_request.slashed_stake_amount = Uint128::new(0);
         } else {
             // Delete only current proxy unfinished request
 

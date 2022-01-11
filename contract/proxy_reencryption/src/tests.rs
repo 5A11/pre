@@ -9,9 +9,10 @@ use crate::contract::{
     DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT, DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT,
 };
 use crate::delegations::{
-    get_delegation_state, get_n_available_proxies_from_delegation, store_add_per_proxy_delegation,
-    store_get_delegation, store_get_proxy_delegation_id, store_is_proxy_delegation,
-    store_set_delegation, store_set_delegation_id, DelegationState, ProxyDelegation,
+    get_delegation_state, get_n_available_proxies_from_delegation,
+    get_n_minimum_proxies_for_refund, store_add_per_proxy_delegation, store_get_delegation,
+    store_get_proxy_delegation_id, store_is_proxy_delegation, store_set_delegation,
+    store_set_delegation_id, DelegationState, ProxyDelegation,
 };
 use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegationString, ProxyTask};
 use crate::proxies::{
@@ -27,7 +28,8 @@ use crate::reencryption_requests::{
     ReencryptionRequestState,
 };
 use crate::state::{
-    store_get_data_entry, store_get_delegator_address, store_get_state, DataEntry, State,
+    store_get_data_entry, store_get_delegator_address, store_get_state, DataEntry, StakingConfig,
+    State,
 };
 
 fn mock_env_height(signer: &Addr, height: u64, coins: &Vec<Coin>) -> (Env, MessageInfo) {
@@ -289,7 +291,7 @@ fn test_new_contract_custom_values() {
             &None,
             &None,
         ),
-        "lower than threshold",
+        "cannot be lower than minimum proxies",
     ));
 
     // Threshold cannot be zero
@@ -450,7 +452,7 @@ fn test_register_unregister_proxy() {
     // Check proxy state
     assert!(!store_get_is_proxy_active(
         deps.as_mut().storage,
-        &proxy_pubkey
+        &proxy_pubkey,
     ));
     assert!(get_next_proxy_task(deps.as_mut().storage, &proxy_pubkey)
         .unwrap()
@@ -487,7 +489,7 @@ fn test_register_unregister_proxy() {
     // Check proxy state
     assert!(store_get_is_proxy_active(
         deps.as_mut().storage,
-        &proxy_pubkey
+        &proxy_pubkey,
     ));
     assert!(get_next_proxy_task(deps.as_mut().storage, &proxy_pubkey)
         .unwrap()
@@ -753,7 +755,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
             &delegator1_pubkey,
             &delegatee_pubkey,
         ),
-        "Delegation already exist"
+        "Delegation already exist",
     ));
 
     // Reencryption can't be requested yet - No delegation strings added
@@ -2344,7 +2346,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // Check proxy state
     assert!(store_get_is_proxy_active(
         deps.as_mut().storage,
-        &proxy2_pubkey
+        &proxy2_pubkey,
     ));
     assert!(get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey)
         .unwrap()
@@ -2374,7 +2376,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // Check proxy state
     assert!(!store_get_is_proxy_active(
         deps.as_mut().storage,
-        &proxy2_pubkey
+        &proxy2_pubkey,
     ));
     assert!(get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey)
         .unwrap()
@@ -2508,7 +2510,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // Check proxy state
     assert!(!store_get_is_proxy_active(
         deps.as_mut().storage,
-        &proxy2_pubkey
+        &proxy2_pubkey,
     ));
     assert!(get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey)
         .unwrap()
@@ -2843,7 +2845,7 @@ fn test_proxy_add_stake() {
 
     assert!(is_err(
         add_stake(deps.as_mut(), &proxy1, &proxy_wrong_coins_additional_stake),
-        "Expected 1 Coin with denom atestfet"
+        "Expected 1 Coin with denom atestfet",
     ));
     assert!(add_stake(deps.as_mut(), &proxy1, &proxy_additional_stake).is_ok());
 
@@ -2891,7 +2893,7 @@ fn test_proxy_insufficient_funds_request_skip() {
     // Staking
     let stake_denom = String::from("atestfet");
     let minimum_proxy_stake_amount: u128 = 100;
-    let minimum_request_reward_amount: u128 = 99;
+    let minimum_request_reward_amount: u128 = 40;
     let per_request_slash_stake_amount: u128 = 98;
 
     let proxy1_stake = vec![Coin {
@@ -2946,15 +2948,15 @@ fn test_proxy_insufficient_funds_request_skip() {
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id1, &delegator1_pubkey,).is_ok());
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id2, &delegator1_pubkey,).is_ok());
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id3, &delegator1_pubkey,).is_ok());
+    assert!(add_data(deps.as_mut(), &delegator1, &data_id1, &delegator1_pubkey).is_ok());
+    assert!(add_data(deps.as_mut(), &delegator1, &data_id2, &delegator1_pubkey).is_ok());
+    assert!(add_data(deps.as_mut(), &delegator1, &data_id3, &delegator1_pubkey).is_ok());
 
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
         &delegator1,
         &delegator1_pubkey,
-        &delegatee1_pubkey
+        &delegatee1_pubkey,
     )
     .is_ok());
 
@@ -2978,7 +2980,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         &delegator1,
         &delegator1_pubkey,
         &delegatee1_pubkey,
-        &proxy_delegations
+        &proxy_delegations,
     )
     .is_ok());
 
@@ -2988,7 +2990,7 @@ fn test_proxy_insufficient_funds_request_skip() {
             deps.as_mut().storage,
             &delegator1_pubkey,
             &delegatee1_pubkey,
-            &per_request_slash_stake_amount
+            &per_request_slash_stake_amount,
         ),
         3
     );
@@ -2997,7 +2999,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         &delegator1,
         &data_id1,
         &delegatee1_pubkey,
-        &request_reward_3_proxies
+        &request_reward_3_proxies,
     )
     .is_ok());
 
@@ -3019,7 +3021,7 @@ fn test_proxy_insufficient_funds_request_skip() {
             deps.as_mut().storage,
             &delegator1_pubkey,
             &delegatee1_pubkey,
-            &per_request_slash_stake_amount
+            &per_request_slash_stake_amount,
         ),
         2
     );
@@ -3027,7 +3029,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         get_delegation_state(
             deps.as_mut().storage,
             &delegator1_pubkey,
-            &delegatee1_pubkey
+            &delegatee1_pubkey,
         ),
         DelegationState::Active
     );
@@ -3037,7 +3039,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         &delegator1,
         &data_id2,
         &delegatee1_pubkey,
-        &request_reward_2_proxies
+        &request_reward_2_proxies,
     )
     .is_ok());
 
@@ -3052,7 +3054,7 @@ fn test_proxy_insufficient_funds_request_skip() {
             deps.as_mut().storage,
             &delegator1_pubkey,
             &delegatee1_pubkey,
-            &per_request_slash_stake_amount
+            &per_request_slash_stake_amount,
         ),
         1
     );
@@ -3061,7 +3063,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         get_delegation_state(
             deps.as_mut().storage,
             &delegator1_pubkey,
-            &delegatee1_pubkey
+            &delegatee1_pubkey,
         ),
         DelegationState::ProxiesAreBusy
     );
@@ -3071,9 +3073,9 @@ fn test_proxy_insufficient_funds_request_skip() {
             &delegator1,
             &data_id2,
             &delegatee1_pubkey,
-            &request_reward_1_proxy
+            &request_reward_1_proxy,
         ),
-        "Proxies are too busy, try again later. Available 1 proxies out of 3, threshold is 2"
+        "Proxies are too busy, try again later. Available 1 proxies out of 3, minimum is 2"
     ));
 
     // Requests:
@@ -3113,7 +3115,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         store_get_all_delegatee_proxy_reencryption_requests(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee1_pubkey
+            &delegatee1_pubkey,
         )
         .len(),
         2
@@ -3121,14 +3123,14 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert!(store_get_parent_reencryption_request(
         deps.as_mut().storage,
         &data_id1,
-        &delegatee1_pubkey
+        &delegatee1_pubkey,
     )
     .is_some());
 
     assert!(store_get_all_delegatee_proxy_reencryption_requests(
         deps.as_mut().storage,
         &data_id2,
-        &delegatee1_pubkey
+        &delegatee1_pubkey,
     )
     .is_empty());
     assert_eq!(
@@ -3179,7 +3181,7 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert!(store_get_all_delegatee_proxy_reencryption_requests(
         deps.as_mut().storage,
         &data_id1,
-        &delegatee1_pubkey
+        &delegatee1_pubkey,
     )
     .is_empty());
     assert_eq!(
@@ -3192,7 +3194,7 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert!(store_get_all_delegatee_proxy_reencryption_requests(
         deps.as_mut().storage,
         &data_id2,
-        &delegatee1_pubkey
+        &delegatee1_pubkey,
     )
     .is_empty());
     assert_eq!(
@@ -3209,7 +3211,108 @@ fn test_proxy_insufficient_funds_request_skip() {
         unregister_response.messages[0],
         CosmosMsg::Bank(BankMsg::Send {
             to_address: proxy1.to_string(),
-            amount: vec![Coin::new(minimum_proxy_stake_amount, stake_denom.as_str(),)],
+            amount: vec![Coin::new(minimum_proxy_stake_amount, stake_denom.as_str())],
         })
     );
+}
+
+#[test]
+fn test_get_n_minimum_proxies_for_refund() {
+    let mut state = State {
+        admin: Addr::unchecked("admin"),
+        threshold: 123,
+        n_max_proxies: 0,
+        next_proxy_request_id: 0,
+        next_delegation_id: 0,
+    };
+    let mut staking_config = StakingConfig {
+        stake_denom: "denom".to_string(),
+        minimum_proxy_stake_amount: Uint128(0),
+        minimum_request_reward_amount: Uint128(0),
+        per_request_slash_stake_amount: Uint128(0),
+    };
+
+    // zero division case
+    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_request_slash_stake_amount = Uint128(0);
+    state.threshold = 123;
+    assert_eq!(
+        get_n_minimum_proxies_for_refund(&state, &staking_config),
+        123
+    );
+
+    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_request_slash_stake_amount = Uint128(100);
+    state.threshold = 3;
+    assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 4);
+
+    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_request_slash_stake_amount = Uint128(100);
+    state.threshold = 123;
+    assert_eq!(
+        get_n_minimum_proxies_for_refund(&state, &staking_config),
+        244
+    );
+
+    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_request_slash_stake_amount = Uint128(50);
+    state.threshold = 123;
+    assert_eq!(
+        get_n_minimum_proxies_for_refund(&state, &staking_config),
+        366
+    );
+
+    staking_config.minimum_request_reward_amount = Uint128(50);
+    staking_config.per_request_slash_stake_amount = Uint128(100);
+    state.threshold = 123;
+    assert_eq!(
+        get_n_minimum_proxies_for_refund(&state, &staking_config),
+        183
+    );
+
+    staking_config.minimum_request_reward_amount = Uint128(1);
+    staking_config.per_request_slash_stake_amount = Uint128(121);
+    state.threshold = 123;
+    assert_eq!(
+        get_n_minimum_proxies_for_refund(&state, &staking_config),
+        124
+    );
+
+    staking_config.minimum_request_reward_amount = Uint128(1);
+    staking_config.per_request_slash_stake_amount = Uint128(122);
+    state.threshold = 123;
+    assert_eq!(
+        get_n_minimum_proxies_for_refund(&state, &staking_config),
+        123
+    );
+
+    staking_config.minimum_request_reward_amount = Uint128(1);
+    staking_config.per_request_slash_stake_amount = Uint128(1000);
+    state.threshold = 10;
+    assert_eq!(
+        get_n_minimum_proxies_for_refund(&state, &staking_config),
+        10
+    );
+
+    staking_config.minimum_request_reward_amount = Uint128(1000);
+    staking_config.per_request_slash_stake_amount = Uint128(1);
+    state.threshold = 10;
+    assert_eq!(
+        get_n_minimum_proxies_for_refund(&state, &staking_config),
+        9009
+    );
+
+    // Large numbers check
+    staking_config.minimum_request_reward_amount = Uint128(100000000000000000000);
+    staking_config.per_request_slash_stake_amount = Uint128(1000000000000);
+    state.threshold = 10;
+    assert_eq!(
+        get_n_minimum_proxies_for_refund(&state, &staking_config),
+        900000009
+    );
+
+    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_request_slash_stake_amount = Uint128(100);
+    state.threshold = 1;
+    assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 1);
 }

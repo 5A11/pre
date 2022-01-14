@@ -32,6 +32,29 @@ use crate::state::{
     State,
 };
 
+// Test constants
+const DEFAULT_STAKE_DENOM: &str = "atestfet";
+
+const DELEGATOR1_PUBKEY: &str = "ApEPhAeq+TAL5aKiRkIpdoJ2pD+6qSt1RqHxGthT+XRY";
+const DELEGATOR2_PUBKEY: &str = "AutXYFCdptyMx71HRDCyUm1eNDZVAFfDlbWTJQydiCBl";
+
+const DELEGATEE1_PUBKEY: &str = "A5CYTfwD0EocpW4gCKtnP1lIFkMveO55v5+nbJaLqmLX";
+const DELEGATEE2_PUBKEY: &str = "AnJgbnA4RwLalI9Vi2xQSTVD7MRGeb4kiRQ8/kqzJyIK";
+
+const CAPSULE: &str = "Ax83HFfEW1e+DW3KlikFLELPOVqYnlS39baHHC+/vsB4AmV+m1r9eZ6nCV9KXv7dSH+bSdWFbsqWFTxfF5qsjwObLtgsZUVSt8iv8UtkP0bLJs2sguElu4Syek6Seh3ZTj4=";
+
+const FRAGMENT_P1_DR1_DE1: &str = "Agn8MTBWSKzz277FLeNKvhOwa3juw7HBciLmyA/3kZ2hAtQv0l/B+Ej2vQLxZDx+MHDr5uevth9PzntoIz6gbPI1xJk3dVwZohs3YgdaXJsBXpAambF1FpOGrola7KcwjtQDOL6tYr3e6dlMgsW9GnONyZUWk15ixjxdrAIZfp8qWAMCbOd9fCO820cnEqBeQHpit75l8gxb6Al3s28p4uMFeq4Dzsh5SbQgRk7KjI9LEq2a9YzQ2ts3O5KEx3SuZoCOE0UDns625ayBRPD5BHdYwGaCGo/w6oJ5PvRp7rEpMSvxpOACu5HXcj2KNZnzAc2QGNrHmrAIxxS4pUbp7ffoPjSK/eGOs3Yh2IaeLQMzj2FNpUCYii6D3KJMT5sWqdKQV+5Aw6ebgujLY0o4Gs2aJ3toE3GuNuSfwFKzySmpq5CfSGaJJftZDYt72g7t8cRKVFXT6D8ugCXfMVL6GRE7adJEkYU=";
+const FRAGMENT_P2_DR1_DE1: &str = "ArsxPns0fAKMt28wRjja8VL39o1qB2KMQNDAn6FFPslEAlEo4UNoSUXoxfDSkROjb1wuO4V6WqKA006R2W84g1asBaLS9NN4UFdAH7fLOr+SsyA7eMZABzLCp8r/jlS3P+4DOL6tYr3e6dlMgsW9GnONyZUWk15ixjxdrAIZfp8qWAMChJzdKNOmu/YU9gc7wJqJh00pojqHNp0c259JpteHu7sCSY6RGI61WSoded9gCnw2RjmgC7SGSLi1l00zku+09bMC89+mYLBp6Kn59mV2e/Kc3GtlZoA0ZEa8SEkCmwGqzfcCtpmg7uxd38Uylf6XXbA0bg4AVvWY5WtuD/oW0dCgYSacnjktP9RjQVzwEDvb0TSId67E80BSkdmX0g1mBmvYBy2MbnhFpC1BUC6PMPs5wSa+Mo8o3DP7kMJ1gHTqJYcJBGfgG4DtfcnjjOuJugZEloo+67P9mYzVFVXCJHTrldQ=";
+
+const FRAGMENT_P1_DR1_DE2: &str = "A5fWxYyjkfJu/k2oq5A6w+pLgRtWRIKu2uEHe/i0AGSiAsK7jq0a7KjTeiBCBRTC64ATDb/QfYQ9CBoiF5FDdbJwh3Yb5RoZgkclP0cqNtftZnRCdVUuycy2UpQ7f4x5tFkCkymfOr+pOYAe56kPnK9cTGjuwGdgcrV3i5A1ocF5xYsD0mFd9APeYHeRjAIgPzM3na8xJuYgSdY9FA6upZOYqxkDGWHWjB6Uvjby3zTbN+A8vuQmHRx0NST4ICR5HfKCCPQCE6/D/Dep4lyf4v9E03VgMisZKFWW7+YP5qAIWgNDSPoCb8OqfDTrYzJSKGZg+ti4l/Cjo5PaqmlZlj1MCR/Rb906nywBtIQCU9iVAHGUnE8h9QV+kYWik4s2Vcq2W6r/Y6MXnYLK9JsYpIwny6zDwHzOwfTk4Wn9mLGENf4q2s/5ZeM/1TJIu6wECI+L5zmGMWl40iloHhHcxeCVKwKnM0s=";
+const FRAGMENT_P2_DR1_DE2: &str = "AjLk43WgIexBQf0ABO3E6hd2BVZ1HCBrJQ0c8uRgclpgAlB2ijedmrkT1QNYSQ1oPVHE09/8uDGEyovAi4SmJDzKNv9py/jaCqGACwFebtl8knFosOcLok6K4+zM5opfBT4CkymfOr+pOYAe56kPnK9cTGjuwGdgcrV3i5A1ocF5xYsCZrz/src1xaM+pmvzfcEmgIcaDvoIn9Aht2WcWp2tVS8Dp//y8AxVoATdPzGMQYbXoC6CDEukMH3AP5BpfcteLcQDF5V+A0Jp7a2rbHhEE2nRjN1P0ADRf/8C4K5RC+UPMb4CaVYIM8PXJ9mIChdZqvwsnl9SytT8HMjuEYK4AO5HSDoNGFNeBeckZorwm15pgVRPozsNXA9cKaQLD1zAWTqTUi4hOciWZrQd9UIAwPh+UCLNYPUp/Br+G05KHPr2no5iIZuhd/ssq8XK9DHz03vsTSuOg4bB2YI7YgumrFKR4Yc=";
+
+//const FRAGMENT_P1_DR2_DE1: &str = "At8lxfrtHYMW7Ggucuj1nlYZbYxFZw+gWncOpTEBP5m7ApS5Vtc8LyT1AxrFUX160D2Et199se837PzqLH9lh5fJlymgRquhUhz2UuANM9C3qlu6KXFBmRCWk20r3EuW7mUDImFyRCX5EEulxrzCUdlyW4WkaXYEoRhInWu/ZZBaC/UD77G9xuQvoqzw7UKus1E3CWBxNMtOO1XYDIgWphy71RwCPVcwIH3W7/blsds2AaATSCquOSgm6aXoi6zBm7BeH6ICPGL+pzZ0hgeLxwTEd8KDVAIJy8LJBjjt+BzGPa0DCrwCxrHiIEDQmEk5+QygrAnHjz0mGzI/iE3FFIk9vesZ5MAp3y1M66+9nXSdn3kAYgiVCt28+zBTzviEdaTVWeefii7+gh+rgG1j0xCO6KYIaa7t7mIBF8SMVgRILsAyx42lBSHr+kUjBGChjzDoTHDWOBEnB3XcTlzoFC3VufpZPsQ=";
+//const FRAGMENT_P2_DR2_DE1: &str = "AtdmQFFcyKtslY4ocZnuIqpSisE2IqZanCWtOiCA/T5zA1MJ79pbT8xCnFjSOfTIbi6yRckRlH0Vy2qQ/PI+D9CdJgJ8dzdVmpvp0EgvjJIdc6TIsNnAPH9urI8Z2j4FL5YDImFyRCX5EEulxrzCUdlyW4WkaXYEoRhInWu/ZZBaC/UDcKATTVzEGtLGhAmqtJTbb1DFoDwBaq9oCd+uwvAqKjQCiURQGGkTwvYEVYNa+IRYi4IWLLE9BswFJLUO0kRCkdMDZ9ALbgi7PTgxER0Qut1zeWpSvIgD+ebHLDSFgUMv3KYDAp+CzqPK/NCqWmSc+Ystk3RKAqthQGXfBUHineHz+zS67gFeeLDmMYhmt+knBcoGUrNIKJW6vjYc0NiahjueM5AHc6kPIeXCePTrqDvqJttVWBB8bNo82HWvLrIMBNZ3D7MZDA43yeOumoemYrsLZlLNCQ6gb7MX1Se23mGIYMY=";
+
+//const FRAGMENT_P1_DR2_DE2: &str = "AuYwuHs4w5F2thK/JDQ6WOBXAnxRKhzv53Lt8P/mJzaVA2ew70g/IdqDfKtLGnjQHWnA0kmBPo6TRq4lotajsC6vbe0QaAelnniHEpbYLP+g7CA6Dz58YAgx8OFL17xNJJgDrVSv5azExD+hZ7PMWE6JAkArWG452RjvQ9x9Quyl/YMC4MjqT6t3Puj9+oJvdfNpaxcUkQXx7tVix1B3NALOKG8C7xt8mwSl1wlxmgvqwf9c2EOEqNVXnm8b8vevmc3zdf4Db/9atkgY94bRt1/YLq0Qv8pS6yG6lQ6Z5TQ8hFYadigDOU6W1V8wAA9mIJn9Jo1lk3APS/u+GNLm03SAWsUgCb9svLYmK8UKJ5g3RlLrsdpFhxJc9AS41kIwd4JvQPFPjpLAjOFdIcoP+o7Q1LC9xj+DpmJWwPAtr6AvHhMGsSLfCjN9zDU7SKgYCFvWyv+l+8CT/heCCrfhDcNhUYiN6YI=";
+//const FRAGMENT_P2_DR2_DE2: &str = "A7cqB41cE3itmN+sjCfhOkoCNIADq6QnlD0UyR8+hfeSA9rbkfY2weSSR8uahlWN7wXYejcN3SLuFNJqo60b4AbeWw8qARl55NWUyy/c/WWgYQGX3n6MEmA8Cy4hV2ginYoDrVSv5azExD+hZ7PMWE6JAkArWG452RjvQ9x9Quyl/YMCVKNFtLT3ZdukPOpedQvo0U5+KQm1m60keBXdHORdCwsDndeZL8061hMG8u8dVYhJwKDZBkQ5DW2fGisAxB/v5ysDe2qkKVZKdUPpoRrHFa5oGeZF+wFcu+fD8s2QNDW7QuMCzUkvs7F6N86KfY4HHQSfAk3bixe6WXyaRVTn7GhXqIECW5hY3VSviIqA5UgF9NZOKlqpw1GHQQpEtSefQWVa6op4BjYVbzKMWaAlwxAQYhv/0bmi9FmS4MkMnJ/vbBUtGyXEEpj3Bx5P7oXjzVIL2kJN7ZRFiNhnYDE2Igf3naU=";
+
 fn mock_env_height(signer: &Addr, height: u64, coins: &Vec<Coin>) -> (Env, MessageInfo) {
     let mut env = mock_env();
     env.block.height = height;
@@ -252,7 +275,7 @@ fn test_new_contract_default_values() {
         &None,
         &None,
         &Some(proxies.clone()),
-        &String::from("atestfet"),
+        &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
         &None,
@@ -288,7 +311,7 @@ fn test_new_contract_custom_values() {
             &Some(proxy.clone()),
             &Some(122),
             &Some(proxies.clone()),
-            &String::from("atestfet"),
+            &DEFAULT_STAKE_DENOM.to_string(),
             &None,
             &None,
             &None,
@@ -305,7 +328,7 @@ fn test_new_contract_custom_values() {
             &Some(proxy.clone()),
             &Some(456),
             &Some(proxies.clone()),
-            &String::from("atestfet"),
+            &DEFAULT_STAKE_DENOM.to_string(),
             &None,
             &None,
             &None,
@@ -320,7 +343,7 @@ fn test_new_contract_custom_values() {
         &Some(proxy.clone()),
         &Some(456),
         &Some(proxies.clone()),
-        &String::from("atestfet"),
+        &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
         &None,
@@ -347,7 +370,7 @@ fn test_add_remove_proxy() {
     let proxy = Addr::unchecked("proxy".to_string());
     let proxy_pubkey = String::from("proxy_pubkey");
 
-    let stake_denom = String::from("atestfet");
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
     let proxy_stake = vec![Coin {
         denom: stake_denom.clone(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
@@ -425,7 +448,7 @@ fn test_register_unregister_proxy() {
     let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
 
     // Staking
-    let stake_denom = String::from("atestfet");
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
     let proxy_stake = vec![Coin {
         denom: stake_denom.clone(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
@@ -558,15 +581,13 @@ fn test_add_data() {
     let delegator2 = Addr::unchecked("delegator2".to_string());
 
     // Pubkeys
-    let delegator1_pubkey: String = String::from("DRK1");
-
     let data_id1 = String::from("DATA1");
     let data_id2 = String::from("DATA2");
 
     let capsule = String::from("capsule");
 
     let data_entry = DataEntry {
-        delegator_pubkey: delegator1_pubkey.clone(),
+        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
         capsule: capsule.clone(),
     };
 
@@ -578,7 +599,7 @@ fn test_add_data() {
         &None,
         &None,
         &None,
-        &String::from("atestfet"),
+        &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
         &None,
@@ -613,7 +634,7 @@ fn test_add_data() {
         &data_entry
     );
     assert_eq!(
-        store_get_delegator_address(deps.as_mut().storage, &delegator1_pubkey).unwrap(),
+        store_get_delegator_address(deps.as_mut().storage, &DELEGATOR1_PUBKEY.to_string()).unwrap(),
         delegator1
     );
 
@@ -623,7 +644,7 @@ fn test_add_data() {
             deps.as_mut(),
             &delegator2,
             &data_id2,
-            &delegator1_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
             &capsule
         ),
         "already registered with this pubkey",
@@ -643,9 +664,6 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     let delegator2 = Addr::unchecked("delegator2".to_string());
 
     // Pubkeys
-    let delegator1_pubkey: String = String::from("DRK1");
-
-    let delegatee_pubkey: String = String::from("DEK1");
     let proxy1_pubkey: String = String::from("proxy1_pubkey");
     let proxy2_pubkey: String = String::from("proxy2_pubkey");
 
@@ -653,21 +671,21 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     let capsule = String::from("capsule");
 
     let data_entry = DataEntry {
-        delegator_pubkey: delegator1_pubkey.clone(),
+        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
         capsule: capsule.clone(),
     };
 
     // Staking
     let proxy_stake = vec![Coin {
-        denom: String::from("atestfet"),
+        denom: DEFAULT_STAKE_DENOM.to_string(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
     }];
     let request_reward = vec![Coin {
-        denom: String::from("atestfet"),
+        denom: DEFAULT_STAKE_DENOM.to_string(),
         amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
     }];
     let insufficient_request_reward = vec![Coin {
-        denom: String::from("atestfet"),
+        denom: DEFAULT_STAKE_DENOM.to_string(),
         amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT - 1),
     }];
 
@@ -679,7 +697,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         &None,
         &Some(1),
         &Some(vec![proxy1.clone(), proxy2.clone()]),
-        &String::from("atestfet"),
+        &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
         &None,
@@ -733,7 +751,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
             deps.as_mut(),
             &delegator1,
             &data_id,
-            &delegatee_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &request_reward,
         ),
         "ProxyDelegation doesn't exist",
@@ -744,8 +762,8 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         add_delegation(
             deps.as_mut(),
             &delegator1,
-            &delegator1_pubkey,
-            &delegatee_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
         ),
         "No proxies selected",
@@ -754,8 +772,8 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     let res = request_proxies_for_delegation(
         deps.as_mut(),
         &delegator1,
-        &delegator1_pubkey,
-        &delegatee_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
     )
     .unwrap();
     // Check if proxy 1 was selected
@@ -769,8 +787,8 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         request_proxies_for_delegation(
             deps.as_mut(),
             &delegator1,
-            &delegator1_pubkey,
-            &delegatee_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
         "Delegation already exist",
     ));
@@ -781,7 +799,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
             deps.as_mut(),
             &delegator1,
             &data_id,
-            &delegatee_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &request_reward,
         ),
         "Not all delegation strings provided",
@@ -792,8 +810,8 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         add_delegation(
             deps.as_mut(),
             &delegator1,
-            &delegator1_pubkey,
-            &delegatee_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
             &different_proxy_delegations,
         ),
         "Proxy proxy2_pubkey not selected for delegation.",
@@ -804,8 +822,8 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         add_delegation(
             deps.as_mut(),
             &delegator1,
-            &delegator1_pubkey,
-            &delegatee_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
             &different_proxy_amount_delegations,
         ),
         "Provided wrong number of delegation strings, expected 1 got 2.",
@@ -815,8 +833,8 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     assert!(add_delegation(
         deps.as_mut(),
         &delegator1,
-        &delegator1_pubkey,
-        &delegatee_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
     )
     .is_ok());
@@ -826,8 +844,8 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         add_delegation(
             deps.as_mut(),
             &delegator1,
-            &delegator1_pubkey,
-            &delegatee_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
         ),
         "ProxyDelegation strings already provided",
@@ -839,7 +857,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
             deps.as_mut(),
             &delegator2,
             &data_id,
-            &delegatee_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &request_reward,
         ),
         "Delegator delegator1 already registered with this pubkey.",
@@ -851,7 +869,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
             deps.as_mut(),
             &delegator1,
             &data_id,
-            &delegatee_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &insufficient_request_reward,
         ),
         "Requires at least 100 atestfet.",
@@ -862,7 +880,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         deps.as_mut(),
         &delegator1,
         &data_id,
-        &delegatee_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
         &request_reward,
     )
     .is_ok());
@@ -873,7 +891,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
             deps.as_mut(),
             &delegator1,
             &data_id,
-            &delegatee_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &request_reward,
         ),
         "Reencryption already requested",
@@ -884,7 +902,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id,
-            &delegatee_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy1_pubkey,
         ),
         Some(0u64)
@@ -911,10 +929,6 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
     let delegator2 = Addr::unchecked("delegator2".to_string());
 
     // Pubkeys
-    let delegator1_pubkey: String = String::from("DRK1");
-    let delegator2_pubkey: String = String::from("DRK2");
-
-    let delegatee_pubkey: String = String::from("DEK1");
     let proxy1_pubkey: String = String::from("proxy1_pubkey");
 
     let data_id1 = String::from("DATA1");
@@ -924,7 +938,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
 
     // Staking
     let proxy_stake = vec![Coin {
-        denom: String::from("atestfet"),
+        denom: DEFAULT_STAKE_DENOM.to_string(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
     }];
 
@@ -936,7 +950,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         &None,
         &Some(1),
         &Some(vec![proxy1.clone(), proxy2.clone()]),
-        &String::from("atestfet"),
+        &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
         &None,
@@ -959,8 +973,8 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
         &delegator1,
-        &delegator1_pubkey,
-        &delegatee_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
     )
     .is_ok());
 
@@ -968,8 +982,8 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
     assert!(add_delegation(
         deps.as_mut(),
         &delegator1,
-        &delegator1_pubkey,
-        &delegatee_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
     )
     .is_ok());
@@ -980,7 +994,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
             deps.as_mut(),
             &delegator2,
             &data_id1,
-            &delegator1_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
             &capsule
         ),
         "Delegator delegator1 already registered with this pubkey.",
@@ -990,7 +1004,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         deps.as_mut(),
         &delegator2,
         &data_id2,
-        &delegator2_pubkey,
+        &DELEGATOR2_PUBKEY.to_string(),
         &capsule
     )
     .is_ok());
@@ -1000,8 +1014,8 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         request_proxies_for_delegation(
             deps.as_mut(),
             &delegator1,
-            &delegator2_pubkey,
-            &delegatee_pubkey,
+            &DELEGATOR2_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
         "Delegator delegator2 already registered with this pubkey.",
     ));
@@ -1018,13 +1032,13 @@ fn test_provide_reencrypted_fragment() {
     let delegator = Addr::unchecked("delegator".to_string());
 
     // Pubkeys
-    let delegator_pubkey = String::from("A1Jk4Db9+m4FRtU0Izq5jkM1R4Xuj/ANnG2DVL/i1/BJ");
-    let delegatee_pubkey = String::from("Aj88RrXoUMAfhorSXOtX8zrVTraGNsg3ahzFfGqfJT71");
+    let delegator_pubkey = String::from(DELEGATOR1_PUBKEY);
+    let delegatee_pubkey = String::from(DELEGATEE1_PUBKEY);
     let other_delegatee_pubkey: String = String::from("DEK2");
     let proxy_pubkey: String = String::from("proxy_pubkey");
 
     let data_id = String::from("DATA");
-    let capsule = String::from("Ar/Ysokd/HgkFSLhtkX0kDCzX/Y3jazhzG+wto4WvPilA8j4Arq+Mj0bopJD0Aoa8npmSg4jVWkTG0SAW1KR3DtXLxKeip5oS0G9tp8geg248/bDfQ9YZohlPGgZGFffJeU=");
+    let capsule = String::from(CAPSULE);
 
     let data_entry = DataEntry {
         capsule: capsule.clone(),
@@ -1033,11 +1047,11 @@ fn test_provide_reencrypted_fragment() {
 
     // Staking
     let proxy_stake = vec![Coin {
-        denom: String::from("atestfet"),
+        denom: DEFAULT_STAKE_DENOM.to_string(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
     }];
     let request_reward = vec![Coin {
-        denom: String::from("atestfet"),
+        denom: DEFAULT_STAKE_DENOM.to_string(),
         amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
     }];
 
@@ -1049,7 +1063,7 @@ fn test_provide_reencrypted_fragment() {
         &None,
         &None,
         &Some(vec![proxy.clone()]),
-        &String::from("atestfet"),
+        &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
         &None,
@@ -1122,7 +1136,7 @@ fn test_provide_reencrypted_fragment() {
         &0u64,
     ));
 
-    let proxy_fragment = String::from("AzVR1+woGJURijJUu7ucA+O3rWY5SKnMtw3sss/4riPmAlcEydAP08lmEAAqQeOiO6Rmmn8vbMq3ZPE/0/Jd8ElO0/9uU4xh7kmsT1e7AEd/UzLiWiYX5qANhYpzBTK+XYcDR9ax1NO8j/68GjmdXng46Y5Y7EwSbSUu+cSZ82jBSKsDCmQBtB2zDM9lZTDDSteayWp66rs9QVTj+c6yZYn+RIwD2V8Q8XMOehyhRBySlD0W4713v3iANewUeFO3rRcwtH8DpDRCUnTyvaS+8t2H15eTbHGRXNW1iI3dxCEtesFXrDYD2s8sWbtESZVtoDjO+1v2+co9Y95yUn6mZ7iHRZPf1LO6vl2GeIZYpmCgukPd616ZJHDP8kFwPGsVzaJ2AaMBZyFq6SEgd5+ctWZ0vwzq2GKE5Jk8KqGM97e9F3sN8JVzHhxjOdfMsLlR2mbBAxxgTU8BzgIynO12Yj5Abu5aSrE=");
+    let proxy_fragment = String::from(FRAGMENT_P1_DR1_DE1);
     // Provide unwanted fragment
     assert!(is_err(
         provide_reencrypted_fragment(
@@ -1191,30 +1205,24 @@ fn test_contract_lifecycle() {
     let delegator = Addr::unchecked("delegator".to_string());
 
     // Pubkeys
-    let delegator_pubkey = String::from("ApEPhAeq+TAL5aKiRkIpdoJ2pD+6qSt1RqHxGthT+XRY");
-
-    let delegatee1_pubkey = String::from("A5CYTfwD0EocpW4gCKtnP1lIFkMveO55v5+nbJaLqmLX");
-    let delegatee2_pubkey = String::from("AnJgbnA4RwLalI9Vi2xQSTVD7MRGeb4kiRQ8/kqzJyIK");
-
     let proxy1_pubkey: String = String::from("proxy_pubkey1");
     let proxy2_pubkey: String = String::from("proxy_pubkey2");
 
     let data_id = String::from("DATA");
-    let capsule = String::from("Ax83HFfEW1e+DW3KlikFLELPOVqYnlS39baHHC+/vsB4AmV+m1r9eZ6nCV9KXv7dSH+bSdWFbsqWFTxfF5qsjwObLtgsZUVSt8iv8UtkP0bLJs2sguElu4Syek6Seh3ZTj4=");
 
     let data_entry = DataEntry {
-        capsule: capsule.clone(),
-        delegator_pubkey: delegator_pubkey.clone(),
+        capsule: CAPSULE.to_string(),
+        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
     };
 
     // Staking
-    let stake_denom = String::from("atestfet");
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
     let proxy_stake = vec![Coin {
-        denom: String::from("atestfet"),
+        denom: DEFAULT_STAKE_DENOM.to_string(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
     }];
     let request_reward = vec![Coin {
-        denom: String::from("atestfet"),
+        denom: DEFAULT_STAKE_DENOM.to_string(),
         amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
     }];
 
@@ -1246,7 +1254,7 @@ fn test_contract_lifecycle() {
         &delegator,
         &data_id,
         &data_entry.delegator_pubkey,
-        &capsule,
+        &CAPSULE.to_string(),
     )
     .is_ok());
 
@@ -1266,49 +1274,61 @@ fn test_contract_lifecycle() {
     ];
 
     assert_eq!(
-        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        get_delegation_state(
+            deps.as_mut().storage,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         DelegationState::NonExisting
     );
 
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
         &delegator,
-        &delegator_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
     )
     .is_ok());
 
     assert_eq!(
-        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        get_delegation_state(
+            deps.as_mut().storage,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         DelegationState::WaitingForDelegationStrings
     );
 
     assert!(add_delegation(
         deps.as_mut(),
         &delegator,
-        &delegator_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
         &proxy_delegations,
     )
     .is_ok());
 
     assert_eq!(
-        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        get_delegation_state(
+            deps.as_mut().storage,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         DelegationState::Active
     );
 
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
         &delegator,
-        &delegator_pubkey,
-        &delegatee2_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE2_PUBKEY.to_string().to_string(),
     )
     .is_ok());
     assert!(add_delegation(
         deps.as_mut(),
         &delegator,
-        &delegator_pubkey,
-        &delegatee2_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE2_PUBKEY.to_string().to_string(),
         &proxy_delegations,
     )
     .is_ok());
@@ -1322,7 +1342,11 @@ fn test_contract_lifecycle() {
         .is_none());
 
     assert_eq!(
-        get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        get_reencryption_request_state(
+            deps.as_mut().storage,
+            &data_id,
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         ReencryptionRequestState::Inaccessible
     );
 
@@ -1332,12 +1356,16 @@ fn test_contract_lifecycle() {
         deps.as_mut(),
         &delegator,
         &data_id,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
         &request_reward,
     )
     .is_ok());
     assert_eq!(
-        get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        get_reencryption_request_state(
+            deps.as_mut().storage,
+            &data_id,
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         ReencryptionRequestState::Ready
     );
 
@@ -1357,7 +1385,7 @@ fn test_contract_lifecycle() {
         deps.as_mut(),
         &delegator,
         &data_id,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string().to_string(),
         &request_reward,
     )
     .is_ok());
@@ -1388,8 +1416,8 @@ fn test_contract_lifecycle() {
         ProxyTask {
             data_id: data_id.clone(),
             capsule: data_entry.capsule.clone(),
-            delegatee_pubkey: delegatee1_pubkey.clone(),
-            delegator_pubkey: delegator_pubkey.clone(),
+            delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
+            delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
             delegation_string: proxy1_delegation_string.clone(),
         }
     );
@@ -1407,7 +1435,7 @@ fn test_contract_lifecycle() {
         deps.as_mut(),
         &proxy1,
         &data_id,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
         &proxy1_fragment1,
     )
     .is_ok());
@@ -1426,7 +1454,7 @@ fn test_contract_lifecycle() {
             deps.as_mut(),
             &proxy2,
             &data_id,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string().to_string(),
             &proxy1_fragment1,
         ),
         "Fragment already provided by other proxy."
@@ -1446,11 +1474,20 @@ fn test_contract_lifecycle() {
 
     // Check available fragments
     assert_eq!(
-        get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        get_all_fragments(
+            deps.as_mut().storage,
+            &data_id,
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         vec![proxy1_fragment1.clone()]
     );
     assert_eq!(
-        get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey).len(),
+        get_all_fragments(
+            deps.as_mut().storage,
+            &data_id,
+            &DELEGATEE2_PUBKEY.to_string().to_string()
+        )
+        .len(),
         0
     );
 
@@ -1463,8 +1500,8 @@ fn test_contract_lifecycle() {
         ProxyTask {
             data_id: data_id.clone(),
             capsule: data_entry.capsule.clone(),
-            delegatee_pubkey: delegatee2_pubkey.clone(),
-            delegator_pubkey: delegator_pubkey.clone(),
+            delegatee_pubkey: DELEGATEE2_PUBKEY.to_string(),
+            delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
             delegation_string: proxy1_delegation_string.clone(),
         }
     );
@@ -1475,7 +1512,7 @@ fn test_contract_lifecycle() {
         deps.as_mut(),
         &proxy1,
         &data_id,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string().to_string(),
         &proxy1_fragment2,
     )
     .is_ok());
@@ -1498,20 +1535,36 @@ fn test_contract_lifecycle() {
 
     // Check available fragments
     assert_eq!(
-        get_all_fragments(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        get_all_fragments(
+            deps.as_mut().storage,
+            &data_id,
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         vec![proxy1_fragment1]
     );
     assert_eq!(
-        get_all_fragments(deps.as_mut().storage, &data_id, &delegatee2_pubkey),
+        get_all_fragments(
+            deps.as_mut().storage,
+            &data_id,
+            &DELEGATEE2_PUBKEY.to_string().to_string()
+        ),
         vec![proxy1_fragment2]
     );
 
     assert_eq!(
-        get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        get_reencryption_request_state(
+            deps.as_mut().storage,
+            &data_id,
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         ReencryptionRequestState::Ready
     );
     assert_eq!(
-        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        get_delegation_state(
+            deps.as_mut().storage,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         DelegationState::Active
     );
 
@@ -1521,7 +1574,7 @@ fn test_contract_lifecycle() {
             deps.as_mut(),
             &delegator,
             &data_id,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string().to_string(),
             &request_reward,
         ),
         "Reencryption already requested",
@@ -1545,11 +1598,19 @@ fn test_contract_lifecycle() {
     );
 
     assert_eq!(
-        get_reencryption_request_state(deps.as_mut().storage, &data_id, &delegatee1_pubkey),
+        get_reencryption_request_state(
+            deps.as_mut().storage,
+            &data_id,
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         ReencryptionRequestState::Abandoned
     );
     assert_eq!(
-        get_delegation_state(deps.as_mut().storage, &delegator_pubkey, &delegatee1_pubkey),
+        get_delegation_state(
+            deps.as_mut().storage,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string().to_string()
+        ),
         DelegationState::NonExisting
     );
 
@@ -1557,15 +1618,15 @@ fn test_contract_lifecycle() {
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
         &delegator,
-        &delegator_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
     )
     .is_ok());
     assert!(add_delegation(
         deps.as_mut(),
         &delegator,
-        &delegator_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
         &proxy_delegations,
     )
     .is_ok());
@@ -1600,12 +1661,6 @@ fn test_proxy_unregister_with_requests() {
     let delegator2 = Addr::unchecked("delegator2".to_string());
 
     // Pubkeys
-    let delegator1_pubkey = String::from("ApEPhAeq+TAL5aKiRkIpdoJ2pD+6qSt1RqHxGthT+XRY");
-    let delegator2_pubkey = String::from("AutXYFCdptyMx71HRDCyUm1eNDZVAFfDlbWTJQydiCBl");
-
-    let delegatee1_pubkey = String::from("A5CYTfwD0EocpW4gCKtnP1lIFkMveO55v5+nbJaLqmLX");
-    let delegatee2_pubkey = String::from("AnJgbnA4RwLalI9Vi2xQSTVD7MRGeb4kiRQ8/kqzJyIK");
-
     let proxy1_pubkey: String = String::from("proxy_pubkey1");
     let proxy2_pubkey: String = String::from("proxy_pubkey2");
     let proxy3_pubkey: String = String::from("proxy_pubkey3");
@@ -1616,12 +1671,10 @@ fn test_proxy_unregister_with_requests() {
     let data_id2 = String::from("DATA2");
     let data_id3 = String::from("DATA3");
 
-    let capsule = String::from("Ax83HFfEW1e+DW3KlikFLELPOVqYnlS39baHHC+/vsB4AmV+m1r9eZ6nCV9KXv7dSH+bSdWFbsqWFTxfF5qsjwObLtgsZUVSt8iv8UtkP0bLJs2sguElu4Syek6Seh3ZTj4=");
-
     let delegation_string = String::from("DELESTRING");
 
     // Staking
-    let stake_denom = String::from("atestfet");
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
     let proxy_stake = vec![Coin {
         denom: stake_denom.clone(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
@@ -1671,32 +1724,32 @@ fn test_proxy_unregister_with_requests() {
         deps.as_mut(),
         &delegator1,
         &data_id1,
-        &delegator1_pubkey,
-        &capsule
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string()
     )
     .is_ok());
     assert!(add_data(
         deps.as_mut(),
         &delegator1,
         &data_id2,
-        &delegator1_pubkey,
-        &capsule
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string()
     )
     .is_ok());
     assert!(add_data(
         deps.as_mut(),
         &delegator2,
         &data_id3,
-        &delegator2_pubkey,
-        &capsule
+        &DELEGATOR2_PUBKEY.to_string().to_string(),
+        &CAPSULE.to_string()
     )
     .is_ok());
 
     // Add delegations manually
 
     let delegation1 = ProxyDelegation {
-        delegator_pubkey: delegator1_pubkey.clone(),
-        delegatee_pubkey: delegatee1_pubkey.clone(),
+        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
+        delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
         delegation_string: Some(delegation_string.clone()),
     };
 
@@ -1734,8 +1787,8 @@ fn test_proxy_unregister_with_requests() {
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy3_pubkey, &2);
 
     let delegation2 = ProxyDelegation {
-        delegator_pubkey: delegator1_pubkey.clone(),
-        delegatee_pubkey: delegatee2_pubkey.clone(),
+        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
+        delegatee_pubkey: DELEGATEE2_PUBKEY.to_string(),
         delegation_string: Some(delegation_string.clone()),
     };
 
@@ -1762,8 +1815,8 @@ fn test_proxy_unregister_with_requests() {
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy2_pubkey, &4);
 
     let delegation3 = ProxyDelegation {
-        delegator_pubkey: delegator2_pubkey.clone(),
-        delegatee_pubkey: delegatee1_pubkey.clone(),
+        delegator_pubkey: DELEGATOR2_PUBKEY.to_string(),
+        delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
         delegation_string: Some(delegation_string.clone()),
     };
 
@@ -1803,7 +1856,7 @@ fn test_proxy_unregister_with_requests() {
         deps.as_mut(),
         &delegator1,
         &data_id1,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
         &request_reward_3_proxies,
     )
     .is_ok());
@@ -1820,7 +1873,7 @@ fn test_proxy_unregister_with_requests() {
         deps.as_mut(),
         &delegator1,
         &data_id1,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string().to_string(),
         &request_reward_2_proxies,
     )
     .is_ok());
@@ -1829,7 +1882,7 @@ fn test_proxy_unregister_with_requests() {
         deps.as_mut(),
         &delegator1,
         &data_id2,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string().to_string(),
         &request_reward_2_proxies,
     )
     .is_ok());
@@ -1838,7 +1891,7 @@ fn test_proxy_unregister_with_requests() {
         deps.as_mut(),
         &delegator2,
         &data_id3,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
         &request_reward_2_proxies,
     )
     .is_ok());
@@ -1851,22 +1904,24 @@ fn test_proxy_unregister_with_requests() {
     );
 
     // Provide wrong fragment
-    assert!(is_err(provide_reencrypted_fragment(
-        deps.as_mut(),
-        &proxy2,
-        &data_id1,
-        &delegatee2_pubkey,
-        &String::from("AlOCf/P4QgxzG0bEYA5eWat7n7690e0SVU8nisO0BFnqA+Tv1RDfuGqLN7Sn6EBrrYQB+bwlwDEgV9pA7QelEGMh6woxYKKqHvmocBZRvfLZbwtk9d8mNmc4QPtaDqOISSwDOL6tYr3e6dlMgsW9GnONyZUWk15ixjxdrAIZfp8qWAMCT7sL/wtuucbl4opVMNi6arM5UswYyaHRzbkSyJ7t87ID+hG4CiBdGU/DX9TOPStWoNwTuRfdDDgzQrBqnI/Z5t0CkT+FXq3/SwLHsEFjGTNLJTIWfVHgj65xRm0yq3Zcr1UCA+hS+fvUnnqf94MpkJsjpaGyuxEOJqxOoV7M8/58D9DZGN9lsFYaELvLcsLIIG1Csn9WUCp86qT0lSC+13wO0ruWsVPmKHvRp1bj/lKWBRW4A0i0F1ORuAFspqlecvH6YHRIr9vAE6D4JahQuV4+IOHkuS4NMy0HyXum1xMsyyQ="),
-    )
-        ,"Invalid KeyFrag signature"));
+    assert!(is_err(
+        provide_reencrypted_fragment(
+            deps.as_mut(),
+            &proxy2,
+            &data_id1,
+            &DELEGATEE2_PUBKEY.to_string().to_string(),
+            &FRAGMENT_P2_DR1_DE1.to_string(),
+        ),
+        "Invalid KeyFrag signature"
+    ));
 
     // Complete requests
     assert!(provide_reencrypted_fragment(
         deps.as_mut(),
         &proxy2,
         &data_id1,
-        &delegatee2_pubkey,
-        &String::from("A8tpNyTSuvhXqY4QZzutuX8GAGdoLzZHmsNKCXYTrbwEAgVT11RLlKw4HO1gfJymn1DYL8w7e1uVcvKklv8iHrGbl76ql2VC45i1rGCt+YpFU8qRfr/99eXE3YoLykokZd8CkymfOr+pOYAe56kPnK9cTGjuwGdgcrV3i5A1ocF5xYsCSVgJ3C8QKFiXjhbJSdXqX78j1n3vt0Jx4UYqbzFVLPcDeHcgvCut2MzS18/cclk1XD3iGq7OJUeBy8HKyn53lV0Dv1gBTq869LuD37w8m4NOV0vmagN1gjApcxu4RO0uKaoC0W38+IoyRC/JDLjV0a5GEh4+s4u+hts5VHd62u5oAmFbZOlpNrUAZqQ7mucOxR3q0B1RY1+V9QC0fY6I0G4n7/wnN2eKy//PpbOYsG6Cxf33RNd+Mtu0DhuYfxiJFUyyQif6UB3UeB8xsC2y7xA6Jl5TGrhwD8MyeF2ne9FBH/0="),
+        &DELEGATEE2_PUBKEY.to_string().to_string(),
+        &FRAGMENT_P2_DR1_DE2.to_string(),
     )
     .is_ok());
 
@@ -1918,8 +1973,8 @@ fn test_proxy_unregister_with_requests() {
     // delgator1, delegatee1, proxy1 - Unaffected
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
         &proxy1_pubkey,
     )
     .is_none());
@@ -1933,8 +1988,8 @@ fn test_proxy_unregister_with_requests() {
     // delgator1, delegatee1, proxy2 - Removed
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string().to_string(),
         &proxy2_pubkey,
     )
     .is_none());
@@ -1948,8 +2003,8 @@ fn test_proxy_unregister_with_requests() {
     // delgator1, delegatee1, proxy3 - Removed because of proxy 2
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy3_pubkey,
     )
     .is_none());
@@ -1964,8 +2019,8 @@ fn test_proxy_unregister_with_requests() {
     // delgator1, delegatee2, proxy1 - Removed
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee2_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE2_PUBKEY.to_string(),
         &proxy1_pubkey,
     )
     .is_none());
@@ -1979,8 +2034,8 @@ fn test_proxy_unregister_with_requests() {
     // delgator1, delegatee2, proxy2 - Removed
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee2_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE2_PUBKEY.to_string(),
         &proxy2_pubkey,
     )
     .is_none());
@@ -1995,8 +2050,8 @@ fn test_proxy_unregister_with_requests() {
     // delgator2, delegatee1, proxy4 - Unaffected
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator2_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR2_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy4_pubkey,
     )
     .is_some());
@@ -2010,8 +2065,8 @@ fn test_proxy_unregister_with_requests() {
     // delgator2, delegatee1, proxy5 - Unaffected
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator2_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR2_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy5_pubkey,
     )
     .is_some());
@@ -2031,7 +2086,7 @@ fn test_proxy_unregister_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy1_pubkey,
         )
         .unwrap(),
@@ -2048,7 +2103,7 @@ fn test_proxy_unregister_with_requests() {
     assert!(store_get_delegatee_proxy_reencryption_request(
         deps.as_mut().storage,
         &data_id1,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy2_pubkey,
     )
     .is_none());
@@ -2064,7 +2119,7 @@ fn test_proxy_unregister_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy3_pubkey,
         )
         .unwrap(),
@@ -2083,7 +2138,7 @@ fn test_proxy_unregister_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee2_pubkey,
+            &DELEGATEE2_PUBKEY.to_string(),
             &proxy1_pubkey,
         )
         .unwrap(),
@@ -2102,7 +2157,7 @@ fn test_proxy_unregister_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee2_pubkey,
+            &DELEGATEE2_PUBKEY.to_string(),
             &proxy2_pubkey,
         )
         .unwrap(),
@@ -2121,7 +2176,7 @@ fn test_proxy_unregister_with_requests() {
     assert!(store_get_delegatee_proxy_reencryption_request(
         deps.as_mut().storage,
         &data_id2,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string(),
         &proxy1_pubkey,
     )
     .is_none());
@@ -2137,7 +2192,7 @@ fn test_proxy_unregister_with_requests() {
     assert!(store_get_delegatee_proxy_reencryption_request(
         deps.as_mut().storage,
         &data_id2,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string(),
         &proxy2_pubkey,
     )
     .is_none());
@@ -2155,7 +2210,7 @@ fn test_proxy_unregister_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id3,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy4_pubkey,
         )
         .unwrap(),
@@ -2173,7 +2228,7 @@ fn test_proxy_unregister_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id3,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy5_pubkey,
         )
         .unwrap(),
@@ -2191,7 +2246,7 @@ fn test_proxy_unregister_with_requests() {
             deps.as_mut(),
             &delegator1,
             &data_id1,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &request_reward_3_proxies,
         ),
         "ProxyDelegation doesn't exist.",
@@ -2214,12 +2269,6 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     let delegator2 = Addr::unchecked("delegator2".to_string());
 
     // Pubkeys
-    let delegator1_pubkey = String::from("ApEPhAeq+TAL5aKiRkIpdoJ2pD+6qSt1RqHxGthT+XRY");
-    let delegator2_pubkey = String::from("AutXYFCdptyMx71HRDCyUm1eNDZVAFfDlbWTJQydiCBl");
-
-    let delegatee1_pubkey = String::from("A5CYTfwD0EocpW4gCKtnP1lIFkMveO55v5+nbJaLqmLX");
-    let delegatee2_pubkey = String::from("AnJgbnA4RwLalI9Vi2xQSTVD7MRGeb4kiRQ8/kqzJyIK");
-
     let proxy1_pubkey: String = String::from("proxy_pubkey1");
     let proxy2_pubkey: String = String::from("proxy_pubkey2");
     let proxy3_pubkey: String = String::from("proxy_pubkey3");
@@ -2230,12 +2279,10 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     let data_id2 = String::from("DATA2");
     let data_id3 = String::from("DATA3");
 
-    let capsule = String::from("Ax83HFfEW1e+DW3KlikFLELPOVqYnlS39baHHC+/vsB4AmV+m1r9eZ6nCV9KXv7dSH+bSdWFbsqWFTxfF5qsjwObLtgsZUVSt8iv8UtkP0bLJs2sguElu4Syek6Seh3ZTj4=");
-
     let delegation_string = String::from("DELESTRING");
 
     // Staking
-    let stake_denom = String::from("atestfet");
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
     let proxy_stake = vec![Coin {
         denom: stake_denom.clone(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
@@ -2285,32 +2332,32 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         deps.as_mut(),
         &delegator1,
         &data_id1,
-        &delegator1_pubkey,
-        &capsule
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string()
     )
     .is_ok());
     assert!(add_data(
         deps.as_mut(),
         &delegator1,
         &data_id2,
-        &delegator1_pubkey,
-        &capsule
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string()
     )
     .is_ok());
     assert!(add_data(
         deps.as_mut(),
         &delegator2,
         &data_id3,
-        &delegator2_pubkey,
-        &capsule
+        &DELEGATOR2_PUBKEY.to_string(),
+        &CAPSULE.to_string()
     )
     .is_ok());
 
     // Add delegations manually
 
     let delegation1 = ProxyDelegation {
-        delegator_pubkey: delegator1_pubkey.clone(),
-        delegatee_pubkey: delegatee1_pubkey.clone(),
+        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
+        delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
         delegation_string: Some(delegation_string.clone()),
     };
 
@@ -2348,8 +2395,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy3_pubkey, &2);
 
     let delegation2 = ProxyDelegation {
-        delegator_pubkey: delegator1_pubkey.clone(),
-        delegatee_pubkey: delegatee2_pubkey.clone(),
+        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
+        delegatee_pubkey: DELEGATEE2_PUBKEY.to_string(),
         delegation_string: Some(delegation_string.clone()),
     };
 
@@ -2376,8 +2423,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy2_pubkey, &4);
 
     let delegation3 = ProxyDelegation {
-        delegator_pubkey: delegator2_pubkey.clone(),
-        delegatee_pubkey: delegatee1_pubkey.clone(),
+        delegator_pubkey: DELEGATOR2_PUBKEY.to_string(),
+        delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
         delegation_string: Some(delegation_string.clone()),
     };
 
@@ -2410,7 +2457,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         deps.as_mut(),
         &delegator1,
         &data_id1,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
         &request_reward_3_proxies,
     )
     .is_ok());
@@ -2419,7 +2466,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         deps.as_mut(),
         &delegator1,
         &data_id1,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string(),
         &request_reward_2_proxies,
     )
     .is_ok());
@@ -2428,7 +2475,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         deps.as_mut(),
         &delegator1,
         &data_id2,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string(),
         &request_reward_2_proxies,
     )
     .is_ok());
@@ -2437,7 +2484,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         deps.as_mut(),
         &delegator2,
         &data_id3,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
         &request_reward_2_proxies,
     )
     .is_ok());
@@ -2447,7 +2494,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         deps.as_mut(),
         &proxy2,
         &data_id1,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string(),
         &String::from("AlCR5oC5v9i8G6IohBPRXg5qfYDP3awqEk2RIusDZo3wAwJEdUq0N3TG1iJ0lqfwRnNos1w3ysr3Vd0WPfFoBc991Pmeib1ZyAX52bfvtjcB3VdzunAnXrH0x259LtNX94oCkymfOr+pOYAe56kPnK9cTGjuwGdgcrV3i5A1ocF5xYsCK1m3Gcr1OeLeHMh26lX7rSDQKP7PoKJC4N/Mgeaqn0wDmP4BflDmAFm7AHvNbq6j5wlYLbZ0SDrpQ/L0axS4huYCYaHbevxWAYoQl2o1m+b5KtVg3c//Iaw1L4RRut+m1GMDhhuHPM1wslLQnN799sLX6itYkBWwTYnCDEc/9NBeCv4/P0LPZSNH6OW8Ta4x08yMA3WPSuBBj3rPcZt5Nydl+Mf4oj47fbmN6AhI9js2P7JBUCi/54jiNUkB4tDgqD2nNzC5ngPVPsnJEcSPx74aW1ppKowvRT7DwM9CNsEAbG0="),
     )
     .is_ok());
@@ -2504,8 +2551,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // delgator1, delegatee1, proxy1 - Unaffected
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy1_pubkey,
     )
     .is_none());
@@ -2519,8 +2566,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // delgator1, delegatee1, proxy2 - Removed
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy2_pubkey,
     )
     .is_none());
@@ -2534,8 +2581,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // delgator1, delegatee1, proxy3 - Removed because of proxy 2
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy3_pubkey,
     )
     .is_none());
@@ -2550,8 +2597,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // delgator1, delegatee2, proxy1 - Removed
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee2_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE2_PUBKEY.to_string(),
         &proxy1_pubkey,
     )
     .is_none());
@@ -2565,8 +2612,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // delgator1, delegatee2, proxy2 - Removed
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator1_pubkey,
-        &delegatee2_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE2_PUBKEY.to_string(),
         &proxy2_pubkey,
     )
     .is_none());
@@ -2581,8 +2628,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // delgator2, delegatee1, proxy4 - Unaffected
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator2_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR2_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy4_pubkey,
     )
     .is_some());
@@ -2596,8 +2643,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // delgator2, delegatee1, proxy5 - Unaffected
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
-        &delegator2_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR2_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy5_pubkey,
     )
     .is_some());
@@ -2636,7 +2683,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy1_pubkey,
         )
         .unwrap(),
@@ -2653,7 +2700,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     assert!(store_get_delegatee_proxy_reencryption_request(
         deps.as_mut().storage,
         &data_id1,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy2_pubkey,
     )
     .is_none());
@@ -2669,7 +2716,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy3_pubkey,
         )
         .unwrap(),
@@ -2688,7 +2735,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee2_pubkey,
+            &DELEGATEE2_PUBKEY.to_string(),
             &proxy1_pubkey,
         )
         .unwrap(),
@@ -2707,7 +2754,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee2_pubkey,
+            &DELEGATEE2_PUBKEY.to_string(),
             &proxy2_pubkey,
         )
         .unwrap(),
@@ -2726,7 +2773,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     assert!(store_get_delegatee_proxy_reencryption_request(
         deps.as_mut().storage,
         &data_id2,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string(),
         &proxy1_pubkey,
     )
     .is_none());
@@ -2742,7 +2789,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     assert!(store_get_delegatee_proxy_reencryption_request(
         deps.as_mut().storage,
         &data_id2,
-        &delegatee2_pubkey,
+        &DELEGATEE2_PUBKEY.to_string(),
         &proxy2_pubkey,
     )
     .is_none());
@@ -2760,7 +2807,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id3,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy4_pubkey,
         )
         .unwrap(),
@@ -2778,7 +2825,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         store_get_delegatee_proxy_reencryption_request(
             deps.as_mut().storage,
             &data_id3,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &proxy5_pubkey,
         )
         .unwrap(),
@@ -2804,7 +2851,7 @@ fn test_proxy_stake_withdrawal() {
     let proxies: Vec<Addr> = vec![proxy1.clone(), proxy2.clone()];
 
     // Staking
-    let stake_denom = String::from("atestfet");
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
     let proxy_stake = vec![Coin {
         denom: stake_denom.clone(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + 50),
@@ -2914,7 +2961,7 @@ fn test_proxy_add_stake() {
     let proxies: Vec<Addr> = vec![proxy1.clone()];
 
     // Staking
-    let stake_denom = String::from("atestfet");
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
     let proxy_stake = vec![Coin {
         denom: stake_denom.clone(),
         amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
@@ -2985,10 +3032,6 @@ fn test_proxy_insufficient_funds_request_skip() {
     let delegator1 = Addr::unchecked("delegator1".to_string());
 
     // Pubkeys
-    let delegator1_pubkey: String = String::from("DRK1");
-
-    let delegatee1_pubkey: String = String::from("DEK1");
-
     let proxy1_pubkey: String = String::from("proxy_pubkey1");
     let proxy2_pubkey: String = String::from("proxy_pubkey2");
     let proxy3_pubkey: String = String::from("proxy_pubkey3");
@@ -3002,7 +3045,7 @@ fn test_proxy_insufficient_funds_request_skip() {
     let delegation_string = String::from("DELESTRING");
 
     // Staking
-    let stake_denom = String::from("atestfet");
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
     let minimum_proxy_stake_amount: u128 = 100;
     let minimum_request_reward_amount: u128 = 40;
     let per_request_slash_stake_amount: u128 = 98;
@@ -3063,7 +3106,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         deps.as_mut(),
         &delegator1,
         &data_id1,
-        &delegator1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
         &capsule
     )
     .is_ok());
@@ -3071,7 +3114,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         deps.as_mut(),
         &delegator1,
         &data_id2,
-        &delegator1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
         &capsule
     )
     .is_ok());
@@ -3079,7 +3122,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         deps.as_mut(),
         &delegator1,
         &data_id3,
-        &delegator1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
         &capsule
     )
     .is_ok());
@@ -3087,8 +3130,8 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
         &delegator1,
-        &delegator1_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
     )
     .is_ok());
 
@@ -3110,8 +3153,8 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert!(add_delegation(
         deps.as_mut(),
         &delegator1,
-        &delegator1_pubkey,
-        &delegatee1_pubkey,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
     )
     .is_ok());
@@ -3120,8 +3163,8 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert_eq!(
         get_n_available_proxies_from_delegation(
             deps.as_mut().storage,
-            &delegator1_pubkey,
-            &delegatee1_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
             &per_request_slash_stake_amount,
         ),
         3
@@ -3130,14 +3173,17 @@ fn test_proxy_insufficient_funds_request_skip() {
         deps.as_mut(),
         &delegator1,
         &data_id1,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
         &request_reward_3_proxies,
     )
     .is_ok());
 
-    let parent_request1 =
-        store_get_parent_reencryption_request(deps.as_mut().storage, &data_id1, &delegatee1_pubkey)
-            .unwrap();
+    let parent_request1 = store_get_parent_reencryption_request(
+        deps.as_mut().storage,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+    )
+    .unwrap();
     assert_eq!(parent_request1.n_proxy_requests, 3);
     assert_eq!(
         store_get_proxy_entry(deps.as_mut().storage, &proxy2)
@@ -3151,8 +3197,8 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert_eq!(
         get_n_available_proxies_from_delegation(
             deps.as_mut().storage,
-            &delegator1_pubkey,
-            &delegatee1_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
             &per_request_slash_stake_amount,
         ),
         2
@@ -3160,8 +3206,8 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert_eq!(
         get_delegation_state(
             deps.as_mut().storage,
-            &delegator1_pubkey,
-            &delegatee1_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
         DelegationState::Active
     );
@@ -3170,22 +3216,25 @@ fn test_proxy_insufficient_funds_request_skip() {
         deps.as_mut(),
         &delegator1,
         &data_id2,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
         &request_reward_2_proxies,
     )
     .is_ok());
 
-    let parent_request1 =
-        store_get_parent_reencryption_request(deps.as_mut().storage, &data_id2, &delegatee1_pubkey)
-            .unwrap();
+    let parent_request1 = store_get_parent_reencryption_request(
+        deps.as_mut().storage,
+        &data_id2,
+        &DELEGATEE1_PUBKEY.to_string(),
+    )
+    .unwrap();
     assert_eq!(parent_request1.n_proxy_requests, 2);
 
     // Request third reencryption request fails -- 2 proxies skipped because of insufficient funds
     assert_eq!(
         get_n_available_proxies_from_delegation(
             deps.as_mut().storage,
-            &delegator1_pubkey,
-            &delegatee1_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
             &per_request_slash_stake_amount,
         ),
         1
@@ -3194,8 +3243,8 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert_eq!(
         get_delegation_state(
             deps.as_mut().storage,
-            &delegator1_pubkey,
-            &delegatee1_pubkey,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
         DelegationState::ProxiesAreBusy
     );
@@ -3204,7 +3253,7 @@ fn test_proxy_insufficient_funds_request_skip() {
             deps.as_mut(),
             &delegator1,
             &data_id2,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
             &request_reward_1_proxy,
         ),
         "Proxies are too busy, try again later. Available 1 proxies out of 3, minimum is 2"
@@ -3247,7 +3296,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         store_get_all_delegatee_proxy_reencryption_requests(
             deps.as_mut().storage,
             &data_id1,
-            &delegatee1_pubkey,
+            &DELEGATEE1_PUBKEY.to_string(),
         )
         .len(),
         2
@@ -3255,29 +3304,37 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert!(store_get_parent_reencryption_request(
         deps.as_mut().storage,
         &data_id1,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
     )
     .is_some());
 
     assert!(store_get_all_delegatee_proxy_reencryption_requests(
         deps.as_mut().storage,
         &data_id2,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
     )
     .is_empty());
     assert_eq!(
-        store_get_parent_reencryption_request(deps.as_mut().storage, &data_id2, &delegatee1_pubkey)
-            .unwrap()
-            .state,
+        store_get_parent_reencryption_request(
+            deps.as_mut().storage,
+            &data_id2,
+            &DELEGATEE1_PUBKEY.to_string()
+        )
+        .unwrap()
+        .state,
         ReencryptionRequestState::Abandoned
     );
 
     // Check if 1 portion of slashed stake is stored in parent request
     assert_eq!(
-        store_get_parent_reencryption_request(deps.as_mut().storage, &data_id1, &delegatee1_pubkey)
-            .unwrap()
-            .slashed_stake_amount
-            .u128(),
+        store_get_parent_reencryption_request(
+            deps.as_mut().storage,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string()
+        )
+        .unwrap()
+        .slashed_stake_amount
+        .u128(),
         per_request_slash_stake_amount
     );
 
@@ -3313,26 +3370,34 @@ fn test_proxy_insufficient_funds_request_skip() {
     assert!(store_get_all_delegatee_proxy_reencryption_requests(
         deps.as_mut().storage,
         &data_id1,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
     )
     .is_empty());
     assert_eq!(
-        store_get_parent_reencryption_request(deps.as_mut().storage, &data_id1, &delegatee1_pubkey)
-            .unwrap()
-            .state,
+        store_get_parent_reencryption_request(
+            deps.as_mut().storage,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string()
+        )
+        .unwrap()
+        .state,
         ReencryptionRequestState::Abandoned
     );
 
     assert!(store_get_all_delegatee_proxy_reencryption_requests(
         deps.as_mut().storage,
         &data_id2,
-        &delegatee1_pubkey,
+        &DELEGATEE1_PUBKEY.to_string(),
     )
     .is_empty());
     assert_eq!(
-        store_get_parent_reencryption_request(deps.as_mut().storage, &data_id2, &delegatee1_pubkey)
-            .unwrap()
-            .state,
+        store_get_parent_reencryption_request(
+            deps.as_mut().storage,
+            &data_id2,
+            &DELEGATEE1_PUBKEY.to_string()
+        )
+        .unwrap()
+        .state,
         ReencryptionRequestState::Abandoned
     );
 
@@ -3451,12 +3516,19 @@ fn test_get_n_minimum_proxies_for_refund() {
 
 #[test]
 fn test_verify_fragments() {
-    let fragment = String::from("AzVR1+woGJURijJUu7ucA+O3rWY5SKnMtw3sss/4riPmAlcEydAP08lmEAAqQeOiO6Rmmn8vbMq3ZPE/0/Jd8ElO0/9uU4xh7kmsT1e7AEd/UzLiWiYX5qANhYpzBTK+XYcDR9ax1NO8j/68GjmdXng46Y5Y7EwSbSUu+cSZ82jBSKsDCmQBtB2zDM9lZTDDSteayWp66rs9QVTj+c6yZYn+RIwD2V8Q8XMOehyhRBySlD0W4713v3iANewUeFO3rRcwtH8DpDRCUnTyvaS+8t2H15eTbHGRXNW1iI3dxCEtesFXrDYD2s8sWbtESZVtoDjO+1v2+co9Y95yUn6mZ7iHRZPf1LO6vl2GeIZYpmCgukPd616ZJHDP8kFwPGsVzaJ2AaMBZyFq6SEgd5+ctWZ0vwzq2GKE5Jk8KqGM97e9F3sN8JVzHhxjOdfMsLlR2mbBAxxgTU8BzgIynO12Yj5Abu5aSrE=");
-    let capsule = String::from("Ar/Ysokd/HgkFSLhtkX0kDCzX/Y3jazhzG+wto4WvPilA8j4Arq+Mj0bopJD0Aoa8npmSg4jVWkTG0SAW1KR3DtXLxKeip5oS0G9tp8geg248/bDfQ9YZohlPGgZGFffJeU=");
-    let delegator_pubkey = String::from("A1Jk4Db9+m4FRtU0Izq5jkM1R4Xuj/ANnG2DVL/i1/BJ");
-    let delegatee_pubkey = String::from("Aj88RrXoUMAfhorSXOtX8zrVTraGNsg3ahzFfGqfJT71");
+    assert!(verify_fragment(
+        &FRAGMENT_P1_DR1_DE1.to_string(),
+        &CAPSULE.to_string(),
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string()
+    )
+    .is_ok());
 
-    assert!(verify_fragment(&fragment, &capsule, &delegator_pubkey, &delegatee_pubkey).is_ok());
-
-    assert!(verify_fragment(&fragment, &capsule, &delegator_pubkey, &delegator_pubkey).is_err());
+    assert!(verify_fragment(
+        &FRAGMENT_P1_DR1_DE2.to_string(),
+        &CAPSULE.to_string(),
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string()
+    )
+    .is_err());
 }

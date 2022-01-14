@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::contract::{
-    execute, get_next_proxy_task, instantiate, DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
+    execute, get_next_proxy_task, instantiate, verify_fragment, DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
     DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT, DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT,
 };
 use crate::delegations::{
@@ -173,12 +173,14 @@ fn add_data(
     creator: &Addr,
     data_id: &String,
     delegator_pubkey: &String,
+    capsule: &String,
 ) -> StdResult<Response> {
     let env = mock_env_height(&creator, 450, &vec![]);
 
     let msg = ExecuteMsg::AddData {
         data_id: data_id.clone(),
         delegator_pubkey: delegator_pubkey.clone(),
+        capsule: capsule.clone(),
     };
 
     return execute(deps, env.0, env.1, msg);
@@ -561,8 +563,11 @@ fn test_add_data() {
     let data_id1 = String::from("DATA1");
     let data_id2 = String::from("DATA2");
 
+    let capsule = String::from("capsule");
+
     let data_entry = DataEntry {
         delegator_pubkey: delegator1_pubkey.clone(),
+        capsule: capsule.clone(),
     };
 
     /*************** Initialise *************/
@@ -587,6 +592,7 @@ fn test_add_data() {
         &delegator1,
         &data_id1,
         &data_entry.delegator_pubkey,
+        &capsule
     )
     .is_ok());
 
@@ -597,6 +603,7 @@ fn test_add_data() {
             &delegator1,
             &data_id1,
             &data_entry.delegator_pubkey,
+            &capsule
         ),
         "already exist",
     ));
@@ -612,7 +619,13 @@ fn test_add_data() {
 
     // Delgator2 cannot use delegator1 pubkey
     assert!(is_err(
-        add_data(deps.as_mut(), &delegator2, &data_id2, &delegator1_pubkey),
+        add_data(
+            deps.as_mut(),
+            &delegator2,
+            &data_id2,
+            &delegator1_pubkey,
+            &capsule
+        ),
         "already registered with this pubkey",
     ));
 }
@@ -637,8 +650,11 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     let proxy2_pubkey: String = String::from("proxy2_pubkey");
 
     let data_id = String::from("DATA");
+    let capsule = String::from("capsule");
+
     let data_entry = DataEntry {
         delegator_pubkey: delegator1_pubkey.clone(),
+        capsule: capsule.clone(),
     };
 
     // Staking
@@ -682,6 +698,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         &delegator1,
         &data_id,
         &data_entry.delegator_pubkey,
+        &capsule,
     )
     .is_ok());
 
@@ -903,6 +920,8 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
     let data_id1 = String::from("DATA1");
     let data_id2 = String::from("DATA2");
 
+    let capsule = String::from("capsule");
+
     // Staking
     let proxy_stake = vec![Coin {
         denom: String::from("atestfet"),
@@ -957,11 +976,24 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
 
     // Add data by delegator2 with already used delegator1_pubkey is prevented
     assert!(is_err(
-        add_data(deps.as_mut(), &delegator2, &data_id1, &delegator1_pubkey),
+        add_data(
+            deps.as_mut(),
+            &delegator2,
+            &data_id1,
+            &delegator1_pubkey,
+            &capsule
+        ),
         "Delegator delegator1 already registered with this pubkey.",
     ));
 
-    assert!(add_data(deps.as_mut(), &delegator2, &data_id2, &delegator2_pubkey).is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator2,
+        &data_id2,
+        &delegator2_pubkey,
+        &capsule
+    )
+    .is_ok());
 
     // Cannot add delegation by delegator1 using delegator2 pubkey
     assert!(is_err(
@@ -986,14 +1018,16 @@ fn test_provide_reencrypted_fragment() {
     let delegator = Addr::unchecked("delegator".to_string());
 
     // Pubkeys
-    let delegator_pubkey: String = String::from("DRK");
-    let delegatee_pubkey: String = String::from("DEK1");
+    let delegator_pubkey = String::from("A1Jk4Db9+m4FRtU0Izq5jkM1R4Xuj/ANnG2DVL/i1/BJ");
+    let delegatee_pubkey = String::from("Aj88RrXoUMAfhorSXOtX8zrVTraGNsg3ahzFfGqfJT71");
     let other_delegatee_pubkey: String = String::from("DEK2");
     let proxy_pubkey: String = String::from("proxy_pubkey");
 
     let data_id = String::from("DATA");
+    let capsule = String::from("Ar/Ysokd/HgkFSLhtkX0kDCzX/Y3jazhzG+wto4WvPilA8j4Arq+Mj0bopJD0Aoa8npmSg4jVWkTG0SAW1KR3DtXLxKeip5oS0G9tp8geg248/bDfQ9YZohlPGgZGFffJeU=");
 
     let data_entry = DataEntry {
+        capsule: capsule.clone(),
         delegator_pubkey: delegator_pubkey.clone(),
     };
 
@@ -1033,6 +1067,7 @@ fn test_provide_reencrypted_fragment() {
         &delegator,
         &data_id,
         &data_entry.delegator_pubkey,
+        &capsule,
     )
     .is_ok());
 
@@ -1087,7 +1122,7 @@ fn test_provide_reencrypted_fragment() {
         &0u64,
     ));
 
-    let proxy_fragment: String = String::from("PR1_FRAG1");
+    let proxy_fragment = String::from("AzVR1+woGJURijJUu7ucA+O3rWY5SKnMtw3sss/4riPmAlcEydAP08lmEAAqQeOiO6Rmmn8vbMq3ZPE/0/Jd8ElO0/9uU4xh7kmsT1e7AEd/UzLiWiYX5qANhYpzBTK+XYcDR9ax1NO8j/68GjmdXng46Y5Y7EwSbSUu+cSZ82jBSKsDCmQBtB2zDM9lZTDDSteayWp66rs9QVTj+c6yZYn+RIwD2V8Q8XMOehyhRBySlD0W4713v3iANewUeFO3rRcwtH8DpDRCUnTyvaS+8t2H15eTbHGRXNW1iI3dxCEtesFXrDYD2s8sWbtESZVtoDjO+1v2+co9Y95yUn6mZ7iHRZPf1LO6vl2GeIZYpmCgukPd616ZJHDP8kFwPGsVzaJ2AaMBZyFq6SEgd5+ctWZ0vwzq2GKE5Jk8KqGM97e9F3sN8JVzHhxjOdfMsLlR2mbBAxxgTU8BzgIynO12Yj5Abu5aSrE=");
     // Provide unwanted fragment
     assert!(is_err(
         provide_reencrypted_fragment(
@@ -1156,14 +1191,19 @@ fn test_contract_lifecycle() {
     let delegator = Addr::unchecked("delegator".to_string());
 
     // Pubkeys
-    let delegator_pubkey: String = String::from("DRK");
-    let delegatee1_pubkey: String = String::from("DEK1");
-    let delegatee2_pubkey: String = String::from("DEK2");
+    let delegator_pubkey = String::from("ApEPhAeq+TAL5aKiRkIpdoJ2pD+6qSt1RqHxGthT+XRY");
+
+    let delegatee1_pubkey = String::from("A5CYTfwD0EocpW4gCKtnP1lIFkMveO55v5+nbJaLqmLX");
+    let delegatee2_pubkey = String::from("AnJgbnA4RwLalI9Vi2xQSTVD7MRGeb4kiRQ8/kqzJyIK");
+
     let proxy1_pubkey: String = String::from("proxy_pubkey1");
     let proxy2_pubkey: String = String::from("proxy_pubkey2");
 
     let data_id = String::from("DATA");
+    let capsule = String::from("Ax83HFfEW1e+DW3KlikFLELPOVqYnlS39baHHC+/vsB4AmV+m1r9eZ6nCV9KXv7dSH+bSdWFbsqWFTxfF5qsjwObLtgsZUVSt8iv8UtkP0bLJs2sguElu4Syek6Seh3ZTj4=");
+
     let data_entry = DataEntry {
+        capsule: capsule.clone(),
         delegator_pubkey: delegator_pubkey.clone(),
     };
 
@@ -1206,6 +1246,7 @@ fn test_contract_lifecycle() {
         &delegator,
         &data_id,
         &data_entry.delegator_pubkey,
+        &capsule,
     )
     .is_ok());
 
@@ -1346,6 +1387,7 @@ fn test_contract_lifecycle() {
         proxy1_task1,
         ProxyTask {
             data_id: data_id.clone(),
+            capsule: data_entry.capsule.clone(),
             delegatee_pubkey: delegatee1_pubkey.clone(),
             delegator_pubkey: delegator_pubkey.clone(),
             delegation_string: proxy1_delegation_string.clone(),
@@ -1360,7 +1402,7 @@ fn test_contract_lifecycle() {
     );
 
     // Proxy1 provides fragment for task1
-    let proxy1_fragment1: String = String::from("PR1_FRAG1");
+    let proxy1_fragment1: String = String::from("Agn8MTBWSKzz277FLeNKvhOwa3juw7HBciLmyA/3kZ2hAtQv0l/B+Ej2vQLxZDx+MHDr5uevth9PzntoIz6gbPI1xJk3dVwZohs3YgdaXJsBXpAambF1FpOGrola7KcwjtQDOL6tYr3e6dlMgsW9GnONyZUWk15ixjxdrAIZfp8qWAMCbOd9fCO820cnEqBeQHpit75l8gxb6Al3s28p4uMFeq4Dzsh5SbQgRk7KjI9LEq2a9YzQ2ts3O5KEx3SuZoCOE0UDns625ayBRPD5BHdYwGaCGo/w6oJ5PvRp7rEpMSvxpOACu5HXcj2KNZnzAc2QGNrHmrAIxxS4pUbp7ffoPjSK/eGOs3Yh2IaeLQMzj2FNpUCYii6D3KJMT5sWqdKQV+5Aw6ebgujLY0o4Gs2aJ3toE3GuNuSfwFKzySmpq5CfSGaJJftZDYt72g7t8cRKVFXT6D8ugCXfMVL6GRE7adJEkYU=");
     assert!(provide_reencrypted_fragment(
         deps.as_mut(),
         &proxy1,
@@ -1377,6 +1419,18 @@ fn test_contract_lifecycle() {
         DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 1 * DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT
             + DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT
     );
+
+    // Proxy2 tries to provides fragment already provided by proxy1 for task1
+    assert!(is_err(
+        provide_reencrypted_fragment(
+            deps.as_mut(),
+            &proxy2,
+            &data_id,
+            &delegatee1_pubkey,
+            &proxy1_fragment1,
+        ),
+        "Fragment already provided by other proxy."
+    ));
 
     // Check numbers of requests
     assert_eq!(
@@ -1408,6 +1462,7 @@ fn test_contract_lifecycle() {
         proxy1_task2,
         ProxyTask {
             data_id: data_id.clone(),
+            capsule: data_entry.capsule.clone(),
             delegatee_pubkey: delegatee2_pubkey.clone(),
             delegator_pubkey: delegator_pubkey.clone(),
             delegation_string: proxy1_delegation_string.clone(),
@@ -1415,7 +1470,7 @@ fn test_contract_lifecycle() {
     );
 
     // Proxy1 provides fragment for task1
-    let proxy1_fragment2: String = String::from("PR1_FRAG2");
+    let proxy1_fragment2: String = String::from("A5fWxYyjkfJu/k2oq5A6w+pLgRtWRIKu2uEHe/i0AGSiAsK7jq0a7KjTeiBCBRTC64ATDb/QfYQ9CBoiF5FDdbJwh3Yb5RoZgkclP0cqNtftZnRCdVUuycy2UpQ7f4x5tFkCkymfOr+pOYAe56kPnK9cTGjuwGdgcrV3i5A1ocF5xYsD0mFd9APeYHeRjAIgPzM3na8xJuYgSdY9FA6upZOYqxkDGWHWjB6Uvjby3zTbN+A8vuQmHRx0NST4ICR5HfKCCPQCE6/D/Dep4lyf4v9E03VgMisZKFWW7+YP5qAIWgNDSPoCb8OqfDTrYzJSKGZg+ti4l/Cjo5PaqmlZlj1MCR/Rb906nywBtIQCU9iVAHGUnE8h9QV+kYWik4s2Vcq2W6r/Y6MXnYLK9JsYpIwny6zDwHzOwfTk4Wn9mLGENf4q2s/5ZeM/1TJIu6wECI+L5zmGMWl40iloHhHcxeCVKwKnM0s=");
     assert!(provide_reencrypted_fragment(
         deps.as_mut(),
         &proxy1,
@@ -1545,11 +1600,11 @@ fn test_proxy_unregister_with_requests() {
     let delegator2 = Addr::unchecked("delegator2".to_string());
 
     // Pubkeys
-    let delegator1_pubkey: String = String::from("DRK1");
-    let delegator2_pubkey: String = String::from("DRK2");
+    let delegator1_pubkey = String::from("ApEPhAeq+TAL5aKiRkIpdoJ2pD+6qSt1RqHxGthT+XRY");
+    let delegator2_pubkey = String::from("AutXYFCdptyMx71HRDCyUm1eNDZVAFfDlbWTJQydiCBl");
 
-    let delegatee1_pubkey: String = String::from("DEK1");
-    let delegatee2_pubkey: String = String::from("DEK2");
+    let delegatee1_pubkey = String::from("A5CYTfwD0EocpW4gCKtnP1lIFkMveO55v5+nbJaLqmLX");
+    let delegatee2_pubkey = String::from("AnJgbnA4RwLalI9Vi2xQSTVD7MRGeb4kiRQ8/kqzJyIK");
 
     let proxy1_pubkey: String = String::from("proxy_pubkey1");
     let proxy2_pubkey: String = String::from("proxy_pubkey2");
@@ -1561,8 +1616,9 @@ fn test_proxy_unregister_with_requests() {
     let data_id2 = String::from("DATA2");
     let data_id3 = String::from("DATA3");
 
+    let capsule = String::from("Ax83HFfEW1e+DW3KlikFLELPOVqYnlS39baHHC+/vsB4AmV+m1r9eZ6nCV9KXv7dSH+bSdWFbsqWFTxfF5qsjwObLtgsZUVSt8iv8UtkP0bLJs2sguElu4Syek6Seh3ZTj4=");
+
     let delegation_string = String::from("DELESTRING");
-    let re_encrypted_fragment = String::from("FRAGMENT");
 
     // Staking
     let stake_denom = String::from("atestfet");
@@ -1611,9 +1667,30 @@ fn test_proxy_unregister_with_requests() {
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id1, &delegator1_pubkey).is_ok());
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id2, &delegator1_pubkey).is_ok());
-    assert!(add_data(deps.as_mut(), &delegator2, &data_id3, &delegator2_pubkey).is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        &data_id1,
+        &delegator1_pubkey,
+        &capsule
+    )
+    .is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        &data_id2,
+        &delegator1_pubkey,
+        &capsule
+    )
+    .is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator2,
+        &data_id3,
+        &delegator2_pubkey,
+        &capsule
+    )
+    .is_ok());
 
     // Add delegations manually
 
@@ -1773,13 +1850,23 @@ fn test_proxy_unregister_with_requests() {
         DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 3 * DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT
     );
 
+    // Provide wrong fragment
+    assert!(is_err(provide_reencrypted_fragment(
+        deps.as_mut(),
+        &proxy2,
+        &data_id1,
+        &delegatee2_pubkey,
+        &String::from("AlOCf/P4QgxzG0bEYA5eWat7n7690e0SVU8nisO0BFnqA+Tv1RDfuGqLN7Sn6EBrrYQB+bwlwDEgV9pA7QelEGMh6woxYKKqHvmocBZRvfLZbwtk9d8mNmc4QPtaDqOISSwDOL6tYr3e6dlMgsW9GnONyZUWk15ixjxdrAIZfp8qWAMCT7sL/wtuucbl4opVMNi6arM5UswYyaHRzbkSyJ7t87ID+hG4CiBdGU/DX9TOPStWoNwTuRfdDDgzQrBqnI/Z5t0CkT+FXq3/SwLHsEFjGTNLJTIWfVHgj65xRm0yq3Zcr1UCA+hS+fvUnnqf94MpkJsjpaGyuxEOJqxOoV7M8/58D9DZGN9lsFYaELvLcsLIIG1Csn9WUCp86qT0lSC+13wO0ruWsVPmKHvRp1bj/lKWBRW4A0i0F1ORuAFspqlecvH6YHRIr9vAE6D4JahQuV4+IOHkuS4NMy0HyXum1xMsyyQ="),
+    )
+        ,"Invalid KeyFrag signature"));
+
     // Complete requests
     assert!(provide_reencrypted_fragment(
         deps.as_mut(),
         &proxy2,
         &data_id1,
         &delegatee2_pubkey,
-        &re_encrypted_fragment,
+        &String::from("A8tpNyTSuvhXqY4QZzutuX8GAGdoLzZHmsNKCXYTrbwEAgVT11RLlKw4HO1gfJymn1DYL8w7e1uVcvKklv8iHrGbl76ql2VC45i1rGCt+YpFU8qRfr/99eXE3YoLykokZd8CkymfOr+pOYAe56kPnK9cTGjuwGdgcrV3i5A1ocF5xYsCSVgJ3C8QKFiXjhbJSdXqX78j1n3vt0Jx4UYqbzFVLPcDeHcgvCut2MzS18/cclk1XD3iGq7OJUeBy8HKyn53lV0Dv1gBTq869LuD37w8m4NOV0vmagN1gjApcxu4RO0uKaoC0W38+IoyRC/JDLjV0a5GEh4+s4u+hts5VHd62u5oAmFbZOlpNrUAZqQ7mucOxR3q0B1RY1+V9QC0fY6I0G4n7/wnN2eKy//PpbOYsG6Cxf33RNd+Mtu0DhuYfxiJFUyyQif6UB3UeB8xsC2y7xA6Jl5TGrhwD8MyeF2ne9FBH/0="),
     )
     .is_ok());
 
@@ -2127,11 +2214,11 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     let delegator2 = Addr::unchecked("delegator2".to_string());
 
     // Pubkeys
-    let delegator1_pubkey: String = String::from("DRK1");
-    let delegator2_pubkey: String = String::from("DRK2");
+    let delegator1_pubkey = String::from("ApEPhAeq+TAL5aKiRkIpdoJ2pD+6qSt1RqHxGthT+XRY");
+    let delegator2_pubkey = String::from("AutXYFCdptyMx71HRDCyUm1eNDZVAFfDlbWTJQydiCBl");
 
-    let delegatee1_pubkey: String = String::from("DEK1");
-    let delegatee2_pubkey: String = String::from("DEK2");
+    let delegatee1_pubkey = String::from("A5CYTfwD0EocpW4gCKtnP1lIFkMveO55v5+nbJaLqmLX");
+    let delegatee2_pubkey = String::from("AnJgbnA4RwLalI9Vi2xQSTVD7MRGeb4kiRQ8/kqzJyIK");
 
     let proxy1_pubkey: String = String::from("proxy_pubkey1");
     let proxy2_pubkey: String = String::from("proxy_pubkey2");
@@ -2143,8 +2230,9 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     let data_id2 = String::from("DATA2");
     let data_id3 = String::from("DATA3");
 
+    let capsule = String::from("Ax83HFfEW1e+DW3KlikFLELPOVqYnlS39baHHC+/vsB4AmV+m1r9eZ6nCV9KXv7dSH+bSdWFbsqWFTxfF5qsjwObLtgsZUVSt8iv8UtkP0bLJs2sguElu4Syek6Seh3ZTj4=");
+
     let delegation_string = String::from("DELESTRING");
-    let re_encrypted_fragment = String::from("FRAGMENT");
 
     // Staking
     let stake_denom = String::from("atestfet");
@@ -2193,9 +2281,30 @@ fn test_proxy_deactivate_and_remove_with_requests() {
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id1, &delegator1_pubkey).is_ok());
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id2, &delegator1_pubkey).is_ok());
-    assert!(add_data(deps.as_mut(), &delegator2, &data_id3, &delegator2_pubkey).is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        &data_id1,
+        &delegator1_pubkey,
+        &capsule
+    )
+    .is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        &data_id2,
+        &delegator1_pubkey,
+        &capsule
+    )
+    .is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator2,
+        &data_id3,
+        &delegator2_pubkey,
+        &capsule
+    )
+    .is_ok());
 
     // Add delegations manually
 
@@ -2339,7 +2448,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy2,
         &data_id1,
         &delegatee2_pubkey,
-        &re_encrypted_fragment,
+        &String::from("AlCR5oC5v9i8G6IohBPRXg5qfYDP3awqEk2RIusDZo3wAwJEdUq0N3TG1iJ0lqfwRnNos1w3ysr3Vd0WPfFoBc991Pmeib1ZyAX52bfvtjcB3VdzunAnXrH0x259LtNX94oCkymfOr+pOYAe56kPnK9cTGjuwGdgcrV3i5A1ocF5xYsCK1m3Gcr1OeLeHMh26lX7rSDQKP7PoKJC4N/Mgeaqn0wDmP4BflDmAFm7AHvNbq6j5wlYLbZ0SDrpQ/L0axS4huYCYaHbevxWAYoQl2o1m+b5KtVg3c//Iaw1L4RRut+m1GMDhhuHPM1wslLQnN799sLX6itYkBWwTYnCDEc/9NBeCv4/P0LPZSNH6OW8Ta4x08yMA3WPSuBBj3rPcZt5Nydl+Mf4oj47fbmN6AhI9js2P7JBUCi/54jiNUkB4tDgqD2nNzC5ngPVPsnJEcSPx74aW1ppKowvRT7DwM9CNsEAbG0="),
     )
     .is_ok());
 
@@ -2888,6 +2997,8 @@ fn test_proxy_insufficient_funds_request_skip() {
     let data_id2 = String::from("DATA2");
     let data_id3 = String::from("DATA3");
 
+    let capsule = String::from("capsule");
+
     let delegation_string = String::from("DELESTRING");
 
     // Staking
@@ -2948,9 +3059,30 @@ fn test_proxy_insufficient_funds_request_skip() {
 
     /*************** Add data and delegations by delegator *************/
     // Add data by delegator
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id1, &delegator1_pubkey).is_ok());
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id2, &delegator1_pubkey).is_ok());
-    assert!(add_data(deps.as_mut(), &delegator1, &data_id3, &delegator1_pubkey).is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        &data_id1,
+        &delegator1_pubkey,
+        &capsule
+    )
+    .is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        &data_id2,
+        &delegator1_pubkey,
+        &capsule
+    )
+    .is_ok());
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        &data_id3,
+        &delegator1_pubkey,
+        &capsule
+    )
+    .is_ok());
 
     assert!(request_proxies_for_delegation(
         deps.as_mut(),
@@ -3315,4 +3447,16 @@ fn test_get_n_minimum_proxies_for_refund() {
     staking_config.per_request_slash_stake_amount = Uint128(100);
     state.threshold = 1;
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 1);
+}
+
+#[test]
+fn test_verify_fragments() {
+    let fragment = String::from("AzVR1+woGJURijJUu7ucA+O3rWY5SKnMtw3sss/4riPmAlcEydAP08lmEAAqQeOiO6Rmmn8vbMq3ZPE/0/Jd8ElO0/9uU4xh7kmsT1e7AEd/UzLiWiYX5qANhYpzBTK+XYcDR9ax1NO8j/68GjmdXng46Y5Y7EwSbSUu+cSZ82jBSKsDCmQBtB2zDM9lZTDDSteayWp66rs9QVTj+c6yZYn+RIwD2V8Q8XMOehyhRBySlD0W4713v3iANewUeFO3rRcwtH8DpDRCUnTyvaS+8t2H15eTbHGRXNW1iI3dxCEtesFXrDYD2s8sWbtESZVtoDjO+1v2+co9Y95yUn6mZ7iHRZPf1LO6vl2GeIZYpmCgukPd616ZJHDP8kFwPGsVzaJ2AaMBZyFq6SEgd5+ctWZ0vwzq2GKE5Jk8KqGM97e9F3sN8JVzHhxjOdfMsLlR2mbBAxxgTU8BzgIynO12Yj5Abu5aSrE=");
+    let capsule = String::from("Ar/Ysokd/HgkFSLhtkX0kDCzX/Y3jazhzG+wto4WvPilA8j4Arq+Mj0bopJD0Aoa8npmSg4jVWkTG0SAW1KR3DtXLxKeip5oS0G9tp8geg248/bDfQ9YZohlPGgZGFffJeU=");
+    let delegator_pubkey = String::from("A1Jk4Db9+m4FRtU0Izq5jkM1R4Xuj/ANnG2DVL/i1/BJ");
+    let delegatee_pubkey = String::from("Aj88RrXoUMAfhorSXOtX8zrVTraGNsg3ahzFfGqfJT71");
+
+    assert!(verify_fragment(&fragment, &capsule, &delegator_pubkey, &delegatee_pubkey).is_ok());
+
+    assert!(verify_fragment(&fragment, &capsule, &delegator_pubkey, &delegator_pubkey).is_err());
 }

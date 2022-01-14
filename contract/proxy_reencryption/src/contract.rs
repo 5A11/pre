@@ -38,6 +38,8 @@ use cosmwasm_std::{
 
 use crate::common::add_bank_msg;
 
+use umbral_pre::{Capsule, CapsuleFrag, DeserializableFromArray, PublicKey};
+
 macro_rules! generic_err {
     ($val:expr) => {
         Err(StdError::generic_err($val))
@@ -47,6 +49,7 @@ macro_rules! generic_err {
 pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 1000;
 pub const DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT: u128 = 100;
 pub const DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT: u128 = 100;
+pub const FRAGMENT_VERIFICATION_ERROR: &str = "Fragment verification failed: ";
 
 pub fn instantiate(
     deps: DepsMut,
@@ -375,6 +378,19 @@ fn try_provide_reencrypted_fragment(
         return generic_err!("Fragment already provided.");
     }
 
+    let data_entry = store_get_data_entry(deps.storage, data_id).unwrap();
+
+    verify_fragment(
+        &fragment.to_string(),
+        &data_entry.capsule,
+        &data_entry.delegator_pubkey,
+        &proxy_request.delegatee_pubkey,
+    )?;
+
+    if get_all_fragments(deps.storage, data_id, delegatee_pubkey).contains(&fragment.to_string()) {
+        return generic_err!("Fragment already provided by other proxy.");
+    }
+
     // Prepare return response
     let res = Response {
         submessages: vec![],
@@ -513,6 +529,7 @@ fn try_add_data(
     info: MessageInfo,
     data_id: &str,
     delegator_pubkey: &str,
+    capsule: &str,
 ) -> StdResult<Response> {
     if store_get_data_entry(deps.storage, data_id).is_some() {
         return generic_err!(format!("Entry with ID {} already exist.", data_id));
@@ -522,6 +539,7 @@ fn try_add_data(
 
     let entry = DataEntry {
         delegator_pubkey: delegator_pubkey.to_string(),
+        capsule: capsule.to_string(),
     };
     store_set_data_entry(deps.storage, data_id, &entry);
 
@@ -828,6 +846,7 @@ pub fn get_next_proxy_task(
 
     let proxy_task = ProxyTask {
         data_id: request.data_id.clone(),
+        capsule: data_entry.capsule.clone(),
         delegatee_pubkey: request.delegatee_pubkey,
         delegator_pubkey: data_entry.delegator_pubkey,
         delegation_string: request.delegation_string,
@@ -874,7 +893,8 @@ pub fn execute(
         ExecuteMsg::AddData {
             data_id,
             delegator_pubkey,
-        } => try_add_data(deps, env, info, &data_id, &delegator_pubkey),
+            capsule,
+        } => try_add_data(deps, env, info, &data_id, &delegator_pubkey, &capsule),
         ExecuteMsg::AddDelegation {
             delegator_pubkey,
             delegatee_pubkey,
@@ -1080,4 +1100,63 @@ fn select_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<String>> {
     }
 
     Ok(proxy_pubkeys[0..n_proxies].to_vec())
+}
+
+fn unwrap_or_pass_error<ResultType, ErrType: std::fmt::Display>(
+    obj: Result<ResultType, ErrType>,
+    error_str: &str,
+) -> StdResult<ResultType> {
+    // Convert any error to StdError to pass it outside of contract
+    match obj {
+        Ok(data) => Ok(data),
+        Err(error) => generic_err!(format!("{}{}", error_str, error)),
+    }
+}
+
+pub fn verify_fragment(
+    fragment: &str,
+    capsule: &str,
+    delegator_pubkey: &str,
+    delegatee_pubkey: &str,
+) -> StdResult<()> {
+    let fragment_vec =
+        unwrap_or_pass_error(base64::decode(&fragment), FRAGMENT_VERIFICATION_ERROR)?;
+    let fragment = unwrap_or_pass_error(
+        CapsuleFrag::from_bytes(&fragment_vec),
+        FRAGMENT_VERIFICATION_ERROR,
+    )?;
+
+    let capsule_vec = unwrap_or_pass_error(base64::decode(&capsule), FRAGMENT_VERIFICATION_ERROR)?;
+    let capsule = unwrap_or_pass_error(
+        Capsule::from_bytes(&capsule_vec),
+        FRAGMENT_VERIFICATION_ERROR,
+    )?;
+
+    let delegator_pubkey_vec = unwrap_or_pass_error(
+        base64::decode(&delegator_pubkey),
+        FRAGMENT_VERIFICATION_ERROR,
+    )?;
+    let delegator_pubkey = unwrap_or_pass_error(
+        PublicKey::from_bytes(&delegator_pubkey_vec),
+        FRAGMENT_VERIFICATION_ERROR,
+    )?;
+
+    let delegatee_pubkey_vec = unwrap_or_pass_error(
+        base64::decode(&delegatee_pubkey),
+        FRAGMENT_VERIFICATION_ERROR,
+    )?;
+    let delegatee_pubkey = unwrap_or_pass_error(
+        PublicKey::from_bytes(&delegatee_pubkey_vec),
+        FRAGMENT_VERIFICATION_ERROR,
+    )?;
+
+    match fragment.verify(
+        &capsule,
+        &delegator_pubkey,
+        &delegator_pubkey,
+        &delegatee_pubkey,
+    ) {
+        Ok(_) => Ok(()),
+        Err(error) => generic_err!(format!("{}{}", FRAGMENT_VERIFICATION_ERROR, error)),
+    }
 }

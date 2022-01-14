@@ -18,12 +18,16 @@
     "ProxyTask": {
       "type": "object",
       "required": [
+        "capsule",
         "data_id",
         "delegatee_pubkey",
         "delegation_string",
         "delegator_pubkey"
       ],
       "properties": {
+        "capsule": {
+          "type": "string"
+        },
         "data_id": {
           "type": "string"
         },

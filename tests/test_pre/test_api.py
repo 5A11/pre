@@ -104,7 +104,7 @@ def test_delegatee_api():
     storage.get_encrypted_data.assert_called_once_with(hash_id)
     crypto.decrypt.assert_called_once_with(
         encrypted_data=storage.get_encrypted_data.return_value,
-        encrypted_data_fragments_bytes=[storage.get_encrypted_part.return_value]
+        encrypted_data_fragments_bytes=[b""]
         * threshold,
         delegatee_private_key=ANY,
         delegator_pubkey_bytes=delegator_pubkey_bytes,
@@ -193,7 +193,7 @@ def test_proxy_api():
     proxy_api = ProxyAPI(
         encryption_private_key, ledger_crypto, contract, storage, crypto
     )
-    fragment_hash_id = b"fragment hash id"
+    fragment_bytes = b"fragment hash id"
     capsule = b"capsule"
     minimum_registration_stake = Coin(denom="atestfet", amount=str(1000))
 
@@ -209,6 +209,7 @@ def test_proxy_api():
 
     proxy_task = ProxyTask(
         hash_id=hash_id,
+        capsule=capsule,
         delegatee_pubkey=delegatee_pubkey_bytes,
         delegator_pubkey=delegator_pubkey_bytes,
         delegation_string=delegation_string,
@@ -221,9 +222,8 @@ def test_proxy_api():
     )
 
     storage.get_capsule.return_value = capsule
-    storage.store_encrypted_part.return_value = fragment_hash_id
+    storage.store_encrypted_part.return_value = fragment_bytes
     proxy_api.process_reencryption_request(proxy_task)
-    storage.get_capsule.assert_called_once_with(proxy_task.hash_id)
 
     crypto.reencrypt.assert_called_once_with(
         capsule_bytes=capsule,
@@ -233,10 +233,9 @@ def test_proxy_api():
         delegatee_pubkey_bytes=delegatee_pubkey_bytes,
     )
 
-    storage.store_encrypted_part.assert_called_once_with(ANY)
     contract.provide_reencrypted_fragment.assert_called_once_with(
         proxy_private_key=ledger_crypto,
         hash_id=hash_id,
         delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-        fragment_hash_id=fragment_hash_id,
+        fragment_bytes=ANY,
     )

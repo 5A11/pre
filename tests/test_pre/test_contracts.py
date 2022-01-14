@@ -2,6 +2,7 @@ from unittest.case import TestCase
 
 import pytest
 from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
+from base64 import b64decode
 
 from pre.common import Delegation, DelegationState, ReencryptionRequestState
 from pre.contract.base_contract import (
@@ -21,7 +22,7 @@ from pre.contract.base_contract import (
     ReencryptedCapsuleFragAlreadyProvided,
     ReencryptionAlreadyRequested,
     UnknownProxy,
-    UnkownReencryptionRequest, ProxiesAreTooBusy,
+    UnkownReencryptionRequest,
 )
 from pre.contract.cosmos_contracts import (
     AdminContract,
@@ -87,11 +88,12 @@ class BaseContractTestCase(TestCase):
         self.proxy_crypto2 = self.ledger.make_new_crypto()
         self.proxy_addr2 = self.proxy_crypto2.get_address()
 
-        self.delegator_pub_key = b"delegator_pub_key"
-        self.delegatee_pub_key = b"pub_key"
+        self.delegator_pub_key = b64decode("ApEPhAeq+TAL5aKiRkIpdoJ2pD+6qSt1RqHxGthT+XRY")
+        self.delegatee_pub_key = b64decode("A5CYTfwD0EocpW4gCKtnP1lIFkMveO55v5+nbJaLqmLX")
         self.hash_id = "hash_id"
+        self.capsule = b64decode("Ax83HFfEW1e+DW3KlikFLELPOVqYnlS39baHHC+/vsB4AmV+m1r9eZ6nCV9KXv7dSH+bSdWFbsqWFTxfF5qsjwObLtgsZUVSt8iv8UtkP0bLJs2sguElu4Syek6Seh3ZTj4=")
         self.degator_addr = self.ledger_crypto.get_address()
-        self.fragment_hash_id = "some fragment hash_id"
+        self.fragment_bytes = b64decode("Agn8MTBWSKzz277FLeNKvhOwa3juw7HBciLmyA/3kZ2hAtQv0l/B+Ej2vQLxZDx+MHDr5uevth9PzntoIz6gbPI1xJk3dVwZohs3YgdaXJsBXpAambF1FpOGrola7KcwjtQDOL6tYr3e6dlMgsW9GnONyZUWk15ixjxdrAIZfp8qWAMCbOd9fCO820cnEqBeQHpit75l8gxb6Al3s28p4uMFeq4Dzsh5SbQgRk7KjI9LEq2a9YzQ2ts3O5KEx3SuZoCOE0UDns625ayBRPD5BHdYwGaCGo/w6oJ5PvRp7rEpMSvxpOACu5HXcj2KNZnzAc2QGNrHmrAIxxS4pUbp7ffoPjSK/eGOs3Yh2IaeLQMzj2FNpUCYii6D3KJMT5sWqdKQV+5Aw6ebgujLY0o4Gs2aJ3toE3GuNuSfwFKzySmpq5CfSGaJJftZDYt72g7t8cRKVFXT6D8ugCXfMVL6GRE7adJEkYU=")
 
     @classmethod
     def _setup_a_contract(self):
@@ -198,12 +200,12 @@ class TestAdminContract(BaseContractTestCase):
 class TestDelegatorContract(BaseContractTestCase):
     def test_add_delegation_add_reencryption_request(self):
         self.delegator_contract.add_data(
-            self.ledger_crypto, self.delegator_pub_key, self.hash_id
+            self.ledger_crypto, self.delegator_pub_key, self.hash_id, self.capsule
         )
 
         with pytest.raises(DataAlreadyExist):
             self.delegator_contract.add_data(
-                self.ledger_crypto, self.delegator_pub_key, self.hash_id
+                self.ledger_crypto, self.delegator_pub_key, self.hash_id, self.capsule
             )
 
         with pytest.raises(UnknownProxy):
@@ -399,7 +401,7 @@ class TestDelegatorContract(BaseContractTestCase):
             proxy_private_key=self.ledger_crypto,
             hash_id=self.hash_id,
             delegatee_pubkey_bytes=self.delegatee_pub_key,
-            fragment_hash_id=self.fragment_hash_id,
+            fragment_bytes=self.fragment_bytes,
         )
 
         with pytest.raises(ReencryptionAlreadyRequested):
@@ -424,7 +426,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 proxy_private_key=self.ledger_crypto,
                 hash_id=self.hash_id,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
-                fragment_hash_id=self.fragment_hash_id,
+                fragment_bytes=self.fragment_bytes,
             )
 
         with pytest.raises(UnkownReencryptionRequest):
@@ -432,11 +434,11 @@ class TestDelegatorContract(BaseContractTestCase):
                 proxy_private_key=self.ledger_crypto,
                 hash_id="another hash id",
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
-                fragment_hash_id=self.fragment_hash_id,
+                fragment_bytes=self.fragment_bytes,
             )
 
         assert (
-            self.fragment_hash_id
+            self.fragment_bytes
             in self.contract_queries.get_fragments_response(
                 self.hash_id, delegatee_pubkey_bytes=self.delegatee_pub_key
             ).fragments

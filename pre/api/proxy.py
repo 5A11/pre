@@ -78,7 +78,7 @@ class ProxyAPI:
             raise ValueError("Storage was not set!")
         hash_id = proxy_task.hash_id
         delegatee_pubkey_bytes = proxy_task.delegatee_pubkey
-        capsule = self._storage.get_capsule(hash_id)
+        capsule = proxy_task.capsule
         encrypted_fragment = self._crypto.reencrypt(
             capsule_bytes=capsule,
             delegation_bytes=proxy_task.delegation_string,
@@ -86,12 +86,9 @@ class ProxyAPI:
             delegator_pubkey_bytes=proxy_task.delegator_pubkey,
             delegatee_pubkey_bytes=proxy_task.delegatee_pubkey,
         )
-        encryption_fragment_hash_id = self._storage.store_encrypted_part(
-            encrypted_fragment
-        )
         self._contract.provide_reencrypted_fragment(
             proxy_private_key=self._ledger_crypto,
             hash_id=hash_id,
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-            fragment_hash_id=encryption_fragment_hash_id,
+            fragment_bytes=encrypted_fragment,
         )

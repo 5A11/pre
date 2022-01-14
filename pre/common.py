@@ -84,7 +84,7 @@ class EncryptedData(NamedTuple):
     """Encrypted data dataclass."""
 
     data: Union[bytes, IO]
-    capsule: bytes
+    capsule: Capsule
 
 
 ReencryptedFragment = bytes
@@ -96,17 +96,19 @@ class ProxyTask:
     def __init__(
         self,
         hash_id: HashID,
+        capsule: Capsule,
         delegatee_pubkey: bytes,
         delegator_pubkey: bytes,
         delegation_string: bytes,
     ):
         self.hash_id = hash_id
+        self.capsule = capsule
         self.delegatee_pubkey = delegatee_pubkey
         self.delegator_pubkey = delegator_pubkey
         self.delegation_string = delegation_string
 
     def __str__(self) -> str:  # pragma: nocover
-        return f"{self.hash_id}: delegator: {self.delegator_pubkey.hex()} delegatee: {self.delegatee_pubkey.hex()}"
+        return f"{self.hash_id}: capsule: {self.capsule.hex()} delegator: {self.delegator_pubkey.hex()} delegatee: {self.delegatee_pubkey.hex()}"
 
 
 class DelegationState(Enum):
@@ -144,7 +146,7 @@ class GetFragmentsResponse:
     """Get reencypteed fragments response data class."""
 
     reencryption_request_state: ReencryptionRequestState
-    fragments: List[HashID]
+    fragments: List[bytes]
     threshold: int
 
 

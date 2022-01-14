@@ -43,7 +43,8 @@ from pre.contract.base_contract import (
     ReencryptedCapsuleFragAlreadyProvided,
     ReencryptionAlreadyRequested,
     UnknownProxy,
-    UnkownReencryptionRequest, ProxiesAreTooBusy,
+    UnkownReencryptionRequest,
+    FragmentVerificationFailed
 )
 from pre.ledger.base_ledger import AbstractLedgerCrypto
 from pre.ledger.cosmos.ledger import BroadcastException, CosmosLedger
@@ -114,6 +115,10 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise NotEnoughStakeToWithdraw(raw_log, error_code, res)
         if "Proxies are too busy, try again later" in raw_log:
             raise ProxiesAreTooBusy(raw_log, error_code, res)
+        if "Fragment verification failed" in raw_log:
+            raise FragmentVerificationFailed(raw_log, error_code, res)
+        if "Fragment already provided by other proxy" in raw_log:
+            raise FragmentVerificationFailed(raw_log, error_code, res)
         raise ContractExecutionError(
             f"Contract execution failed: {raw_log}", error_code, res
         )  # pragma: nocover
@@ -237,6 +242,7 @@ class ContractQueries(AbstractContractQueries):
             return None
         return ProxyTask(
             hash_id=cast(str, proxy_task["data_id"]),
+            capsule=b64decode(cast(str, proxy_task["capsule"])),
             delegatee_pubkey=b64decode(cast(str, proxy_task["delegatee_pubkey"])),
             delegator_pubkey=b64decode(cast(str, proxy_task["delegator_pubkey"])),
             delegation_string=b64decode(cast(str, proxy_task["delegation_string"])),
@@ -265,7 +271,7 @@ class ContractQueries(AbstractContractQueries):
             reencryption_request_state=ReencryptionRequestState[
                 cast(str, json_res["reencryption_request_state"])
             ],
-            fragments=cast(List[str], json_res["fragments"]),
+            fragments=[b64decode(i) for i in cast(List[str], json_res["fragments"])],
             threshold=cast(int, json_res["threshold"]),
         )
 
@@ -445,6 +451,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
         delegator_private_key: AbstractLedgerCrypto,
         delegator_pubkey_bytes: bytes,
         hash_id: HashID,
+        capsule: bytes,
     ):
         """
         Register data in the contract.
@@ -452,11 +459,13 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
         :param delegator_private_key: Delegator ledger private key
         :param delegator_pubkey_bytes: Delegator public key as bytes
         :param hash_id: str, hash_id the encrypteed data published
+        :param capsule: Encrypted capsule
         """
         submit_msg = {
             "add_data": {
                 "data_id": str(hash_id),
                 "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
+                "capsule": encode_bytes(capsule)
             }
         }
         res, error_code = self.ledger.send_execute_msg(
@@ -667,7 +676,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         proxy_private_key: AbstractLedgerCrypto,
         hash_id: HashID,
         delegatee_pubkey_bytes: bytes,
-        fragment_hash_id: HashID,
+        fragment_bytes: bytes,
     ):
         """
         Provide reencrypted fragment for specific reencryption request.
@@ -675,13 +684,13 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         :param proxy_private_key: Proxy ledger private key
         :param hash_id: str, hash_id the encrypteed data published
         :param delegatee_pubkey_bytes: Delegatee public key as bytes
-        :param fragment_hash_id: str, hash_id of the fragemtn reencrypted
+        :param fragment_bytes: reencrypted fragment
         """
         submit_msg = {
             "provide_reencrypted_fragment": {
                 "data_id": hash_id,
                 "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
-                "fragment": fragment_hash_id,
+                "fragment": encode_bytes(fragment_bytes),
             }
         }
         res, error_code = self.ledger.send_execute_msg(

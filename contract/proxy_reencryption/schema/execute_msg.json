@@ -159,10 +159,14 @@
         "add_data": {
           "type": "object",
           "required": [
+            "capsule",
             "data_id",
             "delegator_pubkey"
           ],
           "properties": {
+            "capsule": {
+              "type": "string"
+            },
             "data_id": {
               "type": "string"
             },

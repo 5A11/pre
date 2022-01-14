@@ -73,7 +73,7 @@ CLIENT_CODE_ERROR_EXCEPTION = 4
 CLIENT_CODE_MESSAGE_SUCCESSFUL = 0
 
 DEFAULT_GAS_LIMIT = (
-    1500000  # 1500000 is the maximum gas limit - tx will fail with higher limit
+    3000000  # 3000000 is the maximum gas limit - tx will fail with higher limit
 )
 
 

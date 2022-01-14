@@ -202,25 +202,6 @@ class IpfsStorage(AbstractStorage):
         links = self._read_container(hash_id)
         return self._get_object(links["data"], stream=stream)
 
-    def store_encrypted_part(self, encrypted_part: ReencryptedFragment) -> HashID:
-        """
-        Store reencryption part and return hash id.
-
-        :param encrypted_part: ReencryptedFragment
-        :return: str, hash_id
-        """
-        return self._add_object(encrypted_part)
-
-    def get_encrypted_part(self, hash_id: HashID) -> ReencryptedFragment:
-        """
-        Get reencryption part by it's hash id.
-
-        :param hash_id:, str, hash_id of the reencrypted fragment data stored
-
-        :return: ReencryptedFragment instance
-        """
-        return cast(ReencryptedFragment, self._get_object(hash_id, stream=False))
-
     def _add_to_container(self, objects: Dict) -> HashID:
         """Add object to one container."""
         self._check_connected()

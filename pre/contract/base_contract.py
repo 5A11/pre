@@ -205,6 +205,7 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         delegator_private_key: AbstractLedgerCrypto,
         delegator_pubkey_bytes: bytes,
         hash_id: HashID,
+        capsule: bytes
     ):
         """
         Register data in the contract.
@@ -212,6 +213,7 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         :param delegator_private_key: Delegator ledger private key
         :param delegator_pubkey_bytes: Delegator public key as bytes
         :param hash_id: str, hash_id the encrypteed data published
+        :param capsule: Encrypted capsule
         """
 
     @abstractmethod
@@ -350,7 +352,7 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         proxy_private_key: AbstractLedgerCrypto,
         hash_id: HashID,
         delegatee_pubkey_bytes: bytes,
-        fragment_hash_id: HashID,
+        fragment_bytes: bytes,
     ):
         """
         Provide reencrypted fragment for specific reencryption request.
@@ -358,7 +360,7 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         :param proxy_private_key: Proxy ledger private key
         :param hash_id: str, hash_id the encrypteed data published
         :param delegatee_pubkey_bytes: Delegatee public key as bytes
-        :param fragment_hash_id: str, hash_id of the fragment reencrypted
+        :param fragment_bytes: reencrypted fragment
         """
 
     @abstractmethod
@@ -506,3 +508,7 @@ class NotEnoughStakeToWithdraw(ContractExecutionError):
 
 class ProxiesAreTooBusy(ContractExecutionError):
     """Proxies are too busy error."""
+
+
+class FragmentVerificationFailed(ContractExecutionError):
+    """Fragment verification failed."""

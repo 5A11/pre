@@ -11,7 +11,7 @@ use std::convert::TryInto;
 static PROXY_DELEGATIONS_ID_STORE_KEY: &[u8] = b"ProxyDelegationIDStore";
 
 // To get all delegations for proxy
-// proxy_pubkey: String -> delegation_id: u64 -> is_delegation: bool
+// Map proxy_pubkey: String -> delegation_id: u64 -> is_delegation: bool
 static PER_PROXY_DELEGATIONS_STORE_KEY: &[u8] = b"PerProxyDelegationsStore";
 
 // Map delegation_id: u64 -> delegation: ProxyDelegation

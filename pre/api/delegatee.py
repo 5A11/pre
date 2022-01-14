@@ -32,7 +32,7 @@ class DelegateeAPI:
         self._storage = storage
         self._crypto = crypto
 
-    def is_data_ready(self, hash_id: HashID) -> Tuple[bool, int, List[HashID]]:
+    def is_data_ready(self, hash_id: HashID) -> Tuple[bool, int, List[bytes]]:
         """
         Check is data ready to be decrypted.
 
@@ -59,14 +59,11 @@ class DelegateeAPI:
 
         :return: bytes of the data decrypted
         """
-        is_ready, _, fragments_ids = self.is_data_ready(hash_id)
+        is_ready, _, encrypted_fragments = self.is_data_ready(hash_id)
 
         if not is_ready:  # pragma: nocover
             raise ValueError("Data is not ready!")
 
-        encrypted_fragments = [
-            self._storage.get_encrypted_part(i) for i in fragments_ids
-        ]
         encrypted_data = self._storage.get_encrypted_data(hash_id)
         data = self._crypto.decrypt(
             encrypted_data=encrypted_data,

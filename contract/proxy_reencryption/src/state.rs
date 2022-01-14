@@ -43,6 +43,7 @@ pub struct StakingConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct DataEntry {
     pub delegator_pubkey: String,
+    pub capsule: String,
 }
 
 // Getters and setters

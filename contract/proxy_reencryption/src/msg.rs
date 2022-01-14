@@ -15,6 +15,7 @@ pub struct ProxyDelegationString {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyTask {
     pub data_id: String,
+    pub capsule: String,
     pub delegatee_pubkey: String,
     pub delegator_pubkey: String,
     pub delegation_string: String,
@@ -76,6 +77,7 @@ pub enum ExecuteMsg {
     AddData {
         data_id: String,
         delegator_pubkey: String,
+        capsule: String,
     },
     RequestProxiesForDelegation {
         delegator_pubkey: String,

@@ -44,10 +44,6 @@ def test_storage_errors():
                 hash_id="Qme7ss3ARVgxv6rXqVPiikMJ8u2NLgmgszg13pYrDKEoia", stream=False
             )
 
-        data = b"some data to store"
-        hash_id = storage.store_encrypted_part(data)
-        assert storage.get_encrypted_part(hash_id) == data
-
         storage.disconnect()
         with pytest.raises(
             StorageNotConnected, match=r"storage is not connected! Connect first!"

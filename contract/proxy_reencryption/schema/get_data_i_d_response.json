@@ -18,9 +18,13 @@
     "DataEntry": {
       "type": "object",
       "required": [
+        "capsule",
         "delegator_pubkey"
       ],
       "properties": {
+        "capsule": {
+          "type": "string"
+        },
         "delegator_pubkey": {
           "type": "string"
         }

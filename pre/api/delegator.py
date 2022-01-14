@@ -60,6 +60,7 @@ class DelegatorAPI:
             delegator_private_key=self._ledger_crypto,
             delegator_pubkey_bytes=self._encryption_public_key,
             hash_id=hash_id,
+            capsule=encrypted_data.capsule,
         )
         return hash_id
 

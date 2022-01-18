@@ -31,13 +31,12 @@ def test_storage_errors():
         with pytest.raises(StorageError, match="Already connected!"):
             storage.connect()
 
-        enc_data = EncryptedData(b"123", b"345")
+        enc_data = EncryptedData(b"123")
         hash_id = storage.store_encrypted_data(enc_data)
         stored_enc_data = storage.get_encrypted_data(hash_id, stream=False)
         assert enc_data == stored_enc_data
 
         assert enc_data.data == storage.get_data(hash_id, stream=False)
-        assert enc_data.capsule == storage.get_capsule(hash_id)
 
         with pytest.raises(StorageTimeout):
             storage.get_data(

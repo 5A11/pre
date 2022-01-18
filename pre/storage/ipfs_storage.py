@@ -1,19 +1,13 @@
 import contextlib
 from io import BytesIO
-from typing import Dict, IO, Optional, Union, cast
+from typing import Dict, IO, Optional, Union
 
 import ipfshttpclient  # type: ignore
 from ipfshttpclient.client import Client  # type: ignore
 from ipfshttpclient.exceptions import CommunicationError
 from ipfshttpclient.http_common import ReadableStreamWrapper  # type: ignore
 
-from pre.common import (
-    AbstractConfig,
-    Capsule,
-    EncryptedData,
-    HashID,
-    ReencryptedFragment,
-)
+from pre.common import AbstractConfig, EncryptedData, HashID
 from pre.storage.base_storage import (
     AbstractStorage,
     StorageError,
@@ -157,7 +151,6 @@ class IpfsStorage(AbstractStorage):
         """
         objects = {
             "data": self._add_object(encrypted_data.data),
-            "capsule": self._add_object(encrypted_data.capsule),
         }
         return self._add_to_container(objects)
 
@@ -175,20 +168,7 @@ class IpfsStorage(AbstractStorage):
         links = self._read_container(hash_id)
         return EncryptedData(
             data=self._get_object(links["data"], stream=stream),
-            capsule=cast(bytes, self._get_object(links["capsule"], stream=False)),
         )
-
-    def get_capsule(self, hash_id: HashID) -> Capsule:
-        """
-        Get capsule of encrypted data by container hash id.
-
-        :param hash_id:, str, hash_id of the encrypted data stored
-
-        :return: Capsule instance
-        """
-        links = self._read_container(hash_id)
-        object_bytes = cast(bytes, self._get_object(links["capsule"], stream=False))
-        return object_bytes
 
     def get_data(self, hash_id: HashID, stream: bool = False) -> Union[bytes, IO]:
         """

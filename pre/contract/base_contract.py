@@ -205,7 +205,7 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         delegator_private_key: AbstractLedgerCrypto,
         delegator_pubkey_bytes: bytes,
         hash_id: HashID,
-        capsule: bytes
+        capsule: bytes,
     ):
         """
         Register data in the contract.
@@ -512,3 +512,7 @@ class ProxiesAreTooBusy(ContractExecutionError):
 
 class FragmentVerificationFailed(ContractExecutionError):
     """Fragment verification failed."""
+
+
+class QueryDataEntryDoesNotExist(ContractQueryError):
+    """Data entry was not registered exception."""

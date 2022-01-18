@@ -34,7 +34,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
 
     crypto = UmbralCrypto()
 
-    encrypted_data = crypto.encrypt(data, delegator.public_key)
+    encrypted_data, capsule = crypto.encrypt(data, delegator.public_key)
 
     delegations = crypto.generate_delegations(
         threshold,
@@ -47,7 +47,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
     for i, p in enumerate(proxies):
         reencrypted_cap_frags.append(
             crypto.reencrypt(
-                encrypted_data.capsule,
+                capsule,
                 bytes(delegations[i].delegation_string),
                 p,
                 bytes(delegator.public_key),
@@ -58,7 +58,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
     # delegation does not match proxy key
     with pytest.raises(DecryptionError, match="Decryption failed."):
         crypto.reencrypt(
-            encrypted_data.capsule,
+            capsule,
             bytes(delegations[1].delegation_string),
             some_key,
             bytes(delegator.public_key),
@@ -67,7 +67,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
 
     with pytest.raises(IncorrectFormatOfDelegationString):
         crypto.reencrypt(
-            encrypted_data.capsule,
+            capsule,
             bytes(b"1" * 98),
             proxies[1],
             bytes(delegator.public_key),
@@ -78,6 +78,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
     with pytest.raises(DecryptionError):
         crypto.decrypt(
             encrypted_data,
+            capsule,
             reencrypted_cap_frags[:threshold],
             delegatee,
             bytes(delegatee.public_key),
@@ -87,6 +88,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
     with pytest.raises(DecryptionError):
         crypto.decrypt(
             encrypted_data,
+            capsule,
             reencrypted_cap_frags[:threshold],
             some_key,
             bytes(delegator.public_key),
@@ -96,6 +98,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
     with pytest.raises(NotEnoughFragments):
         crypto.decrypt(
             encrypted_data,
+            capsule,
             reencrypted_cap_frags[: threshold - 1],
             delegatee,
             bytes(delegator.public_key),
@@ -103,6 +106,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
 
     decrypted_data = crypto.decrypt(
         encrypted_data,
+        capsule,
         reencrypted_cap_frags[:threshold],
         delegatee,
         bytes(delegator.public_key),

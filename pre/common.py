@@ -84,7 +84,6 @@ class EncryptedData(NamedTuple):
     """Encrypted data dataclass."""
 
     data: Union[bytes, IO]
-    capsule: Capsule
 
 
 ReencryptedFragment = bytes
@@ -147,6 +146,7 @@ class GetFragmentsResponse:
 
     reencryption_request_state: ReencryptionRequestState
     fragments: List[bytes]
+    capsule: bytes
     threshold: int
 
 

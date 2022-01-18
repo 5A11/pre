@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import IO, Union
 
-from pre.common import Capsule, EncryptedData, HashID, ReencryptedFragment
+from pre.common import EncryptedData, HashID
 
 
 class AbstractStorage(ABC):
@@ -14,16 +14,6 @@ class AbstractStorage(ABC):
 
         :param encrypted_data: EncryptedData instance
         :return: str, hash_id
-        """
-
-    @abstractmethod
-    def get_capsule(self, hash_id: HashID) -> Capsule:
-        """
-        Get capsule of encrypted data by container hash id.
-
-        :param hash_id:, str, hash_id of the encrypted data stored
-
-        :return: Capsule instance
         """
 
     @abstractmethod

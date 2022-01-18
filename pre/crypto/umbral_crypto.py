@@ -1,4 +1,4 @@
-from typing import IO, List, Union, cast
+from typing import IO, List, Tuple, Union, cast
 
 import nacl
 from umbral import Capsule as _Capsule
@@ -13,7 +13,7 @@ from umbral.errors import VerificationError
 from umbral.openssl import ErrorInvalidPointEncoding
 from umbral.pre import decrypt_reencrypted
 
-from pre.common import Delegation, EncryptedData, PrivateKey, PublicKey
+from pre.common import Capsule, Delegation, EncryptedData, PrivateKey, PublicKey
 from pre.crypto.base_crypto import (
     AbstractCrypto,
     DecryptionError,
@@ -142,7 +142,7 @@ class UmbralCrypto(AbstractCrypto):
 
     def encrypt(
         self, data: Union[bytes, IO], delegator_public_key: PublicKey
-    ) -> EncryptedData:
+    ) -> Tuple[EncryptedData, Capsule]:
         """
         Encrypt data with delegatorm public key.
 
@@ -155,7 +155,7 @@ class UmbralCrypto(AbstractCrypto):
         umb_public_key = cast(UmbralPublicKey, delegator_public_key).umbral_key
 
         capsule, ciphertext = encrypt(umb_public_key, data)
-        return EncryptedData(ciphertext, bytes(UmbralCapsule(capsule)))
+        return EncryptedData(ciphertext), bytes(UmbralCapsule(capsule))
 
     def generate_delegations(
         self,
@@ -259,6 +259,7 @@ class UmbralCrypto(AbstractCrypto):
     def decrypt(
         self,
         encrypted_data: EncryptedData,
+        capsule: Capsule,
         encrypted_data_fragments_bytes: List[bytes],
         delegatee_private_key: PrivateKey,
         delegator_pubkey_bytes: bytes,
@@ -267,6 +268,7 @@ class UmbralCrypto(AbstractCrypto):
         Decrypt data using reencryption fragments and private key.
 
         :param encrypted_data: EncryptedData instance
+        :param capsule: Capsule
         :param encrypted_data_fragments_bytes: list of bytes of reencryption fragments
         :param delegatee_private_key: delegatee encryption private key
         :param delegator_pubkey_bytes: delegator encryption public
@@ -279,7 +281,7 @@ class UmbralCrypto(AbstractCrypto):
         umb_delegatee_private_key = cast(
             UmbralPrivateKey, delegatee_private_key
         ).umbral_key
-        umb_capsule = UmbralCapsule.from_bytes(encrypted_data.capsule).umbral_capsule
+        umb_capsule = UmbralCapsule.from_bytes(capsule).umbral_capsule
 
         cfrags = []
         for frag_bytes in encrypted_data_fragments_bytes:

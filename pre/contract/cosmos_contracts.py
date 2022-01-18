@@ -34,17 +34,18 @@ from pre.contract.base_contract import (
     DataEntryDoesNotExist,
     DelegationAlreadyAdded,
     DelegationAlreadyExist,
+    FragmentVerificationFailed,
     NotAdminError,
     NotEnoughStakeToWithdraw,
     ProxiesAreTooBusy,
     ProxyAlreadyExist,
     ProxyAlreadyRegistered,
     ProxyNotRegistered,
+    QueryDataEntryDoesNotExist,
     ReencryptedCapsuleFragAlreadyProvided,
     ReencryptionAlreadyRequested,
     UnknownProxy,
     UnkownReencryptionRequest,
-    FragmentVerificationFailed
 )
 from pre.ledger.base_ledger import AbstractLedgerCrypto
 from pre.ledger.cosmos.ledger import BroadcastException, CosmosLedger
@@ -141,6 +142,10 @@ class ContractQueries(AbstractContractQueries):
             return self.ledger.send_query_msg(self.contract_address, state_msg)
         except BroadcastException as e:
             if "contract: not found: invalid request" in str(e):
+                raise ContractQueryError(str(e)) from e
+            if "Data entry doesn\\'t exist" in str(e):
+                raise QueryDataEntryDoesNotExist(e)
+            if "Generic error" in str(e):
                 raise ContractQueryError(str(e)) from e
             raise
 
@@ -254,7 +259,7 @@ class ContractQueries(AbstractContractQueries):
         """
         Get reencryption fragments for data_id and specific delegatee.
 
-        :param data_id: str, hash id of the data set on contract
+        :param hash_id: str, hash id of the data set on contract
         :param delegatee_pubkey_bytes: Delegator public key as bytes
 
         :return: GetFragmentsResponse instance
@@ -271,6 +276,7 @@ class ContractQueries(AbstractContractQueries):
             reencryption_request_state=ReencryptionRequestState[
                 cast(str, json_res["reencryption_request_state"])
             ],
+            capsule=b64decode(cast(str, json_res["capsule"])),
             fragments=[b64decode(i) for i in cast(List[str], json_res["fragments"])],
             threshold=cast(int, json_res["threshold"]),
         )
@@ -465,7 +471,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
             "add_data": {
                 "data_id": str(hash_id),
                 "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
-                "capsule": encode_bytes(capsule)
+                "capsule": encode_bytes(capsule),
             }
         }
         res, error_code = self.ledger.send_execute_msg(

@@ -35,15 +35,15 @@ def test_delegator_api():
     threshold = 2
     hash_id = "hash_id"
     data = b"bytes"
-    crypto.encrypt.return_value = EncryptedData(data, b"capsule")
+    crypto.encrypt.return_value = EncryptedData(data), b"capsule"
     storage.store_encrypted_data.return_value = hash_id
     encryption_private_key.public_key = b"pubkey"
 
     assert delegator_api.add_data(data) == hash_id
     crypto.encrypt.assert_called_once_with(
-        crypto.encrypt.return_value.data, encryption_private_key.public_key
+        crypto.encrypt.return_value[0].data, encryption_private_key.public_key
     )
-    storage.store_encrypted_data.assert_called_once_with(crypto.encrypt.return_value)
+    storage.store_encrypted_data.assert_called_once_with(crypto.encrypt.return_value[0])
 
     minimum_request_reward = Coin(denom="atestfet", amount=str(100))
 
@@ -72,6 +72,7 @@ def test_delegatee_api():
     threshold = 2
     hash_id = "hash_id"
     data = b"bytes"
+    capsule = b"capsule"
     delegator_pubkey_bytes = b"some"
 
     delegatee_api = DelegateeAPI(encryption_private_key, contract, storage, crypto)
@@ -81,6 +82,7 @@ def test_delegatee_api():
     contract.get_fragments_response.return_value = GetFragmentsResponse(
         threshold=threshold,
         fragments=[b""],
+        capsule=capsule,
         reencryption_request_state=ReencryptionRequestState.inaccessible,
     )
     assert not delegatee_api.is_data_ready(hash_id)[0]
@@ -91,21 +93,22 @@ def test_delegatee_api():
     contract.get_fragments_response.return_value = GetFragmentsResponse(
         threshold=threshold,
         fragments=[b""] * threshold,
+        capsule=capsule,
         reencryption_request_state=ReencryptionRequestState.granted,
     )
     assert delegatee_api.is_data_ready(hash_id)[0]
 
     crypto.decrypt.return_value = data
     storage.get_encrypted_part.return_value = b"some part"
-    storage.get_encrypted_data.return_value = EncryptedData(data, b"capsule")
+    storage.get_encrypted_data.return_value = EncryptedData(data)
 
     assert delegatee_api.read_data(hash_id, delegator_pubkey_bytes) == data
     storage.get_encrypted_part.call_count == threshold
     storage.get_encrypted_data.assert_called_once_with(hash_id)
     crypto.decrypt.assert_called_once_with(
         encrypted_data=storage.get_encrypted_data.return_value,
-        encrypted_data_fragments_bytes=[b""]
-        * threshold,
+        encrypted_data_fragments_bytes=[b""] * threshold,
+        capsule=capsule,
         delegatee_private_key=ANY,
         delegator_pubkey_bytes=delegator_pubkey_bytes,
     )
@@ -123,7 +126,7 @@ def test_admin_api():
     threshold = 2
     hash_id = "hash_id"
     data = b"bytes"
-    crypto.encrypt.return_value = EncryptedData(data, b"capsule")
+    crypto.encrypt.return_value = EncryptedData(data), b"capsule"
     storage.store_encrypted_data.return_value = hash_id
     encryption_private_key.public_key = b"pubkey"
     proxies = ["some_proxy"]

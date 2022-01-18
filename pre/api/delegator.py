@@ -52,7 +52,7 @@ class DelegatorAPI:
 
         :return: str, hash id of the encrypteed data published
         """
-        encrypted_data = self._crypto.encrypt(
+        encrypted_data, capsule = self._crypto.encrypt(
             data, self._encryption_private_key.public_key
         )
         hash_id = self._storage.store_encrypted_data(encrypted_data)
@@ -60,7 +60,7 @@ class DelegatorAPI:
             delegator_private_key=self._ledger_crypto,
             delegator_pubkey_bytes=self._encryption_public_key,
             hash_id=hash_id,
-            capsule=encrypted_data.capsule,
+            capsule=capsule,
         )
         return hash_id
 

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import IO, List, Union
+from typing import IO, List, Tuple, Union
 
-from pre.common import Delegation, EncryptedData, PrivateKey, PublicKey
+from pre.common import Capsule, Delegation, EncryptedData, PrivateKey, PublicKey
 
 
 class AbstractCrypto(ABC):
@@ -10,14 +10,14 @@ class AbstractCrypto(ABC):
     @abstractmethod
     def encrypt(
         self, data: Union[bytes, IO], delegator_public_key: PublicKey
-    ) -> EncryptedData:
+    ) -> Tuple[EncryptedData, Capsule]:
         """
         Encrypt data with delegatorm public key.
 
         :param data: bytes or IO stream
         :param delegator_public_key: delegator encryption public key
 
-        :return: EncryptedData instance
+        :return: EncryptedData instance, Capsule bytes
         """
 
     @abstractmethod
@@ -64,6 +64,7 @@ class AbstractCrypto(ABC):
     def decrypt(
         self,
         encrypted_data: EncryptedData,
+        capsule: Capsule,
         encrypted_data_fragments_bytes: List[bytes],
         delegatee_private_key: PrivateKey,
         delegator_pubkey_bytes: bytes,
@@ -72,6 +73,7 @@ class AbstractCrypto(ABC):
         Decrypt data using reencryption fragments and private key.
 
         :param encrypted_data: EncryptedData instance
+        :param capsule: Capsule
         :param encrypted_data_fragments_bytes: list of bytes of reencryption fragments
         :param delegatee_private_key: delegatee encryption private key
         :param delegator_pubkey_bytes: delegator encryption public

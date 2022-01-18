@@ -937,12 +937,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             delegatee_pubkey,
         } => {
             let state = store_get_state(deps.storage)?;
+            let data_entry = match store_get_data_entry(deps.storage, &data_id) {
+                None => generic_err!("Data entry doesn't exist"),
+                Some(data) => Ok(data),
+            }?;
+
             Ok(to_binary(&GetFragmentsResponse {
                 reencryption_request_state: get_reencryption_request_state(
                     deps.storage,
                     &data_id,
                     &delegatee_pubkey,
                 ),
+                capsule: data_entry.capsule,
                 fragments: get_all_fragments(deps.storage, &data_id, &delegatee_pubkey),
                 threshold: state.threshold,
             })?)

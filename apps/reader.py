@@ -43,7 +43,7 @@ def get_data_status(
         crypto=app_config.get_crypto_instance(),
     )
     click.echo(f"reader public key: {bytes(encryption_private_key.public_key).hex()}")
-    is_ready, _, _ = delegatee_api.is_data_ready(hash_id)
+    is_ready, *_ = delegatee_api.is_data_ready(hash_id)
     if is_ready:
         click.echo(f"Data {hash_id} is ready!")
         ctx.exit(0)

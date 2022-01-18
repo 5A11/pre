@@ -337,6 +337,7 @@ class CosmosLedger(AbstractLedger):
 
         :param contract_address: Address of contract running on chain
         :param query_msg: Query message in json format
+        :param num_retries: Optional number of retries
 
         :return: Query json response
         """
@@ -373,7 +374,6 @@ class CosmosLedger(AbstractLedger):
         gas: int = DEFAULT_GAS_LIMIT,
         amount: Optional[List[Coin]] = None,
         retries: Optional[int] = None,
-        broadcast_retries: Optional[int] = None,
     ) -> Tuple[JSONLike, int]:
         """
         Generate, sign and send handle message
@@ -383,6 +383,7 @@ class CosmosLedger(AbstractLedger):
         :param execute_msg: Execute message in json format
         :param gas: Gas limit
         :param amount: Funds to be transferred to contract address
+        :param retries: Optional number of retries
 
         :return: Execute message response
         """

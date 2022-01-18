@@ -137,6 +137,7 @@ pub struct GetDataIDResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetFragmentsResponse {
     pub reencryption_request_state: ReencryptionRequestState,
+    pub capsule: String,
     pub fragments: Vec<String>,
     pub threshold: u32,
 }

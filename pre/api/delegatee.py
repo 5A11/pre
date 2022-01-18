@@ -32,12 +32,12 @@ class DelegateeAPI:
         self._storage = storage
         self._crypto = crypto
 
-    def is_data_ready(self, hash_id: HashID) -> Tuple[bool, int, List[bytes]]:
+    def is_data_ready(self, hash_id: HashID) -> Tuple[bool, int, List[bytes], bytes]:
         """
         Check is data ready to be decrypted.
 
         :param hash_id: str, data hash id to check
-        :return: Tuple[is_ready:bool, threshold: int, reencryption_fragmetns_list:List of hash id]
+        :return: Tuple[is_ready:bool, threshold: int, reencryption_fragmetns_list:List of hash id, capsule:bytes]
         """
         response = self._contract.get_fragments_response(
             hash_id=hash_id,
@@ -46,7 +46,7 @@ class DelegateeAPI:
         is_ready = (
             response.reencryption_request_state == ReencryptionRequestState.granted
         )
-        return is_ready, response.threshold, response.fragments
+        return is_ready, response.threshold, response.fragments, response.capsule
 
     def read_data(
         self, hash_id: HashID, delegator_pubkey_bytes: bytes
@@ -59,7 +59,7 @@ class DelegateeAPI:
 
         :return: bytes of the data decrypted
         """
-        is_ready, _, encrypted_fragments = self.is_data_ready(hash_id)
+        is_ready, _, encrypted_fragments, capsule = self.is_data_ready(hash_id)
 
         if not is_ready:  # pragma: nocover
             raise ValueError("Data is not ready!")
@@ -67,6 +67,7 @@ class DelegateeAPI:
         encrypted_data = self._storage.get_encrypted_data(hash_id)
         data = self._crypto.decrypt(
             encrypted_data=encrypted_data,
+            capsule=capsule,
             encrypted_data_fragments_bytes=encrypted_fragments,
             delegatee_private_key=self._encryption_private_key,
             delegator_pubkey_bytes=delegator_pubkey_bytes,

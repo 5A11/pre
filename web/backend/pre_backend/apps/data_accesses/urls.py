@@ -2,11 +2,21 @@
 
 from django.urls import path
 
-from .views import DataAccessAPIView, DataAccessCreateAPIView, DataAccessListAPIView
+from .views import (
+    DataAccessAPIView,
+    DataAccessCreateAPIView,
+    DataAccessDownloadAPIView,
+    DataAccessListAPIView,
+)
 
 
 urlpatterns = [
     path("", DataAccessListAPIView.as_view(), name="data-access-list"),
     path("<int:pk>", DataAccessAPIView.as_view(), name="data-access"),
     path("create", DataAccessCreateAPIView.as_view(), name="data-access-create"),
+    path(
+        "<int:pk>/download",
+        DataAccessDownloadAPIView.as_view(),
+        name="data-access-download",
+    ),
 ]

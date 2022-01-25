@@ -47,7 +47,6 @@ urlpatterns = [
     ),
     path("rest-auth/", include("rest_auth.urls")),
     path("rest-auth/registration/", include("rest_auth.registration.urls")),
-    
     # Internal URLs
     path("authorization/", include("pre_backend.apps.authorization.urls")),
     path("data-accesses/", include("pre_backend.apps.data_accesses.urls")),

@@ -14,6 +14,12 @@ import os
 
 from pathlib import Path
 
+# from pre.contract.cosmos_contracts import AdminContract
+from pre.crypto.umbral_crypto import UmbralCrypto
+from pre.ledger.cosmos.ledger import CosmosLedger, CosmosLedgerConfig
+from pre.storage.ipfs_storage import IpfsStorage, IpfsStorageConfig
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -187,3 +193,45 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# PRE SDK related config
+
+UMBRAL_CRYPTO = UmbralCrypto()
+
+LEDGER_CONFIG = os.environ.get("LEDGER_CONFIG", CosmosLedgerConfig.make_default())
+LEDGER = CosmosLedger(**LEDGER_CONFIG)
+
+STORAGE_CONFIG = os.environ.get("STORAGE_CONFIG", IpfsStorageConfig.make_default())
+IPFS_HOST = os.environ.get("IPFS_HOST", "ipfs")
+STORAGE_CONFIG["addr"] = IPFS_HOST
+IPFS_STORAGE = IpfsStorage(**STORAGE_CONFIG)
+
+STAKE_DENOM = os.environ.get("STAKE_DENOM", "atestfet")
+N_MAX_PROXIES = os.environ.get("N_MAX_PROXIES", 10)
+
+THRESHOLD = 1
+
+
+def _get_contract_address():
+    # FUNDED_FETCHAI_PRIVATE_KEY_1 = (
+    #     "bbaef7511f275dc15f47436d14d6d3c92d4d01befea073d23d0c2750a46f6cb3"
+    # )
+    # admin_ledger_crypto = LEDGER.load_crypto_from_str(FUNDED_FETCHAI_PRIVATE_KEY_1)
+    # return AdminContract.instantiate_contract(
+    #             ledger=LEDGER,
+    #             admin_private_key=admin_ledger_crypto,
+    #             admin_addr=admin_ledger_crypto.get_address(),
+    #             stake_denom=STAKE_DENOM,
+    #             threshold=THRESHOLD,
+    #             n_max_proxies=N_MAX_PROXIES,
+    # )
+    return "contract-address"
+
+
+CONTRACT_ADDRESS = os.environ.get(
+    "CONTRACT_ADDRESS", _get_contract_address()
+)  # TODO: replace with a real address that can be used for local usage.
+
+
+IPFS_STORAGE.connect()  # Is that correct to place it here?

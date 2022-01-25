@@ -17,7 +17,7 @@ class DataAccess(models.Model):
         related_name="data_accesses_owned",
     )
     readers = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, related_name="data_accesses_granted"
+        settings.AUTH_USER_MODEL, related_name="data_accesses_granted", blank=True
     )
 
     def __str__(self):

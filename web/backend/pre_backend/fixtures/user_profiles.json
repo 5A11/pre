@@ -3,16 +3,16 @@
         "model":"authorization.userprofile",
         "pk":1,
         "fields":{
-            "encryption":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "ledger":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            "encryption":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "ledger":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         }
     },
     {
         "model":"authorization.userprofile",
         "pk":2,
         "fields":{
-            "encryption":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-            "ledger":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            "encryption":"cccccccccccccccccccccccccccccccc",
+            "ledger":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         }
     }
 ]

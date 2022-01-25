@@ -7,8 +7,27 @@ services:
     environment:
       POSTGRES_HOST_AUTH_METHOD: trust
 
+  # For local run purposes
+  ipfs:
+    image: "ipfs/go-ipfs:v0.7.0"
+    ports:
+      - "5001:5001"
+  
+  ledger:
+    image: fetchai/fetchd:0.8.4
+    logging:
+      driver: "none"
+    volumes:
+      - .:/ledger
+    entrypoint: ["sh", "/ledger/ledger_entrypoint.sh"]
+    ports:
+      - "1317:1317"
+      - "26657:26657"
+
   backend:
-    build: ./backend
+    build: 
+      context: ../
+      dockerfile: ./web/backend/Dockerfile
     working_dir: /backend
     command: >
       bash -c "
@@ -24,6 +43,8 @@ services:
       - "8000"
     depends_on:
       - db
+      - ledger
+      - ipfs
 
   frontend:
     build: ./frontend

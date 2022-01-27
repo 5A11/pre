@@ -35,7 +35,7 @@ pub struct State {
 pub struct StakingConfig {
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Uint128,
-    pub minimum_request_reward_amount: Uint128,
+    pub per_proxy_request_reward_amount: Uint128,
     pub per_request_slash_stake_amount: Uint128,
 }
 

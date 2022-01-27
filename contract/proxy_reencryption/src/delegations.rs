@@ -334,7 +334,7 @@ pub fn get_n_minimum_proxies_for_refund(state: &State, staking_config: &StakingC
 
     // Worst case scenario of refunding
     let maximum_amount_to_refund: u128 =
-        staking_config.minimum_request_reward_amount.u128() * fail_threshold as u128;
+        staking_config.per_proxy_request_reward_amount.u128() * fail_threshold as u128;
 
     // Number of extra proxies needed to refund
     // n_extra_proxies = CEIL(maximum_amount_to_refund/per_request_slash_stake_amount)

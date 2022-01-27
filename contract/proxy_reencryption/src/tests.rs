@@ -6,7 +6,7 @@ use cosmwasm_std::{
 
 use crate::contract::{
     execute, get_next_proxy_task, instantiate, verify_fragment, DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
-    DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT, DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT,
+    DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT, DEFAULT_REQUEST_REWARD_AMOUNT,
 };
 use crate::delegations::{
     get_delegation_state, get_n_available_proxies_from_delegation,
@@ -83,7 +83,7 @@ fn init_contract(
     proxies: &Option<Vec<Addr>>,
     stake_denom: &String,
     minimum_proxy_stake_amount: &Option<Uint128>,
-    minimum_request_reward_amount: &Option<Uint128>,
+    per_proxy_request_reward_amount: &Option<Uint128>,
     per_request_slash_stake_amount: &Option<Uint128>,
 ) -> StdResult<Response> {
     let init_msg = InstantiateMsg {
@@ -93,7 +93,7 @@ fn init_contract(
         proxies: proxies.clone(),
         stake_denom: stake_denom.clone(),
         minimum_proxy_stake_amount: minimum_proxy_stake_amount.clone(),
-        minimum_request_reward_amount: minimum_request_reward_amount.clone(),
+        per_proxy_request_reward_amount: per_proxy_request_reward_amount.clone(),
         per_request_slash_stake_amount: per_request_slash_stake_amount.clone(),
     };
     let env = mock_env_height(&creator, 450, &vec![]);
@@ -682,11 +682,16 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     }];
     let request_reward = vec![Coin {
         denom: DEFAULT_STAKE_DENOM.to_string(),
-        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+        amount: Uint128::new(DEFAULT_REQUEST_REWARD_AMOUNT * 2),
     }];
     let insufficient_request_reward = vec![Coin {
         denom: DEFAULT_STAKE_DENOM.to_string(),
-        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT - 1),
+        amount: Uint128::new(DEFAULT_REQUEST_REWARD_AMOUNT - 1),
+    }];
+
+    let higher_request_reward = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(50 + DEFAULT_REQUEST_REWARD_AMOUNT * 2),
     }];
 
     /*************** Initialise *************/
@@ -876,14 +881,23 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     ));
 
     // Reencryption can be requested only after add_delegation
-    assert!(request_reencryption(
+    let res = request_reencryption(
         deps.as_mut(),
         &delegator1,
         &data_id,
         &DELEGATEE1_PUBKEY.to_string(),
-        &request_reward,
+        &higher_request_reward,
     )
-    .is_ok());
+    .unwrap();
+
+    // Check if given stake above required is returned back
+    assert_eq!(
+        res.messages[0],
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: delegator1.to_string(),
+            amount: vec![Coin::new(150, DEFAULT_STAKE_DENOM,)],
+        })
+    );
 
     // Reencryption already requested
     assert!(is_err(
@@ -1052,7 +1066,7 @@ fn test_provide_reencrypted_fragment() {
     }];
     let request_reward = vec![Coin {
         denom: DEFAULT_STAKE_DENOM.to_string(),
-        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+        amount: Uint128::new(DEFAULT_REQUEST_REWARD_AMOUNT * 2),
     }];
 
     /*************** Initialise *************/
@@ -1223,7 +1237,7 @@ fn test_contract_lifecycle() {
     }];
     let request_reward = vec![Coin {
         denom: DEFAULT_STAKE_DENOM.to_string(),
-        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+        amount: Uint128::new(DEFAULT_REQUEST_REWARD_AMOUNT * 2),
     }];
 
     /*************** Initialise *************/
@@ -1445,7 +1459,7 @@ fn test_contract_lifecycle() {
     assert_eq!(
         proxy.stake_amount.u128(),
         DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 1 * DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT
-            + DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT
+            + DEFAULT_REQUEST_REWARD_AMOUNT
     );
 
     // Proxy2 tries to provides fragment already provided by proxy1 for task1
@@ -1521,7 +1535,7 @@ fn test_contract_lifecycle() {
     let proxy = store_get_proxy_entry(deps.as_mut().storage, &proxy1).unwrap();
     assert_eq!(
         proxy.stake_amount.u128(),
-        DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + 2 * DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT
+        DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + 2 * DEFAULT_REQUEST_REWARD_AMOUNT
     );
 
     // All tasks completed for proxy1
@@ -1638,7 +1652,7 @@ fn test_contract_lifecycle() {
         CosmosMsg::Bank(BankMsg::Send {
             to_address: proxy1.to_string(),
             amount: vec![Coin::new(
-                DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2,
+                DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + DEFAULT_REQUEST_REWARD_AMOUNT * 2,
                 stake_denom.as_str(),
             )],
         })
@@ -1681,11 +1695,11 @@ fn test_proxy_unregister_with_requests() {
     }];
     let request_reward_2_proxies = vec![Coin {
         denom: stake_denom.clone(),
-        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+        amount: Uint128::new(DEFAULT_REQUEST_REWARD_AMOUNT * 2),
     }];
     let request_reward_3_proxies = vec![Coin {
         denom: stake_denom.clone(),
-        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 3),
+        amount: Uint128::new(DEFAULT_REQUEST_REWARD_AMOUNT * 3),
     }];
 
     /*************** Initialise *************/
@@ -1930,7 +1944,7 @@ fn test_proxy_unregister_with_requests() {
     assert_eq!(
         proxy.stake_amount.u128(),
         DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 2 * DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT
-            + DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT
+            + DEFAULT_REQUEST_REWARD_AMOUNT
     );
 
     // Unregister proxy2
@@ -1942,7 +1956,7 @@ fn test_proxy_unregister_with_requests() {
         CosmosMsg::Bank(BankMsg::Send {
             to_address: delegator1.to_string(),
             amount: vec![Coin::new(
-                DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 3 + DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT,
+                DEFAULT_REQUEST_REWARD_AMOUNT * 3 + DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT,
                 stake_denom.as_str(),
             )],
         })
@@ -1954,7 +1968,7 @@ fn test_proxy_unregister_with_requests() {
         CosmosMsg::Bank(BankMsg::Send {
             to_address: proxy2.to_string(),
             amount: vec![Coin::new(
-                DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT
+                DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + DEFAULT_REQUEST_REWARD_AMOUNT
                     - 2 * DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT,
                 stake_denom.as_str(),
             )],
@@ -2289,11 +2303,11 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     }];
     let request_reward_2_proxies = vec![Coin {
         denom: stake_denom.clone(),
-        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 2),
+        amount: Uint128::new(DEFAULT_REQUEST_REWARD_AMOUNT * 2),
     }];
     let request_reward_3_proxies = vec![Coin {
         denom: stake_denom.clone(),
-        amount: Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT * 3),
+        amount: Uint128::new(DEFAULT_REQUEST_REWARD_AMOUNT * 3),
     }];
 
     /*************** Initialise *************/
@@ -3047,7 +3061,7 @@ fn test_proxy_insufficient_funds_request_skip() {
     // Staking
     let stake_denom = DEFAULT_STAKE_DENOM.to_string();
     let minimum_proxy_stake_amount: u128 = 100;
-    let minimum_request_reward_amount: u128 = 40;
+    let per_proxy_request_reward_amount: u128 = 40;
     let per_request_slash_stake_amount: u128 = 98;
 
     let proxy1_stake = vec![Coin {
@@ -3067,15 +3081,15 @@ fn test_proxy_insufficient_funds_request_skip() {
 
     let request_reward_1_proxy = vec![Coin {
         denom: stake_denom.clone(),
-        amount: Uint128::new(minimum_request_reward_amount * 1),
+        amount: Uint128::new(per_proxy_request_reward_amount * 1),
     }];
     let request_reward_2_proxies = vec![Coin {
         denom: stake_denom.clone(),
-        amount: Uint128::new(minimum_request_reward_amount * 2),
+        amount: Uint128::new(per_proxy_request_reward_amount * 2),
     }];
     let request_reward_3_proxies = vec![Coin {
         denom: stake_denom.clone(),
-        amount: Uint128::new(minimum_request_reward_amount * 3),
+        amount: Uint128::new(per_proxy_request_reward_amount * 3),
     }];
 
     /*************** Initialise *************/
@@ -3089,7 +3103,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         &Some(proxies.clone()),
         &stake_denom,
         &Some(Uint128::new(minimum_proxy_stake_amount)),
-        &Some(Uint128::new(minimum_request_reward_amount)),
+        &Some(Uint128::new(per_proxy_request_reward_amount)),
         &Some(Uint128::new(per_request_slash_stake_amount)),
     )
     .is_ok());
@@ -3271,7 +3285,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         CosmosMsg::Bank(BankMsg::Send {
             to_address: delegator1.to_string(),
             amount: vec![Coin::new(
-                per_request_slash_stake_amount + minimum_request_reward_amount * 3,
+                per_request_slash_stake_amount + per_proxy_request_reward_amount * 3,
                 stake_denom.as_str(),
             )],
         })
@@ -3346,7 +3360,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         CosmosMsg::Bank(BankMsg::Send {
             to_address: delegator1.to_string(),
             amount: vec![Coin::new(
-                per_request_slash_stake_amount * 2 + minimum_request_reward_amount * 2,
+                per_request_slash_stake_amount * 2 + per_proxy_request_reward_amount * 2,
                 stake_denom.as_str(),
             )],
         })
@@ -3425,12 +3439,12 @@ fn test_get_n_minimum_proxies_for_refund() {
     let mut staking_config = StakingConfig {
         stake_denom: "denom".to_string(),
         minimum_proxy_stake_amount: Uint128(0),
-        minimum_request_reward_amount: Uint128(0),
+        per_proxy_request_reward_amount: Uint128(0),
         per_request_slash_stake_amount: Uint128(0),
     };
 
     // zero division case
-    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128(100);
     staking_config.per_request_slash_stake_amount = Uint128(0);
     state.threshold = 123;
     assert_eq!(
@@ -3438,12 +3452,12 @@ fn test_get_n_minimum_proxies_for_refund() {
         123
     );
 
-    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128(100);
     staking_config.per_request_slash_stake_amount = Uint128(100);
     state.threshold = 3;
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 4);
 
-    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128(100);
     staking_config.per_request_slash_stake_amount = Uint128(100);
     state.threshold = 123;
     assert_eq!(
@@ -3451,7 +3465,7 @@ fn test_get_n_minimum_proxies_for_refund() {
         244
     );
 
-    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128(100);
     staking_config.per_request_slash_stake_amount = Uint128(50);
     state.threshold = 123;
     assert_eq!(
@@ -3459,7 +3473,7 @@ fn test_get_n_minimum_proxies_for_refund() {
         366
     );
 
-    staking_config.minimum_request_reward_amount = Uint128(50);
+    staking_config.per_proxy_request_reward_amount = Uint128(50);
     staking_config.per_request_slash_stake_amount = Uint128(100);
     state.threshold = 123;
     assert_eq!(
@@ -3467,7 +3481,7 @@ fn test_get_n_minimum_proxies_for_refund() {
         183
     );
 
-    staking_config.minimum_request_reward_amount = Uint128(1);
+    staking_config.per_proxy_request_reward_amount = Uint128(1);
     staking_config.per_request_slash_stake_amount = Uint128(121);
     state.threshold = 123;
     assert_eq!(
@@ -3475,7 +3489,7 @@ fn test_get_n_minimum_proxies_for_refund() {
         124
     );
 
-    staking_config.minimum_request_reward_amount = Uint128(1);
+    staking_config.per_proxy_request_reward_amount = Uint128(1);
     staking_config.per_request_slash_stake_amount = Uint128(122);
     state.threshold = 123;
     assert_eq!(
@@ -3483,7 +3497,7 @@ fn test_get_n_minimum_proxies_for_refund() {
         123
     );
 
-    staking_config.minimum_request_reward_amount = Uint128(1);
+    staking_config.per_proxy_request_reward_amount = Uint128(1);
     staking_config.per_request_slash_stake_amount = Uint128(1000);
     state.threshold = 10;
     assert_eq!(
@@ -3491,7 +3505,7 @@ fn test_get_n_minimum_proxies_for_refund() {
         10
     );
 
-    staking_config.minimum_request_reward_amount = Uint128(1000);
+    staking_config.per_proxy_request_reward_amount = Uint128(1000);
     staking_config.per_request_slash_stake_amount = Uint128(1);
     state.threshold = 10;
     assert_eq!(
@@ -3500,7 +3514,7 @@ fn test_get_n_minimum_proxies_for_refund() {
     );
 
     // Large numbers check
-    staking_config.minimum_request_reward_amount = Uint128(100000000000000000000);
+    staking_config.per_proxy_request_reward_amount = Uint128(100000000000000000000);
     staking_config.per_request_slash_stake_amount = Uint128(1000000000000);
     state.threshold = 10;
     assert_eq!(
@@ -3508,7 +3522,7 @@ fn test_get_n_minimum_proxies_for_refund() {
         900000009
     );
 
-    staking_config.minimum_request_reward_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128(100);
     staking_config.per_request_slash_stake_amount = Uint128(100);
     state.threshold = 1;
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 1);

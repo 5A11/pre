@@ -45,11 +45,11 @@ def test_delegator_api():
     )
     storage.store_encrypted_data.assert_called_once_with(crypto.encrypt.return_value[0])
 
-    minimum_request_reward = Coin(denom="atestfet", amount=str(100))
+    total_request_reward_amount = Coin(denom="atestfet", amount=str(100))
 
     contract.get_delegation_status.return_value = DelegationStatus(
         delegation_state=DelegationState.non_existing,
-        minimum_request_reward=minimum_request_reward,
+        total_request_reward_amount=total_request_reward_amount,
     )
     contract.get_selected_proxies_for_delegation.return_value = []
     contract.request_proxies_for_delegation.return_value = []
@@ -180,7 +180,7 @@ def test_proxy_api():
     contract.get_staking_config.return_value = StakingConfig(
         stake_denom="atestfet",
         minimum_proxy_stake_amount="1000",
-        minimum_request_reward_amount="100",
+        per_proxy_request_reward_amount="100",
     )
 
     storage: AbstractStorage = Mock()

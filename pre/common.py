@@ -126,7 +126,7 @@ class DelegationStatus:
     """Delegation status data class."""
 
     delegation_state: DelegationState
-    minimum_request_reward: Coin
+    total_request_reward_amount: Coin
 
 
 class ReencryptionRequestState(Enum):
@@ -163,7 +163,7 @@ class ContractState:
 class StakingConfig:
     stake_denom: str
     minimum_proxy_stake_amount: str
-    minimum_request_reward_amount: str
+    per_proxy_request_reward_amount: str
 
 
 @dataclass

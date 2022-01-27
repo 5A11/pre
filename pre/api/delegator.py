@@ -141,7 +141,7 @@ class DelegatorAPI:
                 threshold=threshold,
             )
 
-            # Update state to get correct minimum_request_reward
+            # Update state to get correct total_request_reward_amount
             delegation_state_response = self._contract.get_delegation_status(
                 delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
                 delegatee_pubkey_bytes=delegatee_pubkey_bytes,
@@ -153,5 +153,5 @@ class DelegatorAPI:
             delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
             hash_id=hash_id,
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-            stake_amount=delegation_state_response.minimum_request_reward,
+            stake_amount=delegation_state_response.total_request_reward_amount,
         )

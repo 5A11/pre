@@ -47,7 +47,7 @@ macro_rules! generic_err {
 }
 
 pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 1000;
-pub const DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT: u128 = 100;
+pub const DEFAULT_REQUEST_REWARD_AMOUNT: u128 = 100;
 pub const DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT: u128 = 100;
 pub const FRAGMENT_VERIFICATION_ERROR: &str = "Fragment verification failed: ";
 
@@ -74,9 +74,9 @@ pub fn instantiate(
         minimum_proxy_stake_amount: msg
             .minimum_proxy_stake_amount
             .unwrap_or_else(|| Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT)),
-        minimum_request_reward_amount: msg
-            .minimum_request_reward_amount
-            .unwrap_or_else(|| Uint128::new(DEFAULT_MINIMUM_REQUEST_REWARD_AMOUNT)),
+        per_proxy_request_reward_amount: msg
+            .per_proxy_request_reward_amount
+            .unwrap_or_else(|| Uint128::new(DEFAULT_REQUEST_REWARD_AMOUNT)),
         per_request_slash_stake_amount: msg
             .per_request_slash_stake_amount
             .unwrap_or_else(|| Uint128::new(DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT)),
@@ -718,7 +718,7 @@ fn try_request_reencryption(
         deps.storage,
         &data_entry.delegator_pubkey,
         delegatee_pubkey,
-        &staking_config.minimum_request_reward_amount.u128(),
+        &staking_config.per_request_slash_stake_amount.u128(),
     );
 
     let n_minimum_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
@@ -733,12 +733,10 @@ fn try_request_reencryption(
         ));
     }
 
-    // Ensure more than minimum_request_reward_amount * number_of_proxies of stake provided
-    ensure_stake(
-        &staking_config,
-        &info.funds,
-        &(staking_config.minimum_request_reward_amount.u128() * n_available_proxies as u128),
-    )?;
+    // Ensure more than per_proxy_request_reward_amount * number_of_proxies of stake provided
+    let total_required_reward_amount =
+        staking_config.per_proxy_request_reward_amount.u128() * n_available_proxies as u128;
+    ensure_stake(&staking_config, &info.funds, &total_required_reward_amount)?;
 
     // Prepare template for each proxy request
     let mut new_proxy_request = ProxyReencryptionRequest {
@@ -748,7 +746,7 @@ fn try_request_reencryption(
         proxy_pubkey: "".to_string(),
         delegation_string: "".to_string(),
         // Per proxy stake amount
-        reward_amount: Uint128::new(info.funds[0].amount.u128() / n_available_proxies as u128),
+        reward_amount: staking_config.per_proxy_request_reward_amount,
         proxy_slashed_amount: staking_config.per_request_slash_stake_amount,
     };
 
@@ -810,14 +808,14 @@ fn try_request_reencryption(
         n_proxy_requests: n_available_proxies,
         slashed_stake_amount: Uint128::new(0),
         state: ReencryptionRequestState::Ready,
-        delegator_addr: info.sender,
+        delegator_addr: info.sender.clone(),
     };
     store_set_parent_reencryption_request(deps.storage, data_id, delegatee_pubkey, &parent_request);
 
     store_set_state(deps.storage, &state)?;
 
     // Return response
-    let res = Response {
+    let mut res = Response {
         submessages: vec![],
         messages: vec![],
         attributes: vec![
@@ -827,6 +825,17 @@ fn try_request_reencryption(
         ],
         data: None,
     };
+
+    // Return back part of funds if more funds than necessary was provided
+    if info.funds[0].amount.u128() > total_required_reward_amount {
+        add_bank_msg(
+            &mut res,
+            &info.sender,
+            info.funds[0].amount.u128() - total_required_reward_amount,
+            &staking_config.stake_denom,
+        );
+    }
+
     Ok(res)
 }
 
@@ -969,7 +978,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             Ok(to_binary(&GetStakingConfigResponse {
                 stake_denom: staking_config.stake_denom,
                 minimum_proxy_stake_amount: staking_config.minimum_proxy_stake_amount,
-                minimum_request_reward_amount: staking_config.minimum_request_reward_amount,
+                per_proxy_request_reward_amount: staking_config.per_proxy_request_reward_amount,
             })?)
         }
 
@@ -990,7 +999,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             );
 
             let minimum_stake_amount =
-                n_availbale_proxies as u128 * staking_config.minimum_request_reward_amount.u128();
+                n_availbale_proxies as u128 * staking_config.per_proxy_request_reward_amount.u128();
 
             Ok(to_binary(&GetDelegationStatusResponse {
                 delegation_state: get_delegation_state(
@@ -998,7 +1007,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     &delegator_pubkey,
                     &delegatee_pubkey,
                 ),
-                minimum_request_reward: Coin {
+                total_request_reward_amount: Coin {
                     denom: staking_config.stake_denom,
                     amount: Uint128::new(minimum_stake_amount),
                 },

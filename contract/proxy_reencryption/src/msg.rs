@@ -40,7 +40,7 @@ pub struct InstantiateMsg {
     // Staking
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Option<Uint128>,
-    pub minimum_request_reward_amount: Option<Uint128>,
+    pub per_proxy_request_reward_amount: Option<Uint128>,
     pub per_request_slash_stake_amount: Option<Uint128>,
 }
 
@@ -153,7 +153,7 @@ pub struct GetContractStateResponse {
 pub struct GetStakingConfigResponse {
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Uint128,
-    pub minimum_request_reward_amount: Uint128,
+    pub per_proxy_request_reward_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -164,7 +164,7 @@ pub struct GetNextProxyTaskResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetDelegationStatusResponse {
     pub delegation_state: DelegationState,
-    pub minimum_request_reward: Coin,
+    pub total_request_reward_amount: Coin,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

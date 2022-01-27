@@ -4,13 +4,13 @@
   "type": "object",
   "required": [
     "delegation_state",
-    "minimum_request_reward"
+    "total_request_reward_amount"
   ],
   "properties": {
     "delegation_state": {
       "$ref": "#/definitions/DelegationState"
     },
-    "minimum_request_reward": {
+    "total_request_reward_amount": {
       "$ref": "#/definitions/Coin"
     }
   },

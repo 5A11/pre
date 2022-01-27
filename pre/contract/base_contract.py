@@ -145,7 +145,7 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         admin_addr: Address,
         stake_denom: str,
         minimum_proxy_stake_amount: Optional[str] = None,
-        minimum_request_reward_amount: Optional[str] = None,
+        per_proxy_request_reward_amount: Optional[str] = None,
         per_request_slash_stake_amount: Optional[str] = None,
         threshold: Optional[int] = None,
         n_max_proxies: Optional[int] = None,
@@ -161,7 +161,7 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         :param admin_addr: address of contract administator
         :param stake_denom: str,
         :param minimum_proxy_stake_amount: Optional[str]
-        :param minimum_request_reward_amount: Optional[str] = None
+        :param per_proxy_request_reward_amount: Optional[str] = None
         :param per_request_slash_stake_amount: Optional[str] = None
         :param threshold: int threshold ,
         :param n_max_proxies: max amount of proxy allowed to register,

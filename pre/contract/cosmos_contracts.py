@@ -224,8 +224,8 @@ class ContractQueries(AbstractContractQueries):
             minimum_proxy_stake_amount=cast(
                 str, json_res["minimum_proxy_stake_amount"]
             ),
-            minimum_request_reward_amount=cast(
-                str, json_res["minimum_request_reward_amount"]
+            per_proxy_request_reward_amount=cast(
+                str, json_res["per_proxy_request_reward_amount"]
             ),
         )
 
@@ -304,9 +304,9 @@ class ContractQueries(AbstractContractQueries):
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
         return DelegationStatus(
             delegation_state=DelegationState[json_res["delegation_state"]],
-            minimum_request_reward=Coin(
-                denom=str(json_res["minimum_request_reward"]["denom"]),
-                amount=str(json_res["minimum_request_reward"]["amount"]),
+            total_request_reward_amount=Coin(
+                denom=str(json_res["total_request_reward_amount"]["denom"]),
+                amount=str(json_res["total_request_reward_amount"]["amount"]),
             ),
         )
 
@@ -349,7 +349,7 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         admin_addr: Address,
         stake_denom: str,
         minimum_proxy_stake_amount: Optional[str] = None,
-        minimum_request_reward_amount: Optional[str] = None,
+        per_proxy_request_reward_amount: Optional[str] = None,
         per_request_slash_stake_amount: Optional[str] = None,
         threshold: Optional[int] = None,
         n_max_proxies: Optional[int] = None,
@@ -365,7 +365,7 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         :param admin_addr: address of contract administator
         :param stake_denom: str,
         :param minimum_proxy_stake_amount: Optional[str]
-        :param minimum_request_reward_amount: Optional[str] = None
+        :param per_proxy_request_reward_amount: Optional[str] = None
         :param per_request_slash_stake_amount: Optional[str] = None
         :param threshold: int threshold ,
         :param n_max_proxies: max amount of proxy allowed to register,
@@ -392,8 +392,10 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         if minimum_proxy_stake_amount is not None:
             init_msg["minimum_proxy_stake_amount"] = minimum_proxy_stake_amount
 
-        if minimum_request_reward_amount is not None:
-            init_msg["minimum_request_reward_amount"] = minimum_request_reward_amount
+        if per_proxy_request_reward_amount is not None:
+            init_msg[
+                "per_proxy_request_reward_amount"
+            ] = per_proxy_request_reward_amount
 
         if per_request_slash_stake_amount is not None:
             init_msg["per_request_slash_stake_amount"] = per_request_slash_stake_amount

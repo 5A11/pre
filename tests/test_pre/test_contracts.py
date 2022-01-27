@@ -113,7 +113,7 @@ class BaseContractTestCase(TestCase):
             stake_denom=self.STAKE_DENOM,
             per_request_slash_stake_amount="100",
             minimum_proxy_stake_amount="100",
-            minimum_request_reward_amount="100",
+            per_proxy_request_reward_amount="100",
             threshold=self.THRESHOLD,
             n_max_proxies=self.NUM_PROXIES,
         )
@@ -348,7 +348,7 @@ class TestDelegatorContract(BaseContractTestCase):
             delegator_pubkey_bytes=self.delegator_pub_key,
             hash_id=self.hash_id,
             delegatee_pubkey_bytes=self.delegatee_pub_key,
-            stake_amount=delegation_state_response.minimum_request_reward,
+            stake_amount=delegation_state_response.total_request_reward_amount,
         )
 
         with pytest.raises(DataEntryDoesNotExist):
@@ -357,7 +357,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 hash_id="Q",
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
-                stake_amount=delegation_state_response.minimum_request_reward,
+                stake_amount=delegation_state_response.total_request_reward_amount,
             )
 
         with pytest.raises(DelegationAlreadyAdded):
@@ -366,7 +366,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 hash_id=self.hash_id,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
-                stake_amount=delegation_state_response.minimum_request_reward,
+                stake_amount=delegation_state_response.total_request_reward_amount,
             )
 
         with pytest.raises(ProxiesAreTooBusy):
@@ -375,7 +375,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 hash_id=self.hash_id,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
-                stake_amount=delegation_state_response.minimum_request_reward,
+                stake_amount=delegation_state_response.total_request_reward_amount,
             )
 
         staking_config = self.proxy_contract.get_staking_config()
@@ -419,7 +419,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 delegator_pubkey_bytes=self.delegator_pub_key,
                 hash_id=self.hash_id,
                 delegatee_pubkey_bytes=self.delegatee_pub_key,
-                stake_amount=delegation_state_response.minimum_request_reward,
+                stake_amount=delegation_state_response.total_request_reward_amount,
             )
 
         assert (

@@ -26,7 +26,15 @@
         }
       ]
     },
-    "minimum_request_reward_amount": {
+    "n_max_proxies": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "per_proxy_request_reward_amount": {
       "anyOf": [
         {
           "$ref": "#/definitions/Uint128"
@@ -35,14 +43,6 @@
           "type": "null"
         }
       ]
-    },
-    "n_max_proxies": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "format": "uint32",
-      "minimum": 0.0
     },
     "per_request_slash_stake_amount": {
       "anyOf": [

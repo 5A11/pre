@@ -6,14 +6,20 @@ from .views import (
     DataAccessAPIView,
     DataAccessCreateAPIView,
     DataAccessDownloadAPIView,
-    DataAccessListAPIView,
+    DataAccessGrantedListAPIView,
+    DataAccessOwnedListAPIView,
 )
 
 
 urlpatterns = [
-    path("", DataAccessListAPIView.as_view(), name="data-access-list"),
     path("<int:pk>", DataAccessAPIView.as_view(), name="data-access"),
     path("create", DataAccessCreateAPIView.as_view(), name="data-access-create"),
+    path("owned", DataAccessOwnedListAPIView.as_view(), name="data-access-owned-list"),
+    path(
+        "granted",
+        DataAccessGrantedListAPIView.as_view(),
+        name="data-access-granted-list",
+    ),
     path(
         "<int:pk>/download",
         DataAccessDownloadAPIView.as_view(),

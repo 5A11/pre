@@ -28,8 +28,8 @@ HTTP_BAD_REQUEST = 400
 HTTP_UNAUTHORIZED = 401
 
 
-class DataAccessListAPIViewTestCase(TestCase):
-    """Test case for DataAccessListAPIView."""
+class DataAccessGrantedListAPIViewTestCase(TestCase):
+    """Test case for DataAccessGrantedListAPIView."""
 
     fixtures = [
         "pre_backend/fixtures/data_accesses.json",
@@ -38,16 +38,49 @@ class DataAccessListAPIViewTestCase(TestCase):
 
     def test_unauthorized_access(self):
         """Test for unauthorized access."""
-        url = reverse("data-access-list")
+        url = reverse("data-access-granted-list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, HTTP_UNAUTHORIZED)
 
-    def test_get_data_access_list_positive(self):
-        """Test for DataAccess list positive result."""
+    def test_get_data_access_granted_list_positive(self):
+        """Test for DataAccess granted list positive result."""
         username = "admin"
         self.client.login(username=username, password="admin")
 
-        url = reverse("data-access-list")
+        url = reverse("data-access-granted-list")
+        response = self.client.get(url)
+        result, status_code = response.json(), response.status_code
+        self.assertEqual(status_code, HTTP_OK)
+        expected_result = [
+            {
+                "id": 2,
+                "owner": 2,
+                "readers": [1],
+            },
+        ]
+        self.assertEqual(result, expected_result)
+
+
+class DataAccessOwnedListAPIViewTestCase(TestCase):
+    """Test case for DataAccessOwnedListAPIView."""
+
+    fixtures = [
+        "pre_backend/fixtures/data_accesses.json",
+        "pre_backend/fixtures/users.json",
+    ]
+
+    def test_unauthorized_access(self):
+        """Test for unauthorized access."""
+        url = reverse("data-access-owned-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, HTTP_UNAUTHORIZED)
+
+    def test_get_data_access_owned_list_positive(self):
+        """Test for DataAccess owned list positive result."""
+        username = "admin"
+        self.client.login(username=username, password="admin")
+
+        url = reverse("data-access-owned-list")
         response = self.client.get(url)
         result, status_code = response.json(), response.status_code
         self.assertEqual(status_code, HTTP_OK)
@@ -55,12 +88,7 @@ class DataAccessListAPIViewTestCase(TestCase):
             {
                 "id": 1,
                 "owner": 1,
-                "readers": [2],  # Represented with PK
-            },
-            {
-                "id": 2,
-                "owner": 2,
-                "readers": [1],
+                "readers": [2],
             },
         ]
         self.assertEqual(result, expected_result)

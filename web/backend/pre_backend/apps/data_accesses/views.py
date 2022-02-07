@@ -15,14 +15,14 @@ from .permissions import IsOwner, IsReader
 from .serializers import DataAccessCreateSerializer, DataAccessSerializer
 
 
-class DataAccessListAPIView(ListAPIView):
-    """API View to list ordered DataAccess objects."""
+class DataAccessGrantedListAPIView(ListAPIView):
+    """API View to list ordered DataAccess objects granted to current user."""
 
     serializer_class = DataAccessSerializer
-    permission_classes = (
-        IsAuthenticated,
-    )  # TODO: add custom permission class to allow access to only owned data
-    queryset = DataAccess.objects.all()
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        return self.request.user.data_accesses_granted
 
     # TODO: uncomment next if filtering is needed
     # filter_backends = (OrderingFilter, SearchFilter, )
@@ -31,16 +31,22 @@ class DataAccessListAPIView(ListAPIView):
     # ordering_fields = ("data_id",)
 
 
+class DataAccessOwnedListAPIView(ListAPIView):
+    """API View to list ordered DataAccess objects owned by current user."""
+
+    serializer_class = DataAccessSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        return self.request.user.data_accesses_owned
+
+
 class DataAccessAPIView(RetrieveUpdateAPIView):
     """API View to retreive DataAccess."""
 
     serializer_class = DataAccessSerializer
     permission_classes = (IsAuthenticated, IsOwner)
     queryset = DataAccess.objects.all()
-
-    # TODO: use this method if object should be taken by specific params (not by ID)
-    # def get_object(self):
-    #     """Get object by specific params."""
 
 
 class DataAccessCreateAPIView(CreateAPIView):

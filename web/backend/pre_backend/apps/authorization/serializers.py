@@ -1,5 +1,7 @@
 """Serializers of Authorization app."""
 
+from django.utils.crypto import get_random_string
+
 from rest_auth.registration.serializers import (
     RegisterSerializer as BaseRegisterSerializer,
 )
@@ -18,18 +20,12 @@ from .models import UserProfile
 class RegisterSerializer(BaseRegisterSerializer):
     """Custom RegisterSerializer for user signup."""
 
-    encryption = serializers.CharField(
-        max_length=ENCRYPTION_MAX_LENGTH, min_length=ENCRYPTION_MIN_LENGTH
-    )
-    ledger = serializers.CharField(
-        max_length=LEDGER_MAX_LENGTH, min_length=LEDGER_MIN_LENGTH
-    )
-
     def custom_signup(self, request, user):
         """Perform actions on signup."""
+        # TODO: replace next with generating real encryption and ledger keys
         encryption, ledger = (
-            self.validated_data.get("encryption"),
-            self.validated_data.get("ledger"),
+            get_random_string(ENCRYPTION_MAX_LENGTH),
+            get_random_string(LEDGER_MAX_LENGTH),
         )
         create_user_profile(user, encryption, ledger)
         user.save()

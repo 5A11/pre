@@ -182,7 +182,7 @@ EMAIL_HOST_USER = DEFAULT_FROM_EMAIL = SERVER_EMAIL = os.environ.get("EMAIL_HOST
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 
 
-FRONT_URL = os.environ.get("FRONT_URL", "http://localhost:4200")
+FRONT_URL = os.environ.get("FRONT_URL", "http://localhost:3000")
 
 CORS_ORIGIN_WHITELIST = [FRONT_URL]
 
@@ -232,6 +232,3 @@ def _get_contract_address():
 CONTRACT_ADDRESS = os.environ.get(
     "CONTRACT_ADDRESS", _get_contract_address()
 )  # TODO: replace with a real address that can be used for local usage.
-
-
-IPFS_STORAGE.connect()  # Is that correct to place it here?

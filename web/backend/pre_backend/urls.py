@@ -13,6 +13,8 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
+import time
 from django.conf import settings
 from django.contrib import admin
 from django.conf.urls.static import static
@@ -21,6 +23,11 @@ from django.urls import include, path, re_path
 from pre_backend.utils.views import ConfirmEmailAPIView, ForwardToFrontAPIView
 from rest_auth.views import PasswordResetConfirmView  # type: ignore
 from rest_auth.registration.views import VerifyEmailView
+
+
+# TODO: find a better place for this
+time.sleep(2)  # otherwise IPFS is not ready to connect
+settings.IPFS_STORAGE.connect()
 
 
 urlpatterns = [

@@ -32,8 +32,6 @@ class RegistrationTestCase(TestCase):
             "email": "email@example.com",
             "password1": "p@ssw00rd",
             "password2": "p@ssw00rd",
-            "encryption": ENCRYPTION_EXAMPLE,
-            "ledger": LEDGER_EXAMPLE,
         }
         response = self.client.post(url, data)
         result, status_code = response.json(), response.status_code
@@ -62,8 +60,6 @@ class RegistrationTestCase(TestCase):
             "email": "email",  # Invalid email
             "password1": "111",  # Bad password
             "password2": "111",
-            "encryption": ENCRYPTION_EXAMPLE + "a",
-            "ledger": LEDGER_EXAMPLE + "b",
         }
         response = self.client.post(url, data)
         result, status_code = response.json(), response.status_code
@@ -73,12 +69,6 @@ class RegistrationTestCase(TestCase):
                 "This password is too short. It must contain at least 8 characters.",
                 "This password is too common.",
                 "This password is entirely numeric.",
-            ],
-            "encryption": [
-                f"Ensure this field has no more than {ENCRYPTION_MAX_LENGTH} characters."
-            ],
-            "ledger": [
-                f"Ensure this field has no more than {LEDGER_MAX_LENGTH} characters."
             ],
         }
         self.assertEqual(status_code, HTTP_BAD_REQUEST)
@@ -94,8 +84,6 @@ class RegistrationTestCase(TestCase):
             "email": "email@example.com",
             "password1": "p@ssw00rd",
             "password2": "passwoord",
-            "encryption": ENCRYPTION_EXAMPLE,
-            "ledger": LEDGER_EXAMPLE,
         }
         response = self.client.post(url, data)
         result, status_code = response.json(), response.status_code
@@ -121,8 +109,6 @@ class RegistrationTestCaseWithFixtures(TestCase):
             "email": "email@example.com",
             "password1": "p@ssw00rd",
             "password2": "p@ssw00rd",
-            "encryption": ENCRYPTION_EXAMPLE,
-            "ledger": LEDGER_EXAMPLE,
         }
         response = self.client.post(url, data)
         result, status_code = response.json(), response.status_code

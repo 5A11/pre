@@ -150,6 +150,7 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         threshold: Optional[int] = None,
         n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
+        timeout_height: Optional[int] = None,
         label: str = "PRE",
     ) -> Address:
         """
@@ -166,6 +167,7 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         :param threshold: int threshold ,
         :param n_max_proxies: max amount of proxy allowed to register,
         :param proxies: optional list of proxies addresses,
+        :param timeout_height: Timeout height
         :param label: str, contract label
 
         :return: str, deloyed contract address

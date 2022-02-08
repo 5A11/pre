@@ -148,6 +148,7 @@ def test_admin_api():
             None,
             max_proxies,
             proxies,
+            None,
             label,
         )
         mock.assert_called_once_with(
@@ -161,6 +162,7 @@ def test_admin_api():
             None,
             max_proxies,
             proxies,
+            None,
             label,
         )
 

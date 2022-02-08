@@ -1,7 +1,11 @@
 use crate::common::add_bank_msg;
-use crate::proxies::{store_get_proxy_address, store_get_proxy_entry, store_set_proxy_entry};
-use crate::state::{store_get_staking_config, store_get_state};
-use cosmwasm_std::{from_slice, to_vec, Addr, Order, Response, StdResult, Storage, Uint128};
+use crate::state::{
+    store_get_staking_config, store_get_state, store_get_timeouts_config,
+    store_set_timeouts_config, State, TimeoutsConfig,
+};
+use cosmwasm_std::{
+    from_slice, to_vec, Addr, Order, Response, StdError, StdResult, Storage, Uint128,
+};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -33,10 +37,6 @@ pub struct ProxyReencryptionRequest {
     pub proxy_pubkey: String,
     pub fragment: Option<String>,
     pub delegation_string: String,
-
-    // Incentives params
-    pub reward_amount: Uint128,
-    pub proxy_slashed_amount: Uint128,
 }
 
 // Parent re-encryption request
@@ -46,10 +46,14 @@ pub struct ParentReencryptionRequest {
     pub n_proxy_requests: u32,
     pub state: ReencryptionRequestState,
 
-    // Incentives params
-    pub slashed_stake_amount: Uint128,
-    // Reward will be returned to this address when request is deleted
+    // Incentives
+    pub delegator_provided_reward_amount: Uint128,
+    pub funds_pool: Uint128,
+    // Reward will be returned from funds pool to this address when request cannot be completed
     pub delegator_addr: Addr,
+
+    // Timeouts
+    pub timeout_height: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -59,6 +63,7 @@ pub enum ReencryptionRequestState {
     Ready,
     Granted,
     Abandoned,
+    TimedOut,
 }
 
 // PROXY_REENCRYPTION_REQUESTS_STORE_KEY
@@ -291,14 +296,20 @@ pub fn get_reencryption_request_state(
     storage: &dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
+    block_height: &u64,
 ) -> ReencryptionRequestState {
-    let parent_request =
-        match store_get_parent_reencryption_request(storage, data_id, delegatee_pubkey) {
-            None => return ReencryptionRequestState::Inaccessible,
-            Some(parent_request) => parent_request,
-        };
-
-    parent_request.state
+    match store_get_parent_reencryption_request(storage, data_id, delegatee_pubkey) {
+        None => ReencryptionRequestState::Inaccessible,
+        Some(parent_request) => {
+            if block_height >= &parent_request.timeout_height
+                && parent_request.state != ReencryptionRequestState::Granted
+            {
+                ReencryptionRequestState::TimedOut
+            } else {
+                parent_request.state
+            }
+        }
+    }
 }
 
 // Delete all unfinished current proxy re-encryption requests
@@ -313,58 +324,33 @@ pub fn remove_proxy_reencryption_requests(
     let mut delegator_retrieve_funds_amount: HashMap<Addr, u128> = HashMap::new();
 
     for re_request_id in store_get_all_proxy_reencryption_requests_in_queue(storage, proxy_pubkey) {
-        let mut re_request = store_get_proxy_reencryption_request(storage, &re_request_id).unwrap();
+        let re_request = store_get_proxy_reencryption_request(storage, &re_request_id).unwrap();
 
-        let mut parent_request = store_get_parent_reencryption_request(
+        let mut parent_request: ParentReencryptionRequest = store_get_parent_reencryption_request(
             storage,
             &re_request.data_id,
             &re_request.delegatee_pubkey,
         )
         .unwrap();
 
-        // Slash current proxy -> Move withdrawn stake to parent_request pool
-        let acquired_stake = re_request.proxy_slashed_amount.u128();
-        re_request.proxy_slashed_amount = Uint128::new(0);
-        store_set_proxy_reencryption_request(storage, &re_request_id, &re_request);
-
-        // Add acquired stake to stake reserved for repaying delegator when request fails to be completed
-        parent_request.slashed_stake_amount =
-            Uint128::new(parent_request.slashed_stake_amount.u128() + acquired_stake);
-
-        if parent_request.n_proxy_requests < state.threshold + 1 {
-            // Delete other proxies related requests because request cannot be completed without this proxy
-
-            // Get all neighbour re-encryption request
-            for i_re_request_id in store_get_all_delegatee_proxy_reencryption_requests(
-                storage,
-                &re_request.data_id,
-                &re_request.delegatee_pubkey,
-            ) {
-                resolve_proxy_reencryption_requests(
-                    storage,
-                    &i_re_request_id,
-                    &mut delegator_retrieve_funds_amount,
-                );
-            }
-
+        // Request cannot be completed any more
+        if parent_request.n_proxy_requests < state.threshold + 1
+            && parent_request.state != ReencryptionRequestState::Abandoned
+            && parent_request.state != ReencryptionRequestState::TimedOut
+        {
             // Return stake retrieved from slashed proxies to delegator stake before deleting parent request
             update_retrieved_delegator_stake_map(
                 &mut delegator_retrieve_funds_amount,
                 &parent_request.delegator_addr,
-                parent_request.slashed_stake_amount.u128(),
+                parent_request.delegator_provided_reward_amount.u128(),
             );
+            parent_request.delegator_provided_reward_amount = Uint128::new(0);
+            parent_request.funds_pool = parent_request
+                .funds_pool
+                .checked_sub(parent_request.delegator_provided_reward_amount)?;
 
-            // Update parent request
+            // Update parent request state
             parent_request.state = ReencryptionRequestState::Abandoned;
-            parent_request.slashed_stake_amount = Uint128::new(0);
-        } else {
-            // Delete only current proxy unfinished request
-
-            resolve_proxy_reencryption_requests(
-                storage,
-                &re_request_id,
-                &mut delegator_retrieve_funds_amount,
-            );
         }
 
         // Update parent request
@@ -375,6 +361,20 @@ pub fn remove_proxy_reencryption_requests(
             &re_request.delegatee_pubkey,
             &parent_request,
         );
+
+        // Delete re-encryption request
+        store_remove_delegatee_proxy_reencryption_request(
+            storage,
+            &re_request.data_id,
+            &re_request.delegatee_pubkey,
+            &re_request.proxy_pubkey,
+        );
+        store_remove_proxy_reencryption_request_from_queue(
+            storage,
+            &re_request.proxy_pubkey,
+            &re_request_id,
+        );
+        store_remove_proxy_reencryption_request(storage, &re_request_id);
     }
 
     // Return stake from unfinished requests to delegators
@@ -390,36 +390,134 @@ pub fn remove_proxy_reencryption_requests(
     Ok(())
 }
 
-// Delete re-encryption request and remember remaining stake amount to be later returned to delegator
-pub fn resolve_proxy_reencryption_requests(
+pub fn check_and_resolve_all_requests_timeout(
+    storage: &mut dyn Storage,
+    response: &mut Response,
+    block_height: u64,
+) {
+    // Check and resolve all requests between next_request_id_to_be_checked..next_proxy_request_id
+    // next_request_id_to_be_checked is moved to first request ID that is not timed-out
+
+    let state: State = store_get_state(storage).unwrap();
+    let mut timeouts_config: TimeoutsConfig = store_get_timeouts_config(storage).unwrap();
+
+    // All existing requests were already checked
+    if timeouts_config.next_request_id_to_be_checked == state.next_proxy_request_id {
+        return;
+    }
+
+    let mut delegator_retrieve_funds_amount: HashMap<Addr, u128> = HashMap::new();
+    for i in timeouts_config.next_request_id_to_be_checked..state.next_proxy_request_id {
+        timeouts_config.next_request_id_to_be_checked = i;
+
+        match store_get_proxy_reencryption_request(storage, &i) {
+            // Skip if request was deleted
+            None => {
+                continue;
+            }
+            Some(proxy_request) => {
+                let request_state = get_reencryption_request_state(
+                    storage,
+                    &proxy_request.data_id,
+                    &proxy_request.delegatee_pubkey,
+                    &block_height,
+                );
+
+                // Resolve timed-out request
+                if request_state == ReencryptionRequestState::TimedOut {
+                    timeout_proxy_reencryption_requests(
+                        storage,
+                        &i,
+                        &mut delegator_retrieve_funds_amount,
+                        block_height,
+                    )
+                    .unwrap();
+                }
+                // Skip completed requests
+                else if request_state != ReencryptionRequestState::Granted {
+                    // If request is Active it will become new next_request_id_to_be_checked
+                    break;
+                }
+            }
+        }
+    }
+    // If this finish without being terminated next_request_id_to_be_checked == next_proxy_request_id
+
+    // Update next_request_id_to_be_checked
+    store_set_timeouts_config(storage, &timeouts_config).unwrap();
+
+    // Return stake from unfinished requests to delegators
+    let staking_config = store_get_staking_config(storage).unwrap();
+    for (delegator_addr, stake_amount) in delegator_retrieve_funds_amount {
+        add_bank_msg(
+            response,
+            &delegator_addr,
+            stake_amount,
+            &staking_config.stake_denom,
+        );
+    }
+}
+
+pub fn timeout_proxy_reencryption_requests(
     storage: &mut dyn Storage,
     re_request_id: &u64,
     delegator_retrieve_funds_amount: &mut HashMap<Addr, u128>,
-) {
-    let re_request = store_get_proxy_reencryption_request(storage, re_request_id).unwrap();
-    let parent_request = store_get_parent_reencryption_request(
+    block_height: u64,
+) -> StdResult<()> {
+    // Delete selected proxy_re_encryption request with timeout and retrieve stake back to the delegator
+    // And resolve ParentReencryptionRequest
+
+    // Check if proxy-reencryption request exists
+    let re_request: ProxyReencryptionRequest =
+        match store_get_proxy_reencryption_request(storage, re_request_id) {
+            None => Err(StdError::generic_err(format!(
+                "Request {} doesn't exist",
+                re_request_id
+            ))),
+            Some(request) => Ok(request),
+        }?;
+
+    // Get parent re-encryption request
+    let mut parent_request: ParentReencryptionRequest = store_get_parent_reencryption_request(
         storage,
         &re_request.data_id,
         &re_request.delegatee_pubkey,
     )
     .unwrap();
 
-    // Update delegator stake before deleting entry
-    update_retrieved_delegator_stake_map(
-        delegator_retrieve_funds_amount,
-        &parent_request.delegator_addr,
-        re_request.reward_amount.u128(),
-    );
-
-    // Return remaining stake to proxies if weren't slashed
-    if re_request.proxy_slashed_amount.u128() > 0 {
-        let proxy_addr = store_get_proxy_address(storage, &re_request.proxy_pubkey).unwrap();
-        let mut proxy_entry = store_get_proxy_entry(storage, &proxy_addr).unwrap();
-        proxy_entry.stake_amount =
-            Uint128(proxy_entry.stake_amount.u128() + re_request.proxy_slashed_amount.u128());
-        store_set_proxy_entry(storage, &proxy_addr, &proxy_entry);
+    // Check if request timed out
+    if block_height < parent_request.timeout_height {
+        return Err(StdError::generic_err(format!(
+            "Request {} isn't timed out",
+            re_request_id
+        )));
     }
 
+    // Time-out request when state is not granted
+    if parent_request.state != ReencryptionRequestState::Granted
+        && parent_request.state != ReencryptionRequestState::TimedOut
+    {
+        // Resolve parent re-encryption request
+        // Refund delegator
+        update_retrieved_delegator_stake_map(
+            delegator_retrieve_funds_amount,
+            &parent_request.delegator_addr,
+            parent_request.delegator_provided_reward_amount.u128(),
+        );
+        parent_request.funds_pool = parent_request
+            .funds_pool
+            .checked_sub(parent_request.delegator_provided_reward_amount)?;
+        parent_request.delegator_provided_reward_amount = Uint128::new(0);
+        parent_request.state = ReencryptionRequestState::TimedOut;
+        store_set_parent_reencryption_request(
+            storage,
+            &re_request.data_id,
+            &re_request.delegatee_pubkey,
+            &parent_request,
+        );
+    }
+
+    // Delete proxy re-encryption request
     store_remove_delegatee_proxy_reencryption_request(
         storage,
         &re_request.data_id,
@@ -432,6 +530,8 @@ pub fn resolve_proxy_reencryption_requests(
         re_request_id,
     );
     store_remove_proxy_reencryption_request(storage, re_request_id);
+
+    Ok(())
 }
 
 pub fn get_all_fragments(

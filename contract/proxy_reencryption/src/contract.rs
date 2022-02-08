@@ -11,8 +11,9 @@ use crate::proxies::{
 };
 use crate::state::{
     store_get_data_entry, store_get_delegator_address, store_get_staking_config, store_get_state,
-    store_set_data_entry, store_set_delegator_address, store_set_staking_config, store_set_state,
-    DataEntry, StakingConfig, State,
+    store_get_timeouts_config, store_set_data_entry, store_set_delegator_address,
+    store_set_staking_config, store_set_state, store_set_timeouts_config, DataEntry, StakingConfig,
+    State, TimeoutsConfig,
 };
 
 use crate::delegations::{
@@ -23,8 +24,9 @@ use crate::delegations::{
     ProxyDelegation,
 };
 use crate::reencryption_requests::{
-    get_all_fragments, get_reencryption_request_state, remove_proxy_reencryption_requests,
-    store_add_delegatee_proxy_reencryption_request, store_add_proxy_reencryption_request_to_queue,
+    check_and_resolve_all_requests_timeout, get_all_fragments, get_reencryption_request_state,
+    remove_proxy_reencryption_requests, store_add_delegatee_proxy_reencryption_request,
+    store_add_proxy_reencryption_request_to_queue,
     store_get_all_proxy_reencryption_requests_in_queue,
     store_get_delegatee_proxy_reencryption_request, store_get_parent_reencryption_request,
     store_get_proxy_reencryption_request, store_remove_proxy_reencryption_request_from_queue,
@@ -32,8 +34,8 @@ use crate::reencryption_requests::{
     ParentReencryptionRequest, ProxyReencryptionRequest, ReencryptionRequestState,
 };
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Storage, Uint128,
+    to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Storage, Uint128,
 };
 
 use crate::common::add_bank_msg;
@@ -49,6 +51,8 @@ macro_rules! generic_err {
 pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 1000;
 pub const DEFAULT_REQUEST_REWARD_AMOUNT: u128 = 100;
 pub const DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT: u128 = 100;
+pub const DEFAULT_TIMEOUT_HEIGHT: u64 = 50;
+
 pub const FRAGMENT_VERIFICATION_ERROR: &str = "Fragment verification failed: ";
 
 pub fn instantiate(
@@ -83,6 +87,12 @@ pub fn instantiate(
     };
     store_set_staking_config(deps.storage, &staking_config)?;
 
+    let timeouts_config = TimeoutsConfig {
+        timeout_height: msg.timeout_height.unwrap_or(DEFAULT_TIMEOUT_HEIGHT),
+        next_request_id_to_be_checked: 0,
+    };
+    store_set_timeouts_config(deps.storage, &timeouts_config)?;
+
     if state.n_max_proxies < get_n_minimum_proxies_for_refund(&state, &staking_config) {
         return generic_err!(
             "Value of n_max_proxies cannot be lower than minimum proxies to refund delegator."
@@ -109,6 +119,7 @@ pub fn instantiate(
 // Admin actions
 
 fn try_add_proxy(
+    mut response: Response,
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -131,20 +142,14 @@ fn try_add_proxy(
     store_set_proxy_entry(deps.storage, proxy_addr, &new_proxy);
 
     // Return response
-    let res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "add_proxy"),
-            attr("admin", info.sender.as_str()),
-            attr("proxy_addr", proxy_addr.as_str()),
-        ],
-        data: None,
-    };
-    Ok(res)
+    response.add_attribute("action", "add_proxy");
+    response.add_attribute("admin", info.sender.as_str());
+    response.add_attribute("proxy_addr", proxy_addr.as_str());
+    Ok(response)
 }
 
 fn try_remove_proxy(
+    mut response: Response,
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -161,18 +166,6 @@ fn try_remove_proxy(
         Some(proxy) => Ok(proxy),
     }?;
 
-    // Return response
-    let mut res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "store_remove_proxy_entry"),
-            attr("admin", info.sender.as_str()),
-            attr("proxy_addr", proxy_addr.as_str()),
-        ],
-        data: None,
-    };
-
     // Registered or Leaving state
     if let Some(proxy_pubkey) = proxy.proxy_pubkey {
         // In leaving state this was already done
@@ -181,7 +174,7 @@ fn try_remove_proxy(
             remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
         }
 
-        remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey, &mut res)?;
+        remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey, &mut response)?;
         store_remove_proxy_address(deps.storage, &proxy_pubkey);
     }
 
@@ -190,7 +183,7 @@ fn try_remove_proxy(
 
     // Return remaining stake back to proxy
     add_bank_msg(
-        &mut res,
+        &mut response,
         proxy_addr,
         proxy.stake_amount.u128(),
         &staking_config.stake_denom,
@@ -199,12 +192,17 @@ fn try_remove_proxy(
     // Remove proxy entry = remove pubkey
     store_remove_proxy_entry(deps.storage, proxy_addr);
 
-    Ok(res)
+    // Return response
+    response.add_attribute("action", "store_remove_proxy_entry");
+    response.add_attribute("admin", info.sender.as_str());
+    response.add_attribute("proxy_addr", proxy_addr.as_str());
+    Ok(response)
 }
 
 // Proxy actions
 
 fn try_register_proxy(
+    mut response: Response,
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -239,19 +237,17 @@ fn try_register_proxy(
     store_set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
 
     // Return response
-    let res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "register_proxy"),
-            attr("proxy", info.sender.as_str()),
-        ],
-        data: None,
-    };
-    Ok(res)
+    response.add_attribute("action", "register_proxy");
+    response.add_attribute("proxy", info.sender.as_str());
+    Ok(response)
 }
 
-fn try_unregister_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+fn try_unregister_proxy(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> StdResult<Response> {
     let staking_config = store_get_staking_config(deps.storage)?;
 
     // Check if proxy is authorised
@@ -266,24 +262,13 @@ fn try_unregister_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResul
         Some(proxy_pubkey) => Ok(proxy_pubkey),
     }?;
 
-    // Return response
-    let mut res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "unregister_proxy"),
-            attr("proxy", info.sender.as_str()),
-        ],
-        data: None,
-    };
-
     if proxy.state != ProxyState::Leaving {
         store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
         remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
     }
 
     // This can resolve to proxy being slashed
-    remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey, &mut res)?;
+    remove_proxy_reencryption_requests(deps.storage, &proxy_pubkey, &mut response)?;
     store_remove_proxy_address(deps.storage, &proxy_pubkey);
 
     // Update proxy entry to get correct stake amount after possible slashing
@@ -291,7 +276,7 @@ fn try_unregister_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResul
 
     // Return remaining stake back to proxy
     add_bank_msg(
-        &mut res,
+        &mut response,
         &info.sender,
         proxy.stake_amount.u128(),
         &staking_config.stake_denom,
@@ -302,10 +287,18 @@ fn try_unregister_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResul
     proxy.proxy_pubkey = None;
     store_set_proxy_entry(deps.storage, &info.sender, &proxy);
 
-    Ok(res)
+    // Return response
+    response.add_attribute("action", "unregister_proxy");
+    response.add_attribute("proxy", info.sender.as_str());
+    Ok(response)
 }
 
-fn try_deactivate_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+fn try_deactivate_proxy(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> StdResult<Response> {
     match store_get_proxy_entry(deps.storage, &info.sender) {
         None => {
             // Unregistered state
@@ -328,19 +321,13 @@ fn try_deactivate_proxy(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResul
     }
 
     // Return response
-    let res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "deactivate_proxy"),
-            attr("proxy", info.sender.as_str()),
-        ],
-        data: None,
-    };
-    Ok(res)
+    response.add_attribute("action", "deactivate_proxy");
+    response.add_attribute("proxy", info.sender.as_str());
+    Ok(response)
 }
 
 fn try_provide_reencrypted_fragment(
+    mut response: Response,
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -391,54 +378,54 @@ fn try_provide_reencrypted_fragment(
         return generic_err!("Fragment already provided by other proxy.");
     }
 
-    // Prepare return response
-    let res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "try_provide_reencrypted_fragment"),
-            attr("data_id", data_id),
-            attr("delegatee_pubkey", delegatee_pubkey),
-            attr("fragment", fragment),
-        ],
-        data: None,
-    };
+    let state: State = store_get_state(deps.storage)?;
+    let staking_config: StakingConfig = store_get_staking_config(deps.storage)?;
 
-    let state = store_get_state(deps.storage)?;
-    let mut parent_request = store_get_parent_reencryption_request(
+    let mut parent_request: ParentReencryptionRequest = store_get_parent_reencryption_request(
         deps.storage,
         &proxy_request.data_id,
         &proxy_request.delegatee_pubkey,
     )
     .unwrap();
+
+    // Add fragment to request
+
     parent_request.n_provided_fragments += 1;
     if parent_request.n_provided_fragments >= state.threshold {
         parent_request.state = ReencryptionRequestState::Granted;
     }
+    proxy_request.fragment = Some(fragment.to_string());
+
+    // Add reward to proxy stake + return withdrawn stake
+    let return_stake_amount = staking_config.per_proxy_request_reward_amount.u128()
+        + staking_config.per_request_slash_stake_amount.u128();
+    proxy.stake_amount = Uint128(proxy.stake_amount.u128() + return_stake_amount);
+    parent_request.funds_pool =
+        Uint128::new(parent_request.funds_pool.u128() - return_stake_amount);
+
+    // Update maps
+    store_set_proxy_entry(deps.storage, &info.sender, &proxy);
     store_set_parent_reencryption_request(
         deps.storage,
         &proxy_request.data_id,
         &proxy_request.delegatee_pubkey,
         &parent_request,
     );
-
-    // Add reward to proxy stake + return withdrawn stake
-    proxy.stake_amount += proxy_request.reward_amount + proxy_request.proxy_slashed_amount;
-    store_set_proxy_entry(deps.storage, &info.sender, &proxy);
-
-    // Add fragment to request and update funds amount
-    proxy_request.reward_amount = Uint128::new(0);
-    proxy_request.proxy_slashed_amount = Uint128::new(0);
-    proxy_request.fragment = Some(fragment.to_string());
     store_set_proxy_reencryption_request(deps.storage, &request_id, &proxy_request);
 
     // Remove request from proxy queue as it's completed
     store_remove_proxy_reencryption_request_from_queue(deps.storage, &proxy_pubkey, &request_id);
 
-    Ok(res)
+    // Return response
+    response.add_attribute("action", "try_provide_reencrypted_fragment");
+    response.add_attribute("data_id", data_id);
+    response.add_attribute("delegatee_pubkey", delegatee_pubkey);
+    response.add_attribute("fragment", fragment);
+    Ok(response)
 }
 
 fn try_withdraw_stake(
+    mut response: Response,
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -469,31 +456,28 @@ fn try_withdraw_stake(
         withdraw_stake_amount = maximum_withdrawable_amount;
     }
 
-    // Return response
-    let mut res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "withdraw_stake"),
-            attr("stake_amount", withdraw_stake_amount),
-        ],
-        data: None,
-    };
-
     // Update proxy stake amount
     proxy.stake_amount = Uint128::new(proxy.stake_amount.u128() - withdraw_stake_amount);
     store_set_proxy_entry(deps.storage, &info.sender, &proxy);
     add_bank_msg(
-        &mut res,
+        &mut response,
         &info.sender,
         withdraw_stake_amount,
         &staking_config.stake_denom,
     );
 
-    Ok(res)
+    // Return response
+    response.add_attribute("action", "withdraw_stake");
+    response.add_attribute("stake_amount", Uint128::new(withdraw_stake_amount));
+    Ok(response)
 }
 
-fn try_add_stake(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+fn try_add_stake(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> StdResult<Response> {
     // Check if proxy is authorised
     let mut proxy = match store_get_proxy_entry(deps.storage, &info.sender) {
         None => generic_err!("Sender is not a proxy"),
@@ -509,21 +493,15 @@ fn try_add_stake(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Respo
     store_set_proxy_entry(deps.storage, &info.sender, &proxy);
 
     // Return response
-    let res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "add_stake"),
-            attr("stake_amount", info.funds[0].amount),
-        ],
-        data: None,
-    };
-    Ok(res)
+    response.add_attribute("action", "add_stake");
+    response.add_attribute("stake_amount", info.funds[0].amount);
+    Ok(response)
 }
 
 // Delegator actions
 
 fn try_add_data(
+    mut response: Response,
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -544,21 +522,16 @@ fn try_add_data(
     store_set_data_entry(deps.storage, data_id, &entry);
 
     // Return response
-    let res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "add_data"),
-            attr("owner", info.sender.as_str()),
-            attr("data_id", data_id),
-            attr("delegator_pubkey", delegator_pubkey),
-        ],
-        data: None,
-    };
-    Ok(res)
+    response.add_attribute("action", "add_data");
+    response.add_attribute("owner", info.sender.as_str());
+    response.add_attribute("data_id", data_id);
+    response.add_attribute("delegator_pubkey", delegator_pubkey);
+
+    Ok(response)
 }
 
 fn try_request_proxies_for_delegation(
+    mut response: Response,
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -601,23 +574,19 @@ fn try_request_proxies_for_delegation(
     selected_proxy_pubkeys_str += "]";
 
     store_set_state(deps.storage, &state)?;
+
     // Return response
-    let res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "request_proxies_for_delegation"),
-            attr("delegator_address", info.sender.as_str()),
-            attr("delegator_pubkey", delegator_pubkey),
-            attr("delegatee_pubkey", delegatee_pubkey),
-            attr("selected_proxies", selected_proxy_pubkeys_str),
-        ],
-        data: None,
-    };
-    Ok(res)
+    response.add_attribute("action", "request_proxies_for_delegation");
+    response.add_attribute("delegator_address", info.sender.as_str());
+    response.add_attribute("delegator_pubkey", delegator_pubkey);
+    response.add_attribute("delegatee_pubkey", delegatee_pubkey);
+    response.add_attribute("selected_proxies", selected_proxy_pubkeys_str);
+
+    Ok(response)
 }
 
 fn try_add_delegation(
+    mut response: Response,
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -669,23 +638,18 @@ fn try_add_delegation(
     }
 
     // Return response
-    let res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "add_delegation"),
-            attr("delegator_address", info.sender.as_str()),
-            attr("delegator_pubkey", delegator_pubkey),
-            attr("delegatee_pubkey", delegatee_pubkey),
-        ],
-        data: None,
-    };
-    Ok(res)
+    response.add_attribute("action", "add_delegation");
+    response.add_attribute("delegator_address", info.sender.as_str());
+    response.add_attribute("delegator_pubkey", delegator_pubkey);
+    response.add_attribute("delegatee_pubkey", delegatee_pubkey);
+
+    Ok(response)
 }
 
 fn try_request_reencryption(
+    mut response: Response,
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     data_id: &str,
     delegatee_pubkey: &str,
@@ -699,8 +663,9 @@ fn try_request_reencryption(
     ensure_delegator(deps.storage, &data_entry.delegator_pubkey, &info.sender)?;
 
     // Load config
-    let staking_config = store_get_staking_config(deps.storage)?;
-    let mut state = store_get_state(deps.storage)?;
+    let staking_config: StakingConfig = store_get_staking_config(deps.storage)?;
+    let mut state: State = store_get_state(deps.storage)?;
+    let timeouts_config: TimeoutsConfig = store_get_timeouts_config(deps.storage)?;
 
     // Get selected proxies for current delegation
     let proxy_pubkeys = store_get_all_proxies_from_delegation(
@@ -737,6 +702,8 @@ fn try_request_reencryption(
     let total_required_reward_amount =
         staking_config.per_proxy_request_reward_amount.u128() * n_available_proxies as u128;
     ensure_stake(&staking_config, &info.funds, &total_required_reward_amount)?;
+    let total_slashed_amount =
+        staking_config.per_request_slash_stake_amount.u128() * n_available_proxies as u128;
 
     // Prepare template for each proxy request
     let mut new_proxy_request = ProxyReencryptionRequest {
@@ -746,13 +713,22 @@ fn try_request_reencryption(
         proxy_pubkey: "".to_string(),
         delegation_string: "".to_string(),
         // Per proxy stake amount
-        reward_amount: staking_config.per_proxy_request_reward_amount,
-        proxy_slashed_amount: staking_config.per_request_slash_stake_amount,
     };
 
     if store_get_parent_reencryption_request(deps.storage, data_id, delegatee_pubkey).is_some() {
         return generic_err!("Reencryption already requested");
     }
+
+    // Create parent request
+    let parent_request = ParentReencryptionRequest {
+        n_provided_fragments: 0,
+        n_proxy_requests: n_available_proxies,
+        funds_pool: Uint128::new(total_required_reward_amount + total_slashed_amount),
+        delegator_provided_reward_amount: Uint128::new(total_required_reward_amount),
+        state: ReencryptionRequestState::Ready,
+        delegator_addr: info.sender.clone(),
+        timeout_height: env.block.height + timeouts_config.timeout_height,
+    };
 
     // Assign re-encrpytion requests to all available proxies
     for proxy_pubkey in &proxy_pubkeys {
@@ -760,14 +736,15 @@ fn try_request_reencryption(
         let proxy_addr = store_get_proxy_address(deps.storage, proxy_pubkey).unwrap();
         let mut proxy = store_get_proxy_entry(deps.storage, &proxy_addr).unwrap();
 
-        if proxy.stake_amount.u128() < new_proxy_request.proxy_slashed_amount.u128() {
+        if proxy.stake_amount.u128() < staking_config.per_request_slash_stake_amount.u128() {
             // Proxy cannot be selected for insufficient amount
             continue;
         }
 
-        // Subtract stake from proxy - stake is reserved in re-encryption request
-        proxy.stake_amount =
-            Uint128::new(proxy.stake_amount.u128() - new_proxy_request.proxy_slashed_amount.u128());
+        // Subtract stake from proxy - stake is reserved in a parent re-encryption request
+        proxy.stake_amount = proxy
+            .stake_amount
+            .checked_sub(staking_config.per_request_slash_stake_amount)?;
         store_set_proxy_entry(deps.storage, &proxy_addr, &proxy);
 
         // Get delegation
@@ -802,55 +779,67 @@ fn try_request_reencryption(
         state.next_proxy_request_id += 1;
     }
 
-    // Create parent request
-    let parent_request = ParentReencryptionRequest {
-        n_provided_fragments: 0,
-        n_proxy_requests: n_available_proxies,
-        slashed_stake_amount: Uint128::new(0),
-        state: ReencryptionRequestState::Ready,
-        delegator_addr: info.sender.clone(),
-    };
     store_set_parent_reencryption_request(deps.storage, data_id, delegatee_pubkey, &parent_request);
-
     store_set_state(deps.storage, &state)?;
-
-    // Return response
-    let mut res = Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "request_reencryption"),
-            attr("data_id", &data_id),
-            attr("delegatee_pubkey", &delegatee_pubkey),
-        ],
-        data: None,
-    };
 
     // Return back part of funds if more funds than necessary was provided
     if info.funds[0].amount.u128() > total_required_reward_amount {
         add_bank_msg(
-            &mut res,
+            &mut response,
             &info.sender,
             info.funds[0].amount.u128() - total_required_reward_amount,
             &staking_config.stake_denom,
         );
     }
 
-    Ok(res)
+    // Return response
+    response.add_attribute("action", "request_reencryption");
+    response.add_attribute("data_id", data_id);
+    response.add_attribute("delegatee_pubkey", delegatee_pubkey);
+
+    Ok(response)
 }
 
 pub fn get_next_proxy_task(
     store: &dyn Storage,
     proxy_pubkey: &str,
+    block_height: &u64,
 ) -> StdResult<Option<ProxyTask>> {
+    // Returns first available proxy task from queue
+
     let requests = store_get_all_proxy_reencryption_requests_in_queue(store, proxy_pubkey);
 
+    // No tasks
     if requests.is_empty() {
         return Ok(None);
     }
-    // Request must exist
-    let request = store_get_proxy_reencryption_request(store, &requests[0]).unwrap();
 
+    // Skip all TimedOut tasks
+    let mut request_to_complete: Option<ProxyReencryptionRequest> = None;
+    for request_id in requests {
+        let proxy_request: ProxyReencryptionRequest =
+            store_get_proxy_reencryption_request(store, &request_id).unwrap();
+        let parent_request: ParentReencryptionRequest = store_get_parent_reencryption_request(
+            store,
+            &proxy_request.data_id,
+            &proxy_request.delegatee_pubkey,
+        )
+        .unwrap();
+        if block_height < &parent_request.timeout_height {
+            request_to_complete = Some(proxy_request);
+            break;
+        } else {
+            continue;
+        }
+    }
+
+    // return None if all tasks are TimedOut
+    if request_to_complete.is_none() {
+        return Ok(None);
+    }
+
+    // Return first task that is not TimedOut
+    let request = request_to_complete.unwrap();
     let data_entry = store_get_data_entry(store, &request.data_id).unwrap();
 
     let proxy_task = ProxyTask {
@@ -870,20 +859,32 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
+    let mut response: Response = Response::new();
+
+    // Actions to be performed before every ExecuteMSG call
+
+    // Resolve all timed-out re-encryption requests
+    check_and_resolve_all_requests_timeout(deps.storage, &mut response, env.block.height);
+
     match msg {
         // Admin actions
-        ExecuteMsg::AddProxy { proxy_addr } => try_add_proxy(deps, env, info, &proxy_addr),
-        ExecuteMsg::RemoveProxy { proxy_addr } => try_remove_proxy(deps, env, info, &proxy_addr),
+        ExecuteMsg::AddProxy { proxy_addr } => {
+            try_add_proxy(response, deps, env, info, &proxy_addr)
+        }
+        ExecuteMsg::RemoveProxy { proxy_addr } => {
+            try_remove_proxy(response, deps, env, info, &proxy_addr)
+        }
 
         // Proxy actions
         ExecuteMsg::RegisterProxy { proxy_pubkey } => {
-            try_register_proxy(deps, env, info, proxy_pubkey)
+            try_register_proxy(response, deps, env, info, proxy_pubkey)
         }
         ExecuteMsg::ProvideReencryptedFragment {
             data_id,
             delegatee_pubkey,
             fragment,
         } => try_provide_reencrypted_fragment(
+            response,
             deps,
             env,
             info,
@@ -891,24 +892,33 @@ pub fn execute(
             &delegatee_pubkey,
             &fragment,
         ),
-        ExecuteMsg::UnregisterProxy {} => try_unregister_proxy(deps, env, info),
-        ExecuteMsg::DeactivateProxy {} => try_deactivate_proxy(deps, env, info),
+        ExecuteMsg::UnregisterProxy {} => try_unregister_proxy(response, deps, env, info),
+        ExecuteMsg::DeactivateProxy {} => try_deactivate_proxy(response, deps, env, info),
         ExecuteMsg::WithdrawStake { stake_amount } => {
-            try_withdraw_stake(deps, env, info, &stake_amount)
+            try_withdraw_stake(response, deps, env, info, &stake_amount)
         }
-        ExecuteMsg::AddStake {} => try_add_stake(deps, env, info),
+        ExecuteMsg::AddStake {} => try_add_stake(response, deps, env, info),
 
         // Delegator actions
         ExecuteMsg::AddData {
             data_id,
             delegator_pubkey,
             capsule,
-        } => try_add_data(deps, env, info, &data_id, &delegator_pubkey, &capsule),
+        } => try_add_data(
+            response,
+            deps,
+            env,
+            info,
+            &data_id,
+            &delegator_pubkey,
+            &capsule,
+        ),
         ExecuteMsg::AddDelegation {
             delegator_pubkey,
             delegatee_pubkey,
             proxy_delegations,
         } => try_add_delegation(
+            response,
             deps,
             env,
             info,
@@ -920,6 +930,7 @@ pub fn execute(
             delegator_pubkey,
             delegatee_pubkey,
         } => try_request_proxies_for_delegation(
+            response,
             deps,
             env,
             info,
@@ -929,11 +940,11 @@ pub fn execute(
         ExecuteMsg::RequestReencryption {
             data_id,
             delegatee_pubkey,
-        } => try_request_reencryption(deps, env, info, &data_id, &delegatee_pubkey),
+        } => try_request_reencryption(response, deps, env, info, &data_id, &delegatee_pubkey),
     }
 }
 
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetAvailableProxies {} => Ok(to_binary(&GetAvailableProxiesResponse {
             proxy_pubkeys: store_get_all_active_proxy_pubkeys(deps.storage),
@@ -956,6 +967,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     deps.storage,
                     &data_id,
                     &delegatee_pubkey,
+                    &env.block.height,
                 ),
                 capsule: data_entry.capsule,
                 fragments: get_all_fragments(deps.storage, &data_id, &delegatee_pubkey),
@@ -983,7 +995,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
 
         QueryMsg::GetNextProxyTask { proxy_pubkey } => Ok(to_binary(&GetNextProxyTaskResponse {
-            proxy_task: get_next_proxy_task(deps.storage, &proxy_pubkey)?,
+            proxy_task: get_next_proxy_task(deps.storage, &proxy_pubkey, &env.block.height)?,
         })?),
 
         QueryMsg::GetDelegationStatus {

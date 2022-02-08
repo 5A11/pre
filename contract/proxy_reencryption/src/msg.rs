@@ -42,6 +42,9 @@ pub struct InstantiateMsg {
     pub minimum_proxy_stake_amount: Option<Uint128>,
     pub per_proxy_request_reward_amount: Option<Uint128>,
     pub per_request_slash_stake_amount: Option<Uint128>,
+
+    // Timeouts
+    pub timeout_height: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]

@@ -34,7 +34,8 @@
         "inaccessible",
         "ready",
         "granted",
-        "abandoned"
+        "abandoned",
+        "timed_out"
       ]
     }
   }

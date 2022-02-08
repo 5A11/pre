@@ -24,7 +24,7 @@ class CosmosCrypto(AbstractLedgerCrypto):
         account_number: Optional[int] = None,
     ):
         """
-        Init ldger crypto key.
+        Init ledger crypto key.
 
         :param private_key: Cosmos PrivateKey instance
         :param prefix: optional key prefix str

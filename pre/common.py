@@ -138,6 +138,7 @@ class ReencryptionRequestState(Enum):
     ready = 2
     granted = 3
     abandoned = 4
+    timed_out = 5
 
 
 @dataclass

@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 // Singletons
 static STATE_KEY: &[u8] = b"State";
-
 static STAKING_CONFIG_KEY: &[u8] = b"StakingConfig";
+static TIMEOUTS_CONFIG_KEY: &[u8] = b"TimeoutsConfig";
 
 // Maps
 
@@ -37,6 +37,12 @@ pub struct StakingConfig {
     pub minimum_proxy_stake_amount: Uint128,
     pub per_proxy_request_reward_amount: Uint128,
     pub per_request_slash_stake_amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct TimeoutsConfig {
+    pub timeout_height: u64,
+    pub next_request_id_to_be_checked: u64,
 }
 
 // Store structures
@@ -69,6 +75,19 @@ pub fn store_set_staking_config(
 ) -> StdResult<()> {
     let mut singl: Singleton<StakingConfig> = singleton(storage, STAKING_CONFIG_KEY);
     singl.save(staking_config)
+}
+
+// TIMEOUTS_CONFIG
+pub fn store_get_timeouts_config(storage: &dyn Storage) -> StdResult<TimeoutsConfig> {
+    singleton_read(storage, TIMEOUTS_CONFIG_KEY).load()
+}
+
+pub fn store_set_timeouts_config(
+    storage: &mut dyn Storage,
+    timeouts_config: &TimeoutsConfig,
+) -> StdResult<()> {
+    let mut singl: Singleton<TimeoutsConfig> = singleton(storage, TIMEOUTS_CONFIG_KEY);
+    singl.save(timeouts_config)
 }
 
 // DATA_ENTRIES

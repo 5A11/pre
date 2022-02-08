@@ -40,6 +40,7 @@ class AdminAPI:
         threshold: Optional[int] = None,
         n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
+        timeout_height: Optional[int] = None,
         label: str = "PRE",
         contract_cls: Optional[Type[AbstractAdminContract]] = None,
     ) -> Address:
@@ -55,6 +56,7 @@ class AdminAPI:
         :param threshold: int threshold ,
         :param n_max_proxies: max amount of proxy allowed to register,
         :param proxies: optional list of proxies addresses,
+        :param timeout_height: Timeout height
         :param label: str, contract label
         :param contract_cls: Optional[Type[AbstractAdminContract]] = None,
         """
@@ -71,6 +73,7 @@ class AdminAPI:
             threshold,
             n_max_proxies,
             proxies or [],
+            timeout_height,
             label,
         )
         return contract_address

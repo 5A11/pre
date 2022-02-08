@@ -73,6 +73,14 @@
       ],
       "format": "uint32",
       "minimum": 0.0
+    },
+    "timeout_height": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
     }
   },
   "definitions": {

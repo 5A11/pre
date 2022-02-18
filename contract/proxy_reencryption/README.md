@@ -9,7 +9,7 @@ You will also need to run the following commands to set up rust:
 ```
 rustup default stable
 cargo version
-# If this is lower than 1.52.0+, update
+# If this is lower than 1.57.0+, update
 rustup update stable
 
 rustup target list --installed
@@ -20,12 +20,12 @@ Install Fetchd
 ```
 git clone https://github.com/fetchai/fetchd.git
 cd fetchd
-git checkout v0.8.7
+git checkout v0.9.0
 make install
 
 # Check if wasmcli is properly installed
 fetchd version
-# Version should be 0.8.7
+# Version should be 0.9.0
 ```
 
 Compile contract

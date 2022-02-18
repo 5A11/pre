@@ -3,7 +3,7 @@ addr: localhost
 port: 5001
 
 `ledger_config.yaml`
-chain_id: stargateworld-3
+chain_id: capricorn-1
 denom: atestfet
 node_address: http://127.0.0.1:1317
 prefix: fetch

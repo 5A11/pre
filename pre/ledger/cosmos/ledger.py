@@ -37,8 +37,8 @@ from cosmpy.protos.cosmos.tx.v1beta1.tx_pb2 import (
     Tx,
     TxBody,
 )
-from cosmpy.protos.cosmwasm.wasm.v1beta1.query_pb2 import QuerySmartContractStateRequest
-from cosmpy.protos.cosmwasm.wasm.v1beta1.tx_pb2 import (
+from cosmpy.protos.cosmwasm.wasm.v1.query_pb2 import QuerySmartContractStateRequest
+from cosmpy.protos.cosmwasm.wasm.v1.tx_pb2 import (
     MsgExecuteContract,
     MsgInstantiateContract,
     MsgStoreCode,
@@ -58,23 +58,21 @@ from pre.ledger.base_ledger import AbstractLedger, LedgerServerNotAvailable
 from pre.ledger.cosmos.crypto import CosmosCrypto
 from pre.utils.loggers import get_logger
 
-
 _logger = get_logger(__name__)
 
 
 # Pre-configured CosmWasm nodes
 class NodeConfigPreset(Enum):
     local_net = 0
-    stargate_world = 1
+    capricorn = 1
 
 
 # CosmWasm client response codes
 CLIENT_CODE_ERROR_EXCEPTION = 4
 CLIENT_CODE_MESSAGE_SUCCESSFUL = 0
 
-DEFAULT_GAS_LIMIT = (
-    3000000  # 3000000 is the maximum gas limit - tx will fail with higher limit
-)
+# 2000000 is the maximum gas limit - tx will fail with higher limit
+DEFAULT_GAS_LIMIT = 2000000
 
 
 class BroadcastException(Exception):
@@ -82,7 +80,7 @@ class BroadcastException(Exception):
 
 
 class CosmosLedgerConfig(AbstractConfig):
-    DEFAULT_FETCH_CHAIN_ID = "stargateworld-3"
+    DEFAULT_FETCH_CHAIN_ID = "capricorn-1"
     DEFAULT_DENOMINATION = "atestfet"
     PREFIX = "fetch"
     FETCHD_URL = "http://127.0.0.1:1317"
@@ -115,20 +113,20 @@ class CosmosLedger(AbstractLedger):
     _ADDR_RE = re.compile("^fetch[0-9a-z]{39}$")
 
     def __init__(
-        self,
-        denom: str,
-        chain_id: str,
-        prefix: str,
-        node_address: str = None,
-        validator_pk: Optional[str] = None,
-        faucet_url: Optional[str] = None,
-        msg_retry_interval: int = 2,
-        msg_failed_retry_interval: int = 10,
-        faucet_retry_interval: int = 20,
-        n_sending_retries: int = 1,  # 5,
-        n_total_msg_retries: int = 1,  # 10,
-        get_response_retry_interval: float = 0.5,  # 2,
-        n_get_response_retries: int = 30,  # 30,
+            self,
+            denom: str,
+            chain_id: str,
+            prefix: str,
+            node_address: str = None,
+            validator_pk: Optional[str] = None,
+            faucet_url: Optional[str] = None,
+            msg_retry_interval: int = 2,
+            msg_failed_retry_interval: int = 10,
+            faucet_retry_interval: int = 20,
+            n_sending_retries: int = 1,  # 5,
+            n_total_msg_retries: int = 1,  # 10,
+            get_response_retry_interval: float = 0.5,  # 2,
+            n_get_response_retries: int = 30,  # 30,
     ):
         """
         Create new instance to deploy and communicate with smart contract
@@ -176,12 +174,12 @@ class CosmosLedger(AbstractLedger):
         self.get_response_retry_interval = get_response_retry_interval
 
     def load_crypto_from_file(
-        self, keyfile_path: str, prefix: Optional[str] = None
+            self, keyfile_path: str, prefix: Optional[str] = None
     ) -> CosmosCrypto:
         return self.load_crypto_from_str(Path(keyfile_path).read_text(), prefix)
 
     def load_crypto_from_str(
-        self, key_str: str, prefix: Optional[str] = None
+            self, key_str: str, prefix: Optional[str] = None
     ) -> CosmosCrypto:
         prefix = prefix or self.prefix
         private_key = PrivateKey(bytes.fromhex(key_str))
@@ -195,10 +193,10 @@ class CosmosLedger(AbstractLedger):
         time.sleep(seconds)
 
     def deploy_contract(
-        self,
-        sender_crypto: CosmosCrypto,
-        contract_filename: str,
-        gas: int = DEFAULT_GAS_LIMIT,
+            self,
+            sender_crypto: CosmosCrypto,
+            contract_filename: str,
+            gas: int = DEFAULT_GAS_LIMIT,
     ) -> Tuple[int, JSONLike]:
         """
         Deploy smart contract on a blockchain
@@ -230,8 +228,8 @@ class CosmosLedger(AbstractLedger):
                 res = self.broadcast_tx(tx)
 
                 raw_log = json.loads(res.tx_response.raw_log)  # pylint: disable=E1101
-                assert raw_log[0]["events"][0]["attributes"][3]["key"] == "code_id"
-                code_id = int(raw_log[0]["events"][0]["attributes"][3]["value"])
+                assert raw_log[0]["events"][1]["attributes"][0]["key"] == "code_id"
+                code_id = int(raw_log[0]["events"][1]["attributes"][0]["value"])
             except BroadcastException as e:
                 # Failure due to wrong sequence, signature, etc.
                 last_exception = e
@@ -250,12 +248,12 @@ class CosmosLedger(AbstractLedger):
         return code_id, MessageToDict(res)
 
     def send_init_msg(
-        self,
-        sender_crypto: CosmosCrypto,
-        code_id: int,
-        init_msg: JSONLike,
-        label: str,
-        gas: int = DEFAULT_GAS_LIMIT,
+            self,
+            sender_crypto: CosmosCrypto,
+            code_id: int,
+            init_msg: JSONLike,
+            label: str,
+            gas: int = DEFAULT_GAS_LIMIT,
     ) -> Tuple[str, JSONLike]:
         """
         Send init contract message
@@ -293,11 +291,11 @@ class CosmosLedger(AbstractLedger):
 
                 raw_log = json.loads(res.tx_response.raw_log)  # pylint: disable=E1101
                 if (
-                    raw_log[0]["events"][1]["attributes"][0]["key"]
-                    == "contract_address"
+                        raw_log[0]["events"][0]["attributes"][0]["key"]
+                        == "_contract_address"
                 ):
                     contract_address = str(
-                        raw_log[0]["events"][1]["attributes"][0]["value"]
+                        raw_log[0]["events"][0]["attributes"][0]["value"]
                     )
             except BroadcastException as e:
                 # Failure due to wrong sequence, signature, etc.
@@ -326,10 +324,10 @@ class CosmosLedger(AbstractLedger):
         return contract_address, MessageToDict(res)
 
     def send_query_msg(
-        self,
-        contract_address: str,
-        query_msg: JSONLike,
-        num_retries: Optional[int] = None,
+            self,
+            contract_address: str,
+            query_msg: JSONLike,
+            num_retries: Optional[int] = None,
     ) -> JSONLike:
         """
         Generate and send query message to get state of smart contract
@@ -367,13 +365,13 @@ class CosmosLedger(AbstractLedger):
         return json.loads(res.data)  # pylint: disable=E1101
 
     def send_execute_msg(
-        self,
-        sender_crypto: CosmosCrypto,
-        contract_address: str,
-        execute_msg: JSONLike,
-        gas: int = DEFAULT_GAS_LIMIT,
-        amount: Optional[List[Coin]] = None,
-        retries: Optional[int] = None,
+            self,
+            sender_crypto: CosmosCrypto,
+            contract_address: str,
+            execute_msg: JSONLike,
+            gas: int = DEFAULT_GAS_LIMIT,
+            amount: Optional[List[Coin]] = None,
+            retries: Optional[int] = None,
     ) -> Tuple[JSONLike, int]:
         """
         Generate, sign and send handle message
@@ -551,11 +549,11 @@ class CosmosLedger(AbstractLedger):
         # todo: add result of execution?
 
     def _send_funds(
-        self,
-        from_crypto: CosmosCrypto,
-        to_address: str,
-        amount: int,
-        denom: Optional[str] = None,
+            self,
+            from_crypto: CosmosCrypto,
+            to_address: str,
+            amount: int,
+            denom: Optional[str] = None,
     ):
         """
         Transfer funds from one address to another address
@@ -606,7 +604,7 @@ class CosmosLedger(AbstractLedger):
             crypto.account_number = account.account_number  # pylint: disable=E1101
 
     def _refill_wealth_from_validator(
-        self, addresses: List[str], amount: Optional[int] = None
+            self, addresses: List[str], amount: Optional[int] = None
     ):
         """
         Refill funds of addresses using validator
@@ -641,13 +639,13 @@ class CosmosLedger(AbstractLedger):
         return binascii.b2a_hex(urandom(32)).decode("utf-8")
 
     def generate_tx(
-        self,
-        packed_msgs: List[ProtoAny],
-        from_addresses: List[Address],
-        pub_keys: List[bytes],
-        fee: Optional[List[Coin]] = None,
-        memo: str = "",
-        gas_limit: int = DEFAULT_GAS_LIMIT,
+            self,
+            packed_msgs: List[ProtoAny],
+            from_addresses: List[Address],
+            pub_keys: List[bytes],
+            fee: Optional[List[Coin]] = None,
+            memo: str = "",
+            gas_limit: int = DEFAULT_GAS_LIMIT,
     ) -> Tx:
         """
         Generate transaction that can be later signed
@@ -751,7 +749,7 @@ class CosmosLedger(AbstractLedger):
 
     @staticmethod
     def get_packed_send_msg(
-        from_address: Address, to_address: Address, amount: List[Coin]
+            from_address: Address, to_address: Address, amount: List[Coin]
     ) -> ProtoAny:
         """
         Generate and pack MsgSend
@@ -838,7 +836,7 @@ class CosmosLedger(AbstractLedger):
 
     @staticmethod
     def get_packed_store_msg(
-        sender_address: Address, contract_filename: Path
+            sender_address: Address, contract_filename: Path
     ) -> ProtoAny:
         """
         Loads contract bytecode, generate and return packed MsgStoreCode
@@ -862,11 +860,11 @@ class CosmosLedger(AbstractLedger):
 
     @staticmethod
     def get_packed_init_msg(
-        sender_address: Address,
-        code_id: int,
-        init_msg: JSONLike,
-        label="contract",
-        funds: Optional[List[Coin]] = None,
+            sender_address: Address,
+            code_id: int,
+            init_msg: JSONLike,
+            label="contract",
+            funds: Optional[List[Coin]] = None,
     ) -> ProtoAny:
         """
         Create and pack MsgInstantiateContract
@@ -882,7 +880,7 @@ class CosmosLedger(AbstractLedger):
         msg_send = MsgInstantiateContract(
             sender=str(sender_address),
             code_id=code_id,
-            init_msg=json.dumps(init_msg).encode("UTF8"),
+            msg=json.dumps(init_msg).encode("UTF8"),
             label=label,
             funds=funds,
         )
@@ -893,10 +891,10 @@ class CosmosLedger(AbstractLedger):
 
     @staticmethod
     def get_packed_exec_msg(
-        sender_address: Address,
-        contract_address: str,
-        msg: JSONLike,
-        funds: Optional[List[Coin]] = None,
+            sender_address: Address,
+            contract_address: str,
+            msg: JSONLike,
+            funds: Optional[List[Coin]] = None,
     ) -> ProtoAny:
         """
         Create and pack MsgExecuteContract

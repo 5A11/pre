@@ -34,13 +34,14 @@ use crate::reencryption_requests::{
     ParentReencryptionRequest, ProxyReencryptionRequest, ReencryptionRequestState,
 };
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    Storage, Uint128,
+    entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Storage, Uint128,
 };
 
 use crate::common::add_bank_msg;
 
-use umbral_pre::{Capsule, CapsuleFrag, DeserializableFromArray, PublicKey};
+// FRAGMENT_VERIFICATION
+// use umbral_pre::{Capsule, CapsuleFrag, DeserializableFromArray, PublicKey};
 
 macro_rules! generic_err {
     ($val:expr) => {
@@ -55,6 +56,7 @@ pub const DEFAULT_TIMEOUT_HEIGHT: u64 = 50;
 
 pub const FRAGMENT_VERIFICATION_ERROR: &str = "Fragment verification failed: ";
 
+#[entry_point]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -142,9 +144,15 @@ fn try_add_proxy(
     store_set_proxy_entry(deps.storage, proxy_addr, &new_proxy);
 
     // Return response
-    response.add_attribute("action", "add_proxy");
-    response.add_attribute("admin", info.sender.as_str());
-    response.add_attribute("proxy_addr", proxy_addr.as_str());
+    response
+        .attributes
+        .push(Attribute::new("action", "add_proxy"));
+    response
+        .attributes
+        .push(Attribute::new("admin", info.sender.as_str()));
+    response
+        .attributes
+        .push(Attribute::new("proxy_addr", proxy_addr.as_str()));
     Ok(response)
 }
 
@@ -193,9 +201,15 @@ fn try_remove_proxy(
     store_remove_proxy_entry(deps.storage, proxy_addr);
 
     // Return response
-    response.add_attribute("action", "store_remove_proxy_entry");
-    response.add_attribute("admin", info.sender.as_str());
-    response.add_attribute("proxy_addr", proxy_addr.as_str());
+    response
+        .attributes
+        .push(Attribute::new("action", "store_remove_proxy_entry"));
+    response
+        .attributes
+        .push(Attribute::new("admin", info.sender.as_str()));
+    response
+        .attributes
+        .push(Attribute::new("proxy_addr", proxy_addr.as_str()));
     Ok(response)
 }
 
@@ -237,8 +251,12 @@ fn try_register_proxy(
     store_set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
 
     // Return response
-    response.add_attribute("action", "register_proxy");
-    response.add_attribute("proxy", info.sender.as_str());
+    response
+        .attributes
+        .push(Attribute::new("action", "register_proxy"));
+    response
+        .attributes
+        .push(Attribute::new("proxy", info.sender.as_str()));
     Ok(response)
 }
 
@@ -288,8 +306,12 @@ fn try_unregister_proxy(
     store_set_proxy_entry(deps.storage, &info.sender, &proxy);
 
     // Return response
-    response.add_attribute("action", "unregister_proxy");
-    response.add_attribute("proxy", info.sender.as_str());
+    response
+        .attributes
+        .push(Attribute::new("action", "unregister_proxy"));
+    response
+        .attributes
+        .push(Attribute::new("proxy", info.sender.as_str()));
     Ok(response)
 }
 
@@ -321,8 +343,12 @@ fn try_deactivate_proxy(
     }
 
     // Return response
-    response.add_attribute("action", "deactivate_proxy");
-    response.add_attribute("proxy", info.sender.as_str());
+    response
+        .attributes
+        .push(Attribute::new("action", "deactivate_proxy"));
+    response
+        .attributes
+        .push(Attribute::new("proxy", info.sender.as_str()));
     Ok(response)
 }
 
@@ -365,14 +391,15 @@ fn try_provide_reencrypted_fragment(
         return generic_err!("Fragment already provided.");
     }
 
+    /*
     let data_entry = store_get_data_entry(deps.storage, data_id).unwrap();
-
     verify_fragment(
         &fragment.to_string(),
         &data_entry.capsule,
         &data_entry.delegator_pubkey,
         &proxy_request.delegatee_pubkey,
     )?;
+    */
 
     if get_all_fragments(deps.storage, data_id, delegatee_pubkey).contains(&fragment.to_string()) {
         return generic_err!("Fragment already provided by other proxy.");
@@ -399,7 +426,7 @@ fn try_provide_reencrypted_fragment(
     // Add reward to proxy stake + return withdrawn stake
     let return_stake_amount = staking_config.per_proxy_request_reward_amount.u128()
         + staking_config.per_request_slash_stake_amount.u128();
-    proxy.stake_amount = Uint128(proxy.stake_amount.u128() + return_stake_amount);
+    proxy.stake_amount = Uint128::new(proxy.stake_amount.u128() + return_stake_amount);
     parent_request.funds_pool =
         Uint128::new(parent_request.funds_pool.u128() - return_stake_amount);
 
@@ -417,10 +444,16 @@ fn try_provide_reencrypted_fragment(
     store_remove_proxy_reencryption_request_from_queue(deps.storage, &proxy_pubkey, &request_id);
 
     // Return response
-    response.add_attribute("action", "try_provide_reencrypted_fragment");
-    response.add_attribute("data_id", data_id);
-    response.add_attribute("delegatee_pubkey", delegatee_pubkey);
-    response.add_attribute("fragment", fragment);
+    response
+        .attributes
+        .push(Attribute::new("action", "try_provide_reencrypted_fragment"));
+    response.attributes.push(Attribute::new("data_id", data_id));
+    response
+        .attributes
+        .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
+    response
+        .attributes
+        .push(Attribute::new("fragment", fragment));
     Ok(response)
 }
 
@@ -467,8 +500,13 @@ fn try_withdraw_stake(
     );
 
     // Return response
-    response.add_attribute("action", "withdraw_stake");
-    response.add_attribute("stake_amount", Uint128::new(withdraw_stake_amount));
+    response
+        .attributes
+        .push(Attribute::new("action", "withdraw_stake"));
+    response.attributes.push(Attribute::new(
+        "stake_amount",
+        Uint128::new(withdraw_stake_amount),
+    ));
     Ok(response)
 }
 
@@ -493,8 +531,12 @@ fn try_add_stake(
     store_set_proxy_entry(deps.storage, &info.sender, &proxy);
 
     // Return response
-    response.add_attribute("action", "add_stake");
-    response.add_attribute("stake_amount", info.funds[0].amount);
+    response
+        .attributes
+        .push(Attribute::new("action", "add_stake"));
+    response
+        .attributes
+        .push(Attribute::new("stake_amount", info.funds[0].amount));
     Ok(response)
 }
 
@@ -522,10 +564,16 @@ fn try_add_data(
     store_set_data_entry(deps.storage, data_id, &entry);
 
     // Return response
-    response.add_attribute("action", "add_data");
-    response.add_attribute("owner", info.sender.as_str());
-    response.add_attribute("data_id", data_id);
-    response.add_attribute("delegator_pubkey", delegator_pubkey);
+    response
+        .attributes
+        .push(Attribute::new("action", "add_data"));
+    response
+        .attributes
+        .push(Attribute::new("owner", info.sender.as_str()));
+    response.attributes.push(Attribute::new("data_id", data_id));
+    response
+        .attributes
+        .push(Attribute::new("delegator_pubkey", delegator_pubkey));
 
     Ok(response)
 }
@@ -576,11 +624,22 @@ fn try_request_proxies_for_delegation(
     store_set_state(deps.storage, &state)?;
 
     // Return response
-    response.add_attribute("action", "request_proxies_for_delegation");
-    response.add_attribute("delegator_address", info.sender.as_str());
-    response.add_attribute("delegator_pubkey", delegator_pubkey);
-    response.add_attribute("delegatee_pubkey", delegatee_pubkey);
-    response.add_attribute("selected_proxies", selected_proxy_pubkeys_str);
+    response
+        .attributes
+        .push(Attribute::new("action", "request_proxies_for_delegation"));
+    response
+        .attributes
+        .push(Attribute::new("delegator_address", info.sender.as_str()));
+    response
+        .attributes
+        .push(Attribute::new("delegator_pubkey", delegator_pubkey));
+    response
+        .attributes
+        .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
+    response.attributes.push(Attribute::new(
+        "selected_proxies",
+        selected_proxy_pubkeys_str,
+    ));
 
     Ok(response)
 }
@@ -638,10 +697,18 @@ fn try_add_delegation(
     }
 
     // Return response
-    response.add_attribute("action", "add_delegation");
-    response.add_attribute("delegator_address", info.sender.as_str());
-    response.add_attribute("delegator_pubkey", delegator_pubkey);
-    response.add_attribute("delegatee_pubkey", delegatee_pubkey);
+    response
+        .attributes
+        .push(Attribute::new("action", "add_delegation"));
+    response
+        .attributes
+        .push(Attribute::new("delegator_address", info.sender.as_str()));
+    response
+        .attributes
+        .push(Attribute::new("delegator_pubkey", delegator_pubkey));
+    response
+        .attributes
+        .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
 
     Ok(response)
 }
@@ -793,9 +860,13 @@ fn try_request_reencryption(
     }
 
     // Return response
-    response.add_attribute("action", "request_reencryption");
-    response.add_attribute("data_id", data_id);
-    response.add_attribute("delegatee_pubkey", delegatee_pubkey);
+    response
+        .attributes
+        .push(Attribute::new("action", "request_reencryption"));
+    response.attributes.push(Attribute::new("data_id", data_id));
+    response
+        .attributes
+        .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
 
     Ok(response)
 }
@@ -853,6 +924,7 @@ pub fn get_next_proxy_task(
     Ok(Some(proxy_task))
 }
 
+#[entry_point]
 pub fn execute(
     deps: DepsMut,
     env: Env,
@@ -944,6 +1016,7 @@ pub fn execute(
     }
 }
 
+#[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetAvailableProxies {} => Ok(to_binary(&GetAvailableProxiesResponse {
@@ -1129,6 +1202,8 @@ fn select_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<String>> {
     Ok(proxy_pubkeys[0..n_proxies].to_vec())
 }
 
+/*
+// FRAGMENT_VERIFICATION
 fn unwrap_or_pass_error<ResultType, ErrType: std::fmt::Display>(
     obj: Result<ResultType, ErrType>,
     error_str: &str,
@@ -1187,3 +1262,4 @@ pub fn verify_fragment(
         Err(error) => generic_err!(format!("{}{}", FRAGMENT_VERIFICATION_ERROR, error)),
     }
 }
+*/

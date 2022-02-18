@@ -20,7 +20,7 @@ setuptools.setup(
     ],
     python_requires=">=3.6",
     install_requires=[
-        "cosmpy",
+        "cosmpy==v0.2.0",
         "requests",
         "click",
         "ipfshttpclient",

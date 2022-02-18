@@ -1,8 +1,8 @@
 NODE_CONFIG_PRESETS = {
-    "stargate": dict(
-        chain_id="stargateworld-3",
-        node_address="https://rest-stargateworld.fetch.ai:443",
-        faucet_url="https://faucet-stargateworld.t-v2-london-c.fetch-ai.com",
+    "capricorn": dict(
+        chain_id="capricorn-1",
+        node_address="https://rest-capricorn.fetch.ai:443",
+        faucet_url="https://faucet-capricorn.t-v2-london-c.fetch-ai.com",
         prefix="fetch",
         denom="atestfet",
     ),

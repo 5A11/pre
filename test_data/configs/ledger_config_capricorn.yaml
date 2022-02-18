@@ -1,0 +1,6 @@
+chain_id: capricorn-1
+denom: atestfet
+node_address: https://rest-capricorn.fetch.ai:443
+prefix: fetch
+faucet_url: https://faucet-capricorn.t-v2-london-c.fetch-ai.com
+#funding: https://faucet-capricorn.t-v2-london-c.fetch-ai.com

@@ -1,13 +1,16 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    Addr, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    Storage, Uint128,
+    Addr, BankMsg, Coin, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Storage, SubMsg,
+    Uint128,
 };
 
 use crate::contract::{
-    execute, get_next_proxy_task, instantiate, verify_fragment, DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
+    execute, get_next_proxy_task, instantiate, DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
     DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT, DEFAULT_REQUEST_REWARD_AMOUNT,
 };
+
+// FRAGMENT_VERIFICATION
+// use crate::contract::verify_fragment
 use crate::delegations::{
     get_delegation_state, get_n_available_proxies_from_delegation,
     get_n_minimum_proxies_for_refund, store_add_per_proxy_delegation, store_get_delegation,
@@ -289,7 +292,7 @@ fn request_reencryption(
 
 #[test]
 fn test_new_contract_default_values() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let creator = Addr::unchecked("creator".to_string());
     let proxy = Addr::unchecked("proxy".to_string());
 
@@ -325,7 +328,7 @@ fn test_new_contract_default_values() {
 
 #[test]
 fn test_new_contract_custom_values() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let creator = Addr::unchecked("creator".to_string());
     let proxy = Addr::unchecked("proxy".to_string());
 
@@ -399,7 +402,7 @@ fn test_new_contract_custom_values() {
 
 #[test]
 fn test_add_remove_proxy() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let creator = Addr::unchecked("creator".to_string());
     let admin = Addr::unchecked("admin".to_string());
     let proxy = Addr::unchecked("proxy".to_string());
@@ -472,7 +475,7 @@ fn test_add_remove_proxy() {
         remove_proxy(deps.as_mut(), &admin, DEFAULT_BLOCK_HEIGHT, &proxy).unwrap();
     assert_eq!(
         remove_proxy_response.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
@@ -484,7 +487,7 @@ fn test_add_remove_proxy() {
 
 #[test]
 fn test_register_unregister_proxy() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let creator = Addr::unchecked("creator".to_string());
     let proxy1 = Addr::unchecked("proxy1".to_string());
     let proxy2 = Addr::unchecked("proxy2".to_string());
@@ -631,7 +634,7 @@ fn test_register_unregister_proxy() {
         unregister_proxy(deps.as_mut(), &proxy1, DEFAULT_BLOCK_HEIGHT).unwrap();
     assert_eq!(
         unregister_response.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy1.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
@@ -652,7 +655,7 @@ fn test_register_unregister_proxy() {
 
 #[test]
 fn test_add_data() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     // Addresses
     let creator = Addr::unchecked("creator".to_string());
@@ -737,7 +740,7 @@ fn test_add_data() {
 
 #[test]
 fn test_select_proxies_add_delegation_and_request_reencryption() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     // Addresses
     let creator = Addr::unchecked("creator".to_string());
@@ -1006,7 +1009,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
     // Check if given stake above required is returned back
     assert_eq!(
         res.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: delegator1.to_string(),
             amount: vec![Coin::new(150, DEFAULT_STAKE_DENOM)],
         })
@@ -1046,7 +1049,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
 
 #[test]
 fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     // Addresses
     let creator = Addr::unchecked("creator".to_string());
@@ -1165,7 +1168,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
 
 #[test]
 fn test_provide_reencrypted_fragment() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     // Addresses
     let creator = Addr::unchecked("creator".to_string());
@@ -1354,7 +1357,7 @@ fn test_provide_reencrypted_fragment() {
 
 #[test]
 fn test_contract_lifecycle() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     // Addresses
     let creator = Addr::unchecked("creator".to_string());
@@ -1845,7 +1848,7 @@ fn test_contract_lifecycle() {
         unregister_proxy(deps.as_mut(), &proxy1, DEFAULT_BLOCK_HEIGHT).unwrap();
     assert_eq!(
         unregister_response.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy1.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + DEFAULT_REQUEST_REWARD_AMOUNT * 2,
@@ -1857,7 +1860,7 @@ fn test_contract_lifecycle() {
 
 #[test]
 fn test_proxy_unregister_with_requests() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     // Addresses
     let creator = Addr::unchecked("creator".to_string());
@@ -2157,6 +2160,8 @@ fn test_proxy_unregister_with_requests() {
         DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 3 * DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT
     );
 
+    /*
+    // FRAGMENT_VERIFICATION
     // Provide wrong fragment
     assert!(is_err(
         provide_reencrypted_fragment(
@@ -2169,6 +2174,7 @@ fn test_proxy_unregister_with_requests() {
         ),
         "Invalid KeyFrag signature",
     ));
+    */
 
     // Complete requests
     assert!(provide_reencrypted_fragment(
@@ -2196,7 +2202,7 @@ fn test_proxy_unregister_with_requests() {
     // Check if stake from unfinished request get returned to delegator
     assert_eq!(
         unregister_response.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: delegator1.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_REQUEST_REWARD_AMOUNT * 2,
@@ -2208,7 +2214,7 @@ fn test_proxy_unregister_with_requests() {
     // Check if stake gets returned to proxy and if proxy got slashed
     assert_eq!(
         unregister_response.messages[1],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy2.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + DEFAULT_REQUEST_REWARD_AMOUNT
@@ -2513,7 +2519,7 @@ fn test_proxy_unregister_with_requests() {
 
 #[test]
 fn test_proxy_deactivate_and_remove_with_requests() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     // Addresses
     let creator = Addr::unchecked("creator".to_string());
@@ -3148,7 +3154,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
 
 #[test]
 fn test_proxy_stake_withdrawal() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let creator = Addr::unchecked("creator".to_string());
     let proxy1 = Addr::unchecked("proxy1".to_string());
     let proxy2 = Addr::unchecked("proxy2".to_string());
@@ -3214,7 +3220,7 @@ fn test_proxy_stake_withdrawal() {
     .unwrap();
     assert_eq!(
         withdraw_res.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy1.to_string(),
             amount: vec![Coin::new(50, stake_denom.as_str())],
         })
@@ -3230,7 +3236,7 @@ fn test_proxy_stake_withdrawal() {
     let withdraw_res = withdraw_stake(deps.as_mut(), &proxy2, DEFAULT_BLOCK_HEIGHT, &None).unwrap();
     assert_eq!(
         withdraw_res.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy2.to_string(),
             amount: vec![Coin::new(50, stake_denom.as_str())],
         })
@@ -3269,7 +3275,7 @@ fn test_proxy_stake_withdrawal() {
     let unregister_res = unregister_proxy(deps.as_mut(), &proxy1, DEFAULT_BLOCK_HEIGHT).unwrap();
     assert_eq!(
         unregister_res.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy1.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
@@ -3292,7 +3298,7 @@ fn test_proxy_stake_withdrawal() {
 
 #[test]
 fn test_proxy_add_stake() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let creator = Addr::unchecked("creator".to_string());
     let proxy1 = Addr::unchecked("proxy1".to_string());
 
@@ -3369,7 +3375,7 @@ fn test_proxy_add_stake() {
     let unregister_res = unregister_proxy(deps.as_mut(), &proxy1, DEFAULT_BLOCK_HEIGHT).unwrap();
     assert_eq!(
         unregister_res.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy1.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT + 50,
@@ -3381,7 +3387,7 @@ fn test_proxy_add_stake() {
 
 #[test]
 fn test_proxy_insufficient_funds_request_skip() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     // Addresses
     let creator = Addr::unchecked("creator".to_string());
@@ -3660,7 +3666,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         unregister_proxy(deps.as_mut(), &proxy2, DEFAULT_BLOCK_HEIGHT).unwrap();
     assert_eq!(
         unregister_response.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: delegator1.to_string(),
             amount: vec![Coin::new(
                 per_proxy_request_reward_amount * 2,
@@ -3670,7 +3676,7 @@ fn test_proxy_insufficient_funds_request_skip() {
     );
     assert_eq!(
         unregister_response.messages[1],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy2.to_string(),
             amount: vec![Coin::new(
                 2 * minimum_proxy_stake_amount - 2 * per_request_slash_stake_amount,
@@ -3739,7 +3745,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         unregister_proxy(deps.as_mut(), &proxy3, DEFAULT_BLOCK_HEIGHT).unwrap();
     assert_eq!(
         unregister_response.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: delegator1.to_string(),
             amount: vec![Coin::new(
                 per_proxy_request_reward_amount * 3,
@@ -3749,7 +3755,7 @@ fn test_proxy_insufficient_funds_request_skip() {
     );
     assert_eq!(
         unregister_response.messages[1],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy3.to_string(),
             amount: vec![Coin::new(
                 3 * minimum_proxy_stake_amount - 2 * per_request_slash_stake_amount,
@@ -3806,7 +3812,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         unregister_proxy(deps.as_mut(), &proxy1, DEFAULT_BLOCK_HEIGHT).unwrap();
     assert_eq!(
         unregister_response.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy1.to_string(),
             amount: vec![Coin::new(
                 minimum_proxy_stake_amount - per_request_slash_stake_amount,
@@ -3827,75 +3833,75 @@ fn test_get_n_minimum_proxies_for_refund() {
     };
     let mut staking_config = StakingConfig {
         stake_denom: "denom".to_string(),
-        minimum_proxy_stake_amount: Uint128(0),
-        per_proxy_request_reward_amount: Uint128(0),
-        per_request_slash_stake_amount: Uint128(0),
+        minimum_proxy_stake_amount: Uint128::new(0),
+        per_proxy_request_reward_amount: Uint128::new(0),
+        per_request_slash_stake_amount: Uint128::new(0),
     };
 
     // zero division case
-    staking_config.per_proxy_request_reward_amount = Uint128(100);
-    staking_config.per_request_slash_stake_amount = Uint128(0);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(100);
+    staking_config.per_request_slash_stake_amount = Uint128::new(0);
     state.threshold = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         123
     );
 
-    staking_config.per_proxy_request_reward_amount = Uint128(100);
-    staking_config.per_request_slash_stake_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(100);
+    staking_config.per_request_slash_stake_amount = Uint128::new(100);
     state.threshold = 3;
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 4);
 
-    staking_config.per_proxy_request_reward_amount = Uint128(100);
-    staking_config.per_request_slash_stake_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(100);
+    staking_config.per_request_slash_stake_amount = Uint128::new(100);
     state.threshold = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         244
     );
 
-    staking_config.per_proxy_request_reward_amount = Uint128(100);
-    staking_config.per_request_slash_stake_amount = Uint128(50);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(100);
+    staking_config.per_request_slash_stake_amount = Uint128::new(50);
     state.threshold = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         366
     );
 
-    staking_config.per_proxy_request_reward_amount = Uint128(50);
-    staking_config.per_request_slash_stake_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(50);
+    staking_config.per_request_slash_stake_amount = Uint128::new(100);
     state.threshold = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         183
     );
 
-    staking_config.per_proxy_request_reward_amount = Uint128(1);
-    staking_config.per_request_slash_stake_amount = Uint128(121);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(1);
+    staking_config.per_request_slash_stake_amount = Uint128::new(121);
     state.threshold = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         124
     );
 
-    staking_config.per_proxy_request_reward_amount = Uint128(1);
-    staking_config.per_request_slash_stake_amount = Uint128(122);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(1);
+    staking_config.per_request_slash_stake_amount = Uint128::new(122);
     state.threshold = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         123
     );
 
-    staking_config.per_proxy_request_reward_amount = Uint128(1);
-    staking_config.per_request_slash_stake_amount = Uint128(1000);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(1);
+    staking_config.per_request_slash_stake_amount = Uint128::new(1000);
     state.threshold = 10;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         10
     );
 
-    staking_config.per_proxy_request_reward_amount = Uint128(1000);
-    staking_config.per_request_slash_stake_amount = Uint128(1);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(1000);
+    staking_config.per_request_slash_stake_amount = Uint128::new(1);
     state.threshold = 10;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
@@ -3903,25 +3909,26 @@ fn test_get_n_minimum_proxies_for_refund() {
     );
 
     // Large numbers check
-    staking_config.per_proxy_request_reward_amount = Uint128(100000000000000000000);
-    staking_config.per_request_slash_stake_amount = Uint128(1000000000000);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(100000000000000000000);
+    staking_config.per_request_slash_stake_amount = Uint128::new(1000000000000);
     state.threshold = 10;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         900000009
     );
 
-    staking_config.per_proxy_request_reward_amount = Uint128(100);
-    staking_config.per_request_slash_stake_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(100);
+    staking_config.per_request_slash_stake_amount = Uint128::new(100);
     state.threshold = 1;
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 1);
 
-    staking_config.per_proxy_request_reward_amount = Uint128(100);
-    staking_config.per_request_slash_stake_amount = Uint128(100);
+    staking_config.per_proxy_request_reward_amount = Uint128::new(100);
+    staking_config.per_request_slash_stake_amount = Uint128::new(100);
     state.threshold = 2;
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 2);
 }
 
+/*
 #[test]
 fn test_verify_fragments() {
     assert!(verify_fragment(
@@ -3940,6 +3947,7 @@ fn test_verify_fragments() {
     )
     .is_err());
 }
+*/
 
 fn add_delegation_manually(
     storage: &mut dyn Storage,
@@ -3963,7 +3971,7 @@ fn add_delegation_manually(
 
 #[test]
 fn test_timeouts() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     // Addresses
     let creator = Addr::unchecked("creator".to_string());
@@ -4247,7 +4255,7 @@ fn test_timeouts() {
     // Funds from timed out request2 are sent back to delegator1
     assert_eq!(
         res.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: delegator1.to_string(),
             amount: vec![Coin::new(
                 2 * per_proxy_request_reward_amount,
@@ -4259,7 +4267,7 @@ fn test_timeouts() {
     // Proxy 3 got slashed for 3 unfinished requests
     assert_eq!(
         res.messages[1],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy3.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 3 * per_request_slash_stake_amount,
@@ -4344,7 +4352,7 @@ fn test_timeouts() {
     // Delegator 2 gets a refund.
     assert_eq!(
         res.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: delegator2.to_string(),
             amount: vec![Coin::new(
                 3 * per_proxy_request_reward_amount,
@@ -4383,7 +4391,7 @@ fn test_timeouts() {
     // Proxy 1 got slashed for 2 requests, rewarded for 1 request and additional stake 1 atestfet was added by previous call
     assert_eq!(
         res.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy1.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 2 * per_request_slash_stake_amount
@@ -4400,7 +4408,7 @@ fn test_timeouts() {
     // Proxy 1 got slashed for 1 requests and rewarded for 1 request
     assert_eq!(
         res.messages[0],
-        CosmosMsg::Bank(BankMsg::Send {
+        SubMsg::new(BankMsg::Send {
             to_address: proxy2.to_string(),
             amount: vec![Coin::new(
                 DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - per_request_slash_stake_amount

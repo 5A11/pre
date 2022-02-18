@@ -2,7 +2,7 @@
 export VALIDATOR_KEY_NAME=validator
 export VALIDATOR_MNEMONIC="gap bomb bulk border original scare assault pelican resemble found laptop skin gesture height inflict clinic reject giggle hurdle bubble soldier hurt moon hint"
 export PASSWORD="12345678"
-export CHAIN_ID=stargateworld-3
+export CHAIN_ID=capricorn-1
 export MONIKER=test-node
 export DENOM=atestfet
 ( echo "$VALIDATOR_MNEMONIC"; echo "$PASSWORD"; echo "$PASSWORD"; ) |fetchd keys add $VALIDATOR_KEY_NAME --recover

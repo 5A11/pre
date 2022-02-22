@@ -788,4 +788,4 @@ class CosmosContract:  # pylint: disable=too-few-public-methods
         :param address: str
         """
         if not cls._CONTRACT_ADDR_RE.match(address):
-            raise ValueError(f"Contract address {address} is invalid")
+            raise ValueError(f"Cosmos address {address} is invalid")

@@ -37,7 +37,7 @@ services:
         instantiate-contract
           --threshold 2 
           --n-max-proxies 10
-          --proxies fetch1vz7c7h54ve0fcu6gv242xnz0nkegeaszvzs27c,fetch1njgnp7lvhzpgtx7rzt60qu4r2sg8dj0h4ln0y2,fetch10r8j0yf8emj78m3f0j7dddkrmfxpaegkxxan5
+          --proxies fetch1vz7c7h54ve0fcu6gv242xnz0nkegeaszvzs27c,fetch1njgnp7lvhzpgtx7rzt60qu4r2sg8dj0h4ln0y2,fetch10r8j0yf8emj78m3f0j7dddkrmfxpaegkxxan5c
     networks:
       - localnet
 

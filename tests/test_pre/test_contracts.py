@@ -45,7 +45,6 @@ from tests.constants import (
 )
 from tests.utils import local_ledger_and_storage
 
-
 LOCAL_LEDGER_CONFIG = dict(
     denom=DEFAULT_DENOMINATION,
     chain_id=DEFAULT_FETCH_CHAIN_ID,
@@ -76,10 +75,10 @@ class BaseContractTestCase(TestCase):
         self.ledger_crypto = self.ledger.make_new_crypto()
         self.some_crypto = self.ledger.make_new_crypto()
         self.ledger._send_funds(
-            self.validator, self.ledger_crypto.get_address(), amount=10000
+            self.validator, self.ledger_crypto.get_address(), amount=9 * 10 ** 18
         )
         self.ledger._send_funds(
-            self.validator, self.some_crypto.get_address(), amount=10000
+            self.validator, self.some_crypto.get_address(), amount=9 * 10 ** 18
         )
         self.contract_addr = self._setup_a_contract()
         self.proxy_addr = self.ledger_crypto.get_address()
@@ -151,16 +150,15 @@ class TestAdminContract(BaseContractTestCase):
         fake_addr = self.ledger.make_new_crypto().get_address()
         admin_contract = AdminContract(self.ledger, contract_address=fake_addr)
         with pytest.raises(
-            BadContractAddress,
+                BadContractAddress,
         ):
             admin_contract.add_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
         with pytest.raises(
-            BadContractAddress,
+                BadContractAddress,
         ):
             admin_contract.remove_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
 
     def test_add_proxy_remove_proxy(self):
-
         self.admin_contract.add_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
 
         with pytest.raises(ProxyAlreadyExist):
@@ -184,8 +182,8 @@ class TestAdminContract(BaseContractTestCase):
 
     def test_bad_set_contract(self):
         with pytest.raises(
-            ContractInstantiateFailure,
-            match="Error parsing into type cw_proxy_reencryption::msg::InstantiateMsg: Invalid number",
+                ContractInstantiateFailure,
+                match="Error parsing into type cw_proxy_reencryption::msg::InstantiateMsg: Invalid number",
         ):
             AdminContract.instantiate_contract(
                 self.ledger,
@@ -225,11 +223,11 @@ class TestDelegatorContract(BaseContractTestCase):
                 delegations=[Delegation(self.proxy_pub_key, b"somedata")],
             )
         assert (
-            self.delegator_contract.get_delegation_status(
-                delegator_pubkey_bytes=self.delegator_pub_key,
-                delegatee_pubkey_bytes=self.delegatee_pub_key,
-            ).delegation_state
-            == DelegationState.non_existing
+                self.delegator_contract.get_delegation_status(
+                    delegator_pubkey_bytes=self.delegator_pub_key,
+                    delegatee_pubkey_bytes=self.delegatee_pub_key,
+                ).delegation_state
+                == DelegationState.non_existing
         )
 
         staking_config = self.proxy_contract.get_staking_config()
@@ -325,11 +323,11 @@ class TestDelegatorContract(BaseContractTestCase):
             )
 
         assert (
-            self.delegator_contract.get_delegation_status(
-                delegator_pubkey_bytes=self.delegator_pub_key,
-                delegatee_pubkey_bytes=self.delegatee_pub_key,
-            ).delegation_state
-            == DelegationState.active
+                self.delegator_contract.get_delegation_status(
+                    delegator_pubkey_bytes=self.delegator_pub_key,
+                    delegatee_pubkey_bytes=self.delegatee_pub_key,
+                ).delegation_state
+                == DelegationState.active
         )
 
         assert not self.proxy_contract.get_next_proxy_task(
@@ -400,10 +398,10 @@ class TestDelegatorContract(BaseContractTestCase):
         assert proxy_task
 
         assert (
-            self.contract_queries.get_fragments_response(
-                self.hash_id, delegatee_pubkey_bytes=self.delegatee_pub_key
-            ).reencryption_request_state
-            == ReencryptionRequestState.ready
+                self.contract_queries.get_fragments_response(
+                    self.hash_id, delegatee_pubkey_bytes=self.delegatee_pub_key
+                ).reencryption_request_state
+                == ReencryptionRequestState.ready
         )
 
         self.proxy_contract.provide_reencrypted_fragment(
@@ -423,11 +421,11 @@ class TestDelegatorContract(BaseContractTestCase):
             )
 
         assert (
-            self.delegator_contract.get_delegation_status(
-                delegator_pubkey_bytes=self.delegator_pub_key,
-                delegatee_pubkey_bytes=self.delegatee_pub_key,
-            ).delegation_state
-            == DelegationState.active
+                self.delegator_contract.get_delegation_status(
+                    delegator_pubkey_bytes=self.delegator_pub_key,
+                    delegatee_pubkey_bytes=self.delegatee_pub_key,
+                ).delegation_state
+                == DelegationState.active
         )
 
         with pytest.raises(ReencryptedCapsuleFragAlreadyProvided):
@@ -447,10 +445,10 @@ class TestDelegatorContract(BaseContractTestCase):
             )
 
         assert (
-            self.fragment_bytes
-            in self.contract_queries.get_fragments_response(
-                self.hash_id, delegatee_pubkey_bytes=self.delegatee_pub_key
-            ).fragments
+                self.fragment_bytes
+                in self.contract_queries.get_fragments_response(
+            self.hash_id, delegatee_pubkey_bytes=self.delegatee_pub_key
+        ).fragments
         )
 
         # Data entry doesn't exist

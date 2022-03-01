@@ -13,5 +13,6 @@ NODE_CONFIG_PRESETS = {
         prefix="fetch",
         denom="stake",
         validator_pk="bbaef7511f275dc15f47436d14d6d3c92d4d01befea073d23d0c2750a46f6cb3",
+        minimum_gas_price_amount=0,
     ),
 }

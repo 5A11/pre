@@ -136,7 +136,6 @@ def test_error_handling():
 
     sleep_mock.assert_called()
 
-    ledger.validator_crypto = None
     with patch.object(ledger, "get_balance", return_value=1), patch.object(
         ledger, "_send_funds"
     ) as sendfunds_mock, patch.object(ledger, "validator_crypto", Mock()):
@@ -151,7 +150,7 @@ def test_error_handling():
     resp = Mock()
     resp.status_code = 200
 
-    with patch.object(ledger, "get_balance", return_value=1), patch.object(
+    with patch.object(ledger, "get_balance", return_value=10000000), patch.object(
         ledger, "_sleep"
     ) as sleep_mock, patch("pre.ledger.cosmos.ledger.requests.post", return_value=resp):
 

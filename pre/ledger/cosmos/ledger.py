@@ -632,6 +632,8 @@ class CosmosLedger(AbstractLedger):
 
         :param addresses: Address to be refilled
 
+        :raises BroadcastException: if refilling fails.
+
         :return: Nothing
         """
         if self.validator_crypto is None:
@@ -671,7 +673,7 @@ class CosmosLedger(AbstractLedger):
                         time.sleep(self.msg_failed_retry_interval)
                         continue
                     if not done:
-                        raise RuntimeError(
+                        raise BroadcastException(
                             f"Refilling funds from validator failed after multiple attempts: {last_exception}"
                         )
 

@@ -78,7 +78,7 @@ CLIENT_CODE_MESSAGE_SUCCESSFUL = 0
 
 # maximum gas limit - tx will fail with higher limit
 DEFAULT_TX_MAXIMUM_GAS_LIMIT = 2000000
-DEFAULT_CONTRACT_TX_GAS = 300000
+DEFAULT_CONTRACT_TX_GAS = 500000
 DEFAULT_SEND_TX_GAS = 120000
 DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
 
@@ -976,7 +976,7 @@ class CosmosLedger(AbstractLedger):
 
     def check_availability(self):
         try:
-            result = json.loads(self.rpc_client.get("/node_info"))
+            result = json.loads(self.rest_client.get("/node_info"))
             if result["node_info"]["network"] != self.chain_id:
                 raise ValueError("Bad chain id")
         except Exception as e:

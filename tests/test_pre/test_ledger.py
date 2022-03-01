@@ -232,7 +232,7 @@ def test_ledger_load_file():
 def test_check_availability():
     ledger = CosmosLedger(**CosmosLedgerConfig.make_default())
     with patch.object(
-        ledger.rpc_client,
+        ledger.rest_client,
         "get",
         return_value=json.dumps({"node_info": {"network": "some"}}),
     ):

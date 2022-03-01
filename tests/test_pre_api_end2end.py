@@ -45,11 +45,13 @@ def test_api():
 
         # transfer funds to proxy and delegator
         ledger._send_funds(
-            admin_ledger_crypto, delegator_ledger_crypto.get_address(), 10000
+            admin_ledger_crypto, delegator_ledger_crypto.get_address(), 9 * 10**18
         )
         for i in range(N_PROXIES):
             ledger._send_funds(
-                admin_ledger_crypto, proxies_ledger_crypto[i].get_address(), 10000
+                admin_ledger_crypto,
+                proxies_ledger_crypto[i].get_address(),
+                9 * 10**18,
             )
 
         contract_address = AdminContract.instantiate_contract(

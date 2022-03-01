@@ -92,7 +92,7 @@ class CosmosLedgerConfig(AbstractConfig):
     DEFAULT_DENOMINATION = "atestfet"
     PREFIX = "fetch"
     FETCHD_URL = "http://127.0.0.1:1317"
-    VALIDATOR_PK = "0ba1db680226f19d4a2ea64a1c0ea40d1ffa3cb98532a9fa366994bb689a34ae",
+    VALIDATOR_PK = ("0ba1db680226f19d4a2ea64a1c0ea40d1ffa3cb98532a9fa366994bb689a34ae",)
     MINIMUM_LOCAL_NET_GAS_PRICE_AMOUNT = 0
 
     @classmethod

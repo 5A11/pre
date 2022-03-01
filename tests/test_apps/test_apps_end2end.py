@@ -113,7 +113,7 @@ class TestApps(TestCase):
         assert re.search("Public key hex for ", result.output)
         return result.output.rstrip().split(" ")[-1]
 
-    def fund(self, address, amount=10000):
+    def fund(self, address, amount=9 * 10**18):
         try:
             ledger = CosmosLedger(**self.ledger_config)
             funded_ledger_crypto = ledger.load_crypto_from_str(

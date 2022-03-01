@@ -136,7 +136,7 @@ def test_error_handling():
 
     sleep_mock.assert_called()
 
-    with patch.object(ledger, "get_balance", return_value=10000000), patch.object(
+    with patch.object(ledger, "get_balance", return_value=1), patch.object(
         ledger, "_send_funds"
     ) as sendfunds_mock, patch.object(ledger, "validator_crypto", Mock()):
         ledger._refill_wealth_from_validator(["someaddr"], 10000000)

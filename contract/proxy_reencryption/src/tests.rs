@@ -493,7 +493,7 @@ fn test_add_remove_proxy() {
 }
 
 #[test]
-fn test_register_unregister_proxy() {
+fn test_register_unregister_proxy_whitelisting() {
     let mut deps = mock_dependencies();
     let creator = Addr::unchecked("creator".to_string());
     let proxy1 = Addr::unchecked("proxy1".to_string());
@@ -659,6 +659,61 @@ fn test_register_unregister_proxy() {
 
     // All proxies unregistered
     assert_eq!(store_get_all_active_proxy_pubkeys(&deps.storage).len(), 0);
+}
+
+#[test]
+fn test_register_unregister_proxy_no_whitelisting() {
+    let mut deps = mock_dependencies();
+    let creator = Addr::unchecked("creator".to_string());
+    let proxy = Addr::unchecked("proxy1".to_string());
+
+    let proxy_pubkey: String = String::from("proxy_pubkey");
+
+    // Staking
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
+    let proxy_stake = vec![Coin {
+        denom: stake_denom.clone(),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        DEFAULT_BLOCK_HEIGHT,
+        &None,
+        &None,
+        &None,
+        &None,
+        &stake_denom,
+        &None,
+        &None,
+        &None,
+        &None,
+        &Some(false),
+    )
+    .is_ok());
+
+    // Test if proxy can register when whitelisting is off
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy_pubkey,
+        &proxy_stake
+    )
+    .is_ok());
+
+    // Already registered
+    assert!(is_err(
+        register_proxy(
+            deps.as_mut(),
+            &proxy,
+            DEFAULT_BLOCK_HEIGHT,
+            &proxy_pubkey,
+            &proxy_stake
+        ),
+        "already registered",
+    ));
 }
 
 #[test]

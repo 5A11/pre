@@ -41,8 +41,8 @@ class AdminAPI:
         n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
         timeout_height: Optional[int] = None,
-        label: str = "PRE",
         proxy_whitelisting: Optional[bool] = None,
+        label: str = "PRE",
         contract_cls: Optional[Type[AbstractAdminContract]] = None,
     ) -> Address:
         """

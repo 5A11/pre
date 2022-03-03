@@ -42,6 +42,7 @@ class AdminAPI:
         proxies: Optional[List[Address]] = None,
         timeout_height: Optional[int] = None,
         label: str = "PRE",
+        proxy_whitelisting: Optional[bool] = None,
         contract_cls: Optional[Type[AbstractAdminContract]] = None,
     ) -> Address:
         """
@@ -57,6 +58,7 @@ class AdminAPI:
         :param n_max_proxies: max amount of proxy allowed to register,
         :param proxies: optional list of proxies addresses,
         :param timeout_height: Timeout height
+        :param proxy_whitelisting: Proxy whitelisting
         :param label: str, contract label
         :param contract_cls: Optional[Type[AbstractAdminContract]] = None,
         """
@@ -74,6 +76,7 @@ class AdminAPI:
             n_max_proxies,
             proxies or [],
             timeout_height,
+            proxy_whitelisting,
             label,
         )
         return contract_address

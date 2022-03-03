@@ -411,7 +411,7 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
             init_msg["timeout_height"] = timeout_height
 
         if proxy_whitelisting is not None:
-            init_msg["proxy_whitelisting"] = proxy_whitelisting
+            init_msg["proxy_whitelisting"] = str(proxy_whitelisting)
 
         try:
             contract_address, res = ledger.send_init_msg(

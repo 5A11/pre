@@ -528,7 +528,7 @@ class CosmosLedger(AbstractLedger):
             if amount:
                 min_amount_required = self.get_balance(address) + amount
             else:
-                min_amount_required = 3 * 10**18
+                min_amount_required = 3 * 10 ** 18
 
             # Retry in case of network issues
             while attempts_allowed > 0:
@@ -644,7 +644,7 @@ class CosmosLedger(AbstractLedger):
         if amount:
             min_amount_required = amount
         else:
-            min_amount_required = 5 * 10**18
+            min_amount_required = 5 * 10 ** 18
 
         for address in addresses:
             balance = self.get_balance(address)

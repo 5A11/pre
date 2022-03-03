@@ -35,6 +35,8 @@ pub struct InstantiateMsg {
     pub admin: Option<Addr>,
     // Maximum proxies you can select for delegation = Number of active proxies if None
     pub n_max_proxies: Option<u32>,
+
+    pub proxy_whitelisting: Option<bool>,
     pub proxies: Option<Vec<Addr>>,
 
     // Staking

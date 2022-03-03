@@ -92,6 +92,7 @@ fn init_contract(
     per_proxy_request_reward_amount: &Option<Uint128>,
     per_request_slash_stake_amount: &Option<Uint128>,
     timeout_height: &Option<u64>,
+    proxy_whitelisting: &Option<bool>,
 ) -> StdResult<Response> {
     let init_msg = InstantiateMsg {
         threshold: threshold.clone(),
@@ -103,6 +104,7 @@ fn init_contract(
         per_proxy_request_reward_amount: per_proxy_request_reward_amount.clone(),
         per_request_slash_stake_amount: per_request_slash_stake_amount.clone(),
         timeout_height: timeout_height.clone(),
+        proxy_whitelisting: proxy_whitelisting.clone(),
     };
     let env = mock_env_height(&creator, block_height, &vec![]);
     return instantiate(deps, env.0, env.1, init_msg);
@@ -311,6 +313,7 @@ fn test_new_contract_default_values() {
         &None,
         &None,
         &None,
+        &None,
     )
     .is_ok());
 
@@ -349,6 +352,7 @@ fn test_new_contract_custom_values() {
             &None,
             &None,
             &None,
+            &None,
         ),
         "cannot be lower than minimum proxies",
     ));
@@ -368,6 +372,7 @@ fn test_new_contract_custom_values() {
             &None,
             &None,
             &None,
+            &None,
         ),
         "cannot be 0",
     ));
@@ -381,6 +386,7 @@ fn test_new_contract_custom_values() {
         &Some(456),
         &Some(proxies.clone()),
         &DEFAULT_STAKE_DENOM.to_string(),
+        &None,
         &None,
         &None,
         &None,
@@ -423,6 +429,7 @@ fn test_add_remove_proxy() {
         &None,
         &None,
         &stake_denom,
+        &None,
         &None,
         &None,
         &None,
@@ -520,6 +527,7 @@ fn test_register_unregister_proxy() {
         &None,
         &None,
         &None,
+        &Some(true),
     )
     .is_ok());
 
@@ -687,6 +695,7 @@ fn test_add_data() {
         &None,
         &None,
         &None,
+        &None,
     )
     .is_ok());
 
@@ -791,6 +800,7 @@ fn test_select_proxies_add_delegation_and_request_reencryption() {
         &Some(1),
         &Some(vec![proxy1.clone(), proxy2.clone()]),
         &DEFAULT_STAKE_DENOM.to_string(),
+        &None,
         &None,
         &None,
         &None,
@@ -1087,6 +1097,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         &None,
         &None,
         &None,
+        &None,
     )
     .is_ok());
 
@@ -1210,6 +1221,7 @@ fn test_provide_reencrypted_fragment() {
         &None,
         &Some(vec![proxy.clone()]),
         &DEFAULT_STAKE_DENOM.to_string(),
+        &None,
         &None,
         &None,
         &None,
@@ -1399,6 +1411,7 @@ fn test_contract_lifecycle() {
         &None,
         &Some(proxies.clone()),
         &stake_denom,
+        &None,
         &None,
         &None,
         &None,
@@ -1918,6 +1931,7 @@ fn test_proxy_unregister_with_requests() {
         &None,
         &Some(proxies.clone()),
         &stake_denom,
+        &None,
         &None,
         &None,
         &None,
@@ -2581,6 +2595,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &None,
         &None,
         &None,
+        &None,
     )
     .is_ok());
 
@@ -3184,6 +3199,7 @@ fn test_proxy_stake_withdrawal() {
         &None,
         &None,
         &None,
+        &None,
     )
     .is_ok());
 
@@ -3342,6 +3358,7 @@ fn test_proxy_add_stake() {
         &None,
         &None,
         &None,
+        &None,
     )
     .is_ok());
 
@@ -3458,6 +3475,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         &Some(Uint128::new(minimum_proxy_stake_amount)),
         &Some(Uint128::new(per_proxy_request_reward_amount)),
         &Some(Uint128::new(per_request_slash_stake_amount)),
+        &None,
         &None,
     )
     .is_ok());
@@ -3830,6 +3848,7 @@ fn test_get_n_minimum_proxies_for_refund() {
         n_max_proxies: 0,
         next_proxy_request_id: 0,
         next_delegation_id: 0,
+        proxy_whitelisting: false,
     };
     let mut staking_config = StakingConfig {
         stake_denom: "denom".to_string(),
@@ -4022,6 +4041,7 @@ fn test_timeouts() {
         &Some(Uint128::new(per_proxy_request_reward_amount)),
         &Some(Uint128::new(per_request_slash_stake_amount)),
         &Some(timeout_height),
+        &None,
     )
     .is_ok());
 

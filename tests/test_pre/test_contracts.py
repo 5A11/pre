@@ -76,10 +76,10 @@ class BaseContractTestCase(TestCase):
         self.ledger_crypto = self.ledger.make_new_crypto()
         self.some_crypto = self.ledger.make_new_crypto()
         self.ledger._send_funds(
-            self.validator, self.ledger_crypto.get_address(), amount=10000
+            self.validator, self.ledger_crypto.get_address(), amount=9 * 10 ** 18
         )
         self.ledger._send_funds(
-            self.validator, self.some_crypto.get_address(), amount=10000
+            self.validator, self.some_crypto.get_address(), amount=9 * 10 ** 18
         )
         self.contract_addr = self._setup_a_contract()
         self.proxy_addr = self.ledger_crypto.get_address()
@@ -116,6 +116,7 @@ class BaseContractTestCase(TestCase):
             per_proxy_request_reward_amount="100",
             threshold=self.THRESHOLD,
             n_max_proxies=self.NUM_PROXIES,
+            proxy_whitelisting=True,
         )
         assert contract_address
         return contract_address
@@ -160,7 +161,6 @@ class TestAdminContract(BaseContractTestCase):
             admin_contract.remove_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
 
     def test_add_proxy_remove_proxy(self):
-
         self.admin_contract.add_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
 
         with pytest.raises(ProxyAlreadyExist):

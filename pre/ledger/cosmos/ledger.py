@@ -22,6 +22,10 @@ from cosmpy.protos.cosmos.bank.v1beta1.query_pb2 import QueryBalanceRequest
 from cosmpy.protos.cosmos.bank.v1beta1.tx_pb2 import MsgSend
 from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 from cosmpy.protos.cosmos.crypto.secp256k1.keys_pb2 import PubKey as ProtoPubKey
+from cosmpy.protos.cosmos.params.v1beta1.query_pb2 import (
+    QueryParamsRequest,
+    QueryParamsResponse,
+)
 from cosmpy.protos.cosmos.tx.signing.v1beta1.signing_pb2 import SignMode
 from cosmpy.protos.cosmos.tx.v1beta1.service_pb2 import (
     BroadcastMode,
@@ -46,7 +50,7 @@ from cosmpy.protos.cosmwasm.wasm.v1.tx_pb2 import (
 from cosmpy.tx import sign_transaction
 from cosmpy.tx.rest_client import TxRestClient
 from google.protobuf.any_pb2 import Any as ProtoAny
-from google.protobuf.json_format import MessageToDict
+from google.protobuf.json_format import MessageToDict, Parse
 
 from pre.common import (
     AbstractConfig,
@@ -57,6 +61,7 @@ from pre.common import (
 from pre.ledger.base_ledger import AbstractLedger, LedgerServerNotAvailable
 from pre.ledger.cosmos.crypto import CosmosCrypto
 from pre.utils.loggers import get_logger
+
 
 _logger = get_logger(__name__)
 
@@ -71,8 +76,11 @@ class NodeConfigPreset(Enum):
 CLIENT_CODE_ERROR_EXCEPTION = 4
 CLIENT_CODE_MESSAGE_SUCCESSFUL = 0
 
-# 2000000 is the maximum gas limit - tx will fail with higher limit
-DEFAULT_GAS_LIMIT = 2000000
+# maximum gas limit - tx will fail with higher limit
+DEFAULT_TX_MAXIMUM_GAS_LIMIT = 2000000
+DEFAULT_CONTRACT_TX_GAS = 500000
+DEFAULT_SEND_TX_GAS = 120000
+DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
 
 
 class BroadcastException(Exception):
@@ -84,6 +92,7 @@ class CosmosLedgerConfig(AbstractConfig):
     DEFAULT_DENOMINATION = "atestfet"
     PREFIX = "fetch"
     FETCHD_URL = "http://127.0.0.1:1317"
+    MINIMUM_LOCAL_NET_GAS_PRICE_AMOUNT = 0
 
     @classmethod
     def validate(cls, data: Dict) -> Dict:
@@ -101,6 +110,7 @@ class CosmosLedgerConfig(AbstractConfig):
                 chain_id=cls.DEFAULT_FETCH_CHAIN_ID,
                 prefix=cls.PREFIX,
                 node_address=cls.FETCHD_URL,
+                minimum_gas_price_amount=cls.MINIMUM_LOCAL_NET_GAS_PRICE_AMOUNT,
             )
         )
         return defaults
@@ -113,20 +123,21 @@ class CosmosLedger(AbstractLedger):
     _ADDR_RE = re.compile("^fetch[0-9a-z]{39}$")
 
     def __init__(
-            self,
-            denom: str,
-            chain_id: str,
-            prefix: str,
-            node_address: str = None,
-            validator_pk: Optional[str] = None,
-            faucet_url: Optional[str] = None,
-            msg_retry_interval: int = 2,
-            msg_failed_retry_interval: int = 10,
-            faucet_retry_interval: int = 20,
-            n_sending_retries: int = 1,  # 5,
-            n_total_msg_retries: int = 1,  # 10,
-            get_response_retry_interval: float = 0.5,  # 2,
-            n_get_response_retries: int = 30,  # 30,
+        self,
+        denom: str,
+        chain_id: str,
+        prefix: str,
+        node_address: str = None,
+        validator_pk: Optional[str] = None,
+        faucet_url: Optional[str] = None,
+        msg_retry_interval: int = 2,
+        msg_failed_retry_interval: int = 10,
+        faucet_retry_interval: int = 20,
+        n_sending_retries: int = 1,  # 5,
+        n_total_msg_retries: int = 1,  # 10,
+        get_response_retry_interval: float = 0.5,  # 2,
+        n_get_response_retries: int = 30,  # 30,
+        minimum_gas_price_amount: int = DEFAULT_MINIMUM_GAS_PRICE_AMOUNT,
     ):
         """
         Create new instance to deploy and communicate with smart contract
@@ -144,6 +155,7 @@ class CosmosLedger(AbstractLedger):
         :param n_total_msg_retries: Number of total send/settle transaction retries
         :param get_response_retry_interval: Retry interval for getting receipt
         :param n_get_response_retries: Number of get receipt retries
+        :param minimum_gas_price_amount: Minimum gas price amount
         """
         # Override presets when parameters are specified
         self.chain_id = chain_id
@@ -159,11 +171,11 @@ class CosmosLedger(AbstractLedger):
             )
 
         # Clients to communicate with Cosmos/CosmWasm REST node
-        self.rpc_client = RestClient(self.node_address)
-        self.tx_client = TxRestClient(self.rpc_client)
-        self.auth_client = AuthRestClient(self.rpc_client)
-        self.wasm_client = CosmWasmRestClient(self.rpc_client)
-        self.bank_client = BankRestClient(self.rpc_client)
+        self.rest_client = RestClient(self.node_address)
+        self.tx_client = TxRestClient(self.rest_client)
+        self.auth_client = AuthRestClient(self.rest_client)
+        self.wasm_client = CosmWasmRestClient(self.rest_client)
+        self.bank_client = BankRestClient(self.rest_client)
 
         self.msg_retry_interval = msg_retry_interval
         self.msg_failed_retry_interval = msg_failed_retry_interval
@@ -172,14 +184,15 @@ class CosmosLedger(AbstractLedger):
         self.n_sending_retries = n_sending_retries
         self.n_total_msg_retries = n_total_msg_retries
         self.get_response_retry_interval = get_response_retry_interval
+        self.minimum_gas_price_amount = minimum_gas_price_amount
 
     def load_crypto_from_file(
-            self, keyfile_path: str, prefix: Optional[str] = None
+        self, keyfile_path: str, prefix: Optional[str] = None
     ) -> CosmosCrypto:
         return self.load_crypto_from_str(Path(keyfile_path).read_text(), prefix)
 
     def load_crypto_from_str(
-            self, key_str: str, prefix: Optional[str] = None
+        self, key_str: str, prefix: Optional[str] = None
     ) -> CosmosCrypto:
         prefix = prefix or self.prefix
         private_key = PrivateKey(bytes.fromhex(key_str))
@@ -193,17 +206,17 @@ class CosmosLedger(AbstractLedger):
         time.sleep(seconds)
 
     def deploy_contract(
-            self,
-            sender_crypto: CosmosCrypto,
-            contract_filename: str,
-            gas: int = DEFAULT_GAS_LIMIT,
+        self,
+        sender_crypto: CosmosCrypto,
+        contract_filename: str,
+        gas_limit: Optional[int] = None,
     ) -> Tuple[int, JSONLike]:
         """
         Deploy smart contract on a blockchain
 
         :param sender_crypto: Crypto of deployer to sign deploy transaction
         :param contract_filename: Path to contract .wasm bytecode
-        :param gas:  Maximum amount of gas to be used on executing command
+        :param gas_limit:  Maximum amount of gas to be used on executing command
         :return: Deployment transaction response
         """
         attempt = 0
@@ -221,7 +234,7 @@ class CosmosLedger(AbstractLedger):
                     [msg],
                     [sender_crypto.get_address()],
                     [sender_crypto.get_pubkey_as_bytes()],
-                    gas_limit=gas,
+                    gas_limit=gas_limit,
                 )
                 self.sign_tx(tx, sender_crypto)
 
@@ -248,12 +261,12 @@ class CosmosLedger(AbstractLedger):
         return code_id, MessageToDict(res)
 
     def send_init_msg(
-            self,
-            sender_crypto: CosmosCrypto,
-            code_id: int,
-            init_msg: JSONLike,
-            label: str,
-            gas: int = DEFAULT_GAS_LIMIT,
+        self,
+        sender_crypto: CosmosCrypto,
+        code_id: int,
+        init_msg: JSONLike,
+        label: str,
+        gas_limit: int = DEFAULT_CONTRACT_TX_GAS,
     ) -> Tuple[str, JSONLike]:
         """
         Send init contract message
@@ -262,7 +275,7 @@ class CosmosLedger(AbstractLedger):
         :param code_id: ID of binary code stored on chain
         :param init_msg: Init message in json format
         :param label: Label of current instance of contract
-        :param gas: Gas limit
+        :param gas_limit: Gas limit
 
         :return: Contract address string, transaction response
         """
@@ -283,7 +296,7 @@ class CosmosLedger(AbstractLedger):
                     [msg],
                     [sender_crypto.get_address()],
                     [sender_crypto.get_pubkey_as_bytes()],
-                    gas_limit=gas,
+                    gas_limit=gas_limit,
                 )
                 self.sign_tx(tx, sender_crypto)
 
@@ -291,8 +304,8 @@ class CosmosLedger(AbstractLedger):
 
                 raw_log = json.loads(res.tx_response.raw_log)  # pylint: disable=E1101
                 if (
-                        raw_log[0]["events"][0]["attributes"][0]["key"]
-                        == "_contract_address"
+                    raw_log[0]["events"][0]["attributes"][0]["key"]
+                    == "_contract_address"
                 ):
                     contract_address = str(
                         raw_log[0]["events"][0]["attributes"][0]["value"]
@@ -324,10 +337,10 @@ class CosmosLedger(AbstractLedger):
         return contract_address, MessageToDict(res)
 
     def send_query_msg(
-            self,
-            contract_address: str,
-            query_msg: JSONLike,
-            num_retries: Optional[int] = None,
+        self,
+        contract_address: str,
+        query_msg: JSONLike,
+        num_retries: Optional[int] = None,
     ) -> JSONLike:
         """
         Generate and send query message to get state of smart contract
@@ -365,13 +378,13 @@ class CosmosLedger(AbstractLedger):
         return json.loads(res.data)  # pylint: disable=E1101
 
     def send_execute_msg(
-            self,
-            sender_crypto: CosmosCrypto,
-            contract_address: str,
-            execute_msg: JSONLike,
-            gas: int = DEFAULT_GAS_LIMIT,
-            amount: Optional[List[Coin]] = None,
-            retries: Optional[int] = None,
+        self,
+        sender_crypto: CosmosCrypto,
+        contract_address: str,
+        execute_msg: JSONLike,
+        gas_limit: Optional[int] = DEFAULT_CONTRACT_TX_GAS,
+        amount: Optional[List[Coin]] = None,
+        retries: Optional[int] = None,
     ) -> Tuple[JSONLike, int]:
         """
         Generate, sign and send handle message
@@ -379,7 +392,7 @@ class CosmosLedger(AbstractLedger):
         :param sender_crypto: Sender's crypto to sign init message
         :param contract_address: Address of contract running on chain
         :param execute_msg: Execute message in json format
-        :param gas: Gas limit
+        :param gas_limit: Gas limit
         :param amount: Funds to be transferred to contract address
         :param retries: Optional number of retries
 
@@ -405,7 +418,7 @@ class CosmosLedger(AbstractLedger):
                     [msg],
                     [sender_crypto.get_address()],
                     [sender_crypto.get_pubkey_as_bytes()],
-                    gas_limit=gas,
+                    gas_limit=gas_limit,
                 )
                 self.sign_tx(tx, sender_crypto)
                 res = self.broadcast_tx(tx)
@@ -431,6 +444,7 @@ class CosmosLedger(AbstractLedger):
     def ensure_funds(self, addresses: List[str], amount: Optional[int] = None):
         """
         Refill funds of addresses using faucet or validator
+        Refilling from validator is preferred if both options are present
 
         :param addresses: Address to be refilled
         :param amount: Amount of refill
@@ -438,10 +452,10 @@ class CosmosLedger(AbstractLedger):
         :return: Nothing
         """
 
-        if self.faucet_url is not None:
-            self._refill_wealth_from_faucet(addresses, amount)
-        elif self.validator_crypto is not None:
+        if self.validator_crypto is not None:
             self._refill_wealth_from_validator(addresses, amount)
+        elif self.faucet_url is not None:
+            self._refill_wealth_from_faucet(addresses, amount)
         else:
             raise RuntimeError(
                 "Faucet or validator was not specified, cannot refill addresses"
@@ -512,7 +526,7 @@ class CosmosLedger(AbstractLedger):
             if amount:
                 min_amount_required = self.get_balance(address) + amount
             else:
-                min_amount_required = 500000000
+                min_amount_required = 3 * 10 ** 18
 
             # Retry in case of network issues
             while attempts_allowed > 0:
@@ -549,11 +563,12 @@ class CosmosLedger(AbstractLedger):
         # todo: add result of execution?
 
     def _send_funds(
-            self,
-            from_crypto: CosmosCrypto,
-            to_address: str,
-            amount: int,
-            denom: Optional[str] = None,
+        self,
+        from_crypto: CosmosCrypto,
+        to_address: str,
+        amount: int,
+        denom: Optional[str] = None,
+        gas_limit: Optional[int] = DEFAULT_SEND_TX_GAS,
     ):
         """
         Transfer funds from one address to another address
@@ -576,7 +591,10 @@ class CosmosLedger(AbstractLedger):
         )
 
         tx = self.generate_tx(
-            [msg], [from_address], [from_crypto.get_pubkey_as_bytes()]
+            [msg],
+            [from_address],
+            [from_crypto.get_pubkey_as_bytes()],
+            gas_limit=gas_limit,
         )
         self.sign_tx(tx, from_crypto)
 
@@ -604,13 +622,15 @@ class CosmosLedger(AbstractLedger):
             crypto.account_number = account.account_number  # pylint: disable=E1101
 
     def _refill_wealth_from_validator(
-            self, addresses: List[str], amount: Optional[int] = None
+        self, addresses: List[str], amount: Optional[int] = None
     ):
         """
         Refill funds of addresses using validator
-        - Works only for local-net with validator account
+        - Works only for network with validator account
 
         :param addresses: Address to be refilled
+
+        :raises BroadcastException: if refilling fails.
 
         :return: Nothing
         """
@@ -619,14 +639,41 @@ class CosmosLedger(AbstractLedger):
                 "Cannot refill from validator. Validator is not defined."
             )
 
+        if amount:
+            min_amount_required = amount
+        else:
+            min_amount_required = 5 * 10 ** 18
+
         for address in addresses:
             balance = self.get_balance(address)
             assert isinstance(balance, int)
-            if balance < 500000000 or amount is not None:
-                _logger.info(
-                    f"Refilling balance of {str(address)} from validator {str(self.validator_crypto.get_address())}"
-                )
-                self._send_funds(self.validator_crypto, address, 100000000)
+            if balance < min_amount_required:
+
+                elapsed_time = 0
+                done = False
+                last_exception: Optional[Exception] = None
+                while not done and elapsed_time < self.n_total_msg_retries:
+                    elapsed_time += 1
+                    try:
+                        _logger.info(
+                            f"Refilling balance of {str(address)} from validator {str(self.validator_crypto.get_address())}"
+                        )
+                        res = self._send_funds(
+                            self.validator_crypto,
+                            address,
+                            min_amount_required - balance,
+                        )
+                        if res is not None and res.tx_response.code == 0:
+                            done = True
+                    except Exception as e:  # pylint: disable=W0703
+                        last_exception = e
+                        _logger.warning(f"Cannot refill funds from validator: {e}")
+                        time.sleep(self.msg_failed_retry_interval)
+                        continue
+                    if not done:
+                        raise BroadcastException(
+                            f"Refilling funds from validator failed after multiple attempts: {last_exception}"
+                        )
 
     @staticmethod
     def _generate_key() -> str:
@@ -639,13 +686,13 @@ class CosmosLedger(AbstractLedger):
         return binascii.b2a_hex(urandom(32)).decode("utf-8")
 
     def generate_tx(
-            self,
-            packed_msgs: List[ProtoAny],
-            from_addresses: List[Address],
-            pub_keys: List[bytes],
-            fee: Optional[List[Coin]] = None,
-            memo: str = "",
-            gas_limit: int = DEFAULT_GAS_LIMIT,
+        self,
+        packed_msgs: List[ProtoAny],
+        from_addresses: List[Address],
+        pub_keys: List[bytes],
+        fee: Optional[List[Coin]] = None,
+        memo: str = "",
+        gas_limit: Optional[int] = None,
     ) -> Tx:
         """
         Generate transaction that can be later signed
@@ -659,6 +706,16 @@ class CosmosLedger(AbstractLedger):
 
         :return: Tx
         """
+
+        max_gas_limit = self.query_max_gas_limit()
+
+        gas_limit = gas_limit if gas_limit else max_gas_limit
+
+        # Tx with higher than maximum gas limit cannot be broadcast
+        if gas_limit > max_gas_limit:
+            gas_limit = max_gas_limit
+
+        fee = fee if fee else self.calculate_tx_fee(gas_limit)
 
         # Get account and signer info for each sender
         accounts: List[BaseAccount] = []
@@ -749,7 +806,7 @@ class CosmosLedger(AbstractLedger):
 
     @staticmethod
     def get_packed_send_msg(
-            from_address: Address, to_address: Address, amount: List[Coin]
+        from_address: Address, to_address: Address, amount: List[Coin]
     ) -> ProtoAny:
         """
         Generate and pack MsgSend
@@ -836,7 +893,7 @@ class CosmosLedger(AbstractLedger):
 
     @staticmethod
     def get_packed_store_msg(
-            sender_address: Address, contract_filename: Path
+        sender_address: Address, contract_filename: Path
     ) -> ProtoAny:
         """
         Loads contract bytecode, generate and return packed MsgStoreCode
@@ -860,11 +917,11 @@ class CosmosLedger(AbstractLedger):
 
     @staticmethod
     def get_packed_init_msg(
-            sender_address: Address,
-            code_id: int,
-            init_msg: JSONLike,
-            label="contract",
-            funds: Optional[List[Coin]] = None,
+        sender_address: Address,
+        code_id: int,
+        init_msg: JSONLike,
+        label="contract",
+        funds: Optional[List[Coin]] = None,
     ) -> ProtoAny:
         """
         Create and pack MsgInstantiateContract
@@ -891,10 +948,10 @@ class CosmosLedger(AbstractLedger):
 
     @staticmethod
     def get_packed_exec_msg(
-            sender_address: Address,
-            contract_address: str,
-            msg: JSONLike,
-            funds: Optional[List[Coin]] = None,
+        sender_address: Address,
+        contract_address: str,
+        msg: JSONLike,
+        funds: Optional[List[Coin]] = None,
     ) -> ProtoAny:
         """
         Create and pack MsgExecuteContract
@@ -919,7 +976,7 @@ class CosmosLedger(AbstractLedger):
 
     def check_availability(self):
         try:
-            result = json.loads(self.rpc_client.get("/node_info"))
+            result = json.loads(self.rest_client.get("/node_info"))
             if result["node_info"]["network"] != self.chain_id:
                 raise ValueError("Bad chain id")
         except Exception as e:
@@ -931,3 +988,63 @@ class CosmosLedger(AbstractLedger):
     def validate_address(cls, address: str):
         if not cls._ADDR_RE.match(address):
             raise ValueError(f"Contract address {address} is invalid")
+
+    def calculate_tx_fee(self, gas_limit) -> List[Coin]:
+        """
+        Calculate tx fee
+
+        :param gas_limit: Gas amount limit
+
+        :return: tx fee
+        """
+
+        gas_price = self.query_minimum_gas_price()
+
+        # tx_fee = gas_price * gas
+        return [
+            Coin(denom=gas_price.denom, amount=str(gas_limit * int(gas_price.amount)))
+        ]
+
+    def query_params(self, subspace: str, key: str) -> str:
+        """
+        Query node params
+
+        :param subspace: Subspace
+        :param key: Key
+
+        :return: String from QueryParamsResponse.params.value
+        """
+
+        request = QueryParamsRequest(subspace=subspace, key=key)
+        response = self.rest_client.get(
+            "/cosmos/params/v1beta1/params",
+            request,
+        )
+        response = Parse(response, QueryParamsResponse())
+        return response.param.value
+
+    def query_max_gas_limit(self) -> int:
+        """
+        Query maximum gas from node
+
+        :return: Maximum gas limit
+        """
+
+        params_value = json.loads(
+            self.query_params(subspace="baseapp", key="BlockParams")
+        )
+        max_gas = int(params_value["max_gas"])
+
+        if max_gas == -1:
+            return DEFAULT_TX_MAXIMUM_GAS_LIMIT
+        else:
+            return max_gas
+
+    def query_minimum_gas_price(self) -> Coin:
+        """
+        Query minimum price per gas unit from node
+
+        :return: Coin price per gas unit
+        """
+
+        return Coin(denom=self.denom, amount=str(self.minimum_gas_price_amount))

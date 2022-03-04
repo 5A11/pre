@@ -69,6 +69,7 @@ pub fn instantiate(
         threshold: msg.threshold.unwrap_or(1),
         next_proxy_request_id: 0,
         next_delegation_id: 0,
+        proxy_whitelisting: msg.proxy_whitelisting.unwrap_or(false),
     };
 
     if state.threshold == 0 {
@@ -223,9 +224,25 @@ fn try_register_proxy(
     proxy_pubkey: String,
 ) -> StdResult<Response> {
     let staking_config = store_get_staking_config(deps.storage)?;
+    let state: State = store_get_state(deps.storage)?;
 
     let mut proxy = match store_get_proxy_entry(deps.storage, &info.sender) {
-        None => generic_err!("Sender is not a proxy."),
+        None => {
+            if state.proxy_whitelisting {
+                // Whitelisting enabled - proxy is not authorised
+                generic_err!("Sender is not a proxy.")
+            } else {
+                // Whitelisting disabled - anyone can register
+                let new_proxy = Proxy {
+                    state: ProxyState::Authorised,
+                    proxy_pubkey: None,
+                    stake_amount: Uint128::new(0),
+                };
+
+                store_set_proxy_entry(deps.storage, &info.sender, &new_proxy);
+                Ok(new_proxy)
+            }
+        }
         Some(proxy) => Ok(proxy),
     }?;
 

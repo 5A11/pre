@@ -139,7 +139,11 @@ def test_error_handling():
     with patch.object(ledger, "get_balance", return_value=1), patch.object(
         ledger, "_send_funds"
     ) as sendfunds_mock, patch.object(ledger, "validator_crypto", Mock()):
-        ledger._refill_wealth_from_validator(["someaddr"], 10000000)
+        with pytest.raises(
+            BroadcastException,
+            match="Refilling funds from validator failed after multiple attempts",
+        ):
+            ledger._refill_wealth_from_validator(["someaddr"], 10000000)
 
     sendfunds_mock.assert_called()
 
@@ -150,7 +154,7 @@ def test_error_handling():
     resp = Mock()
     resp.status_code = 200
 
-    with patch.object(ledger, "get_balance", return_value=1), patch.object(
+    with patch.object(ledger, "get_balance", return_value=10000000), patch.object(
         ledger, "_sleep"
     ) as sleep_mock, patch("pre.ledger.cosmos.ledger.requests.post", return_value=resp):
 
@@ -232,7 +236,7 @@ def test_ledger_load_file():
 def test_check_availability():
     ledger = CosmosLedger(**CosmosLedgerConfig.make_default())
     with patch.object(
-        ledger.rpc_client,
+        ledger.rest_client,
         "get",
         return_value=json.dumps({"node_info": {"network": "some"}}),
     ):

@@ -355,6 +355,7 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
         timeout_height: Optional[int] = None,
+        proxy_whitelisting: Optional[bool] = None,
         label: str = "PRE",
     ) -> Address:
         """
@@ -372,6 +373,7 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         :param n_max_proxies: max amount of proxy allowed to register,
         :param proxies: optional list of proxies addresses,
         :param timeout_height: Timeout height
+        :param proxy_whitelisting: Proxy whitelisting
         :param label: str, contract label
 
         :return: str, deployed contract address
@@ -407,6 +409,9 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
 
         if timeout_height is not None:
             init_msg["timeout_height"] = timeout_height
+
+        if proxy_whitelisting is not None:
+            init_msg["proxy_whitelisting"] = proxy_whitelisting
 
         try:
             contract_address, res = ledger.send_init_msg(

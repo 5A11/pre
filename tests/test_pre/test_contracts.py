@@ -33,7 +33,7 @@ from pre.contract.cosmos_contracts import (
     ProxyContract,
 )
 from pre.crypto.umbral_crypto import UmbralCrypto
-from pre.ledger.cosmos.ledger import CosmosLedger
+from pre.ledger.cosmos.ledger import CosmosLedger, DEFAULT_FUNDS_AMOUNT
 from pre.storage.ipfs_storage import IpfsStorage
 
 from tests.constants import (
@@ -76,10 +76,12 @@ class BaseContractTestCase(TestCase):
         self.ledger_crypto = self.ledger.make_new_crypto()
         self.some_crypto = self.ledger.make_new_crypto()
         self.ledger._send_funds(
-            self.validator, self.ledger_crypto.get_address(), amount=9 * 10 ** 18
+            self.validator,
+            self.ledger_crypto.get_address(),
+            amount=DEFAULT_FUNDS_AMOUNT,
         )
         self.ledger._send_funds(
-            self.validator, self.some_crypto.get_address(), amount=9 * 10 ** 18
+            self.validator, self.some_crypto.get_address(), amount=DEFAULT_FUNDS_AMOUNT
         )
         self.contract_addr = self._setup_a_contract()
         self.proxy_addr = self.ledger_crypto.get_address()

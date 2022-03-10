@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional
 
 from pre.common import Address
 
@@ -96,7 +96,7 @@ class AbstractLedger:
         """
 
     @abstractmethod
-    def get_balance(self, address: Address) -> Union[int, float, str]:
+    def get_balance(self, address: Address) -> int:
         """
         Get balance for address.
 

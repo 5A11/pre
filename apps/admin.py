@@ -67,9 +67,8 @@ def instantiate_contract(
 
     if app_config.do_fund:
         ledger = app_config.get_ledger_instance()
-        if not ledger.get_balance(admin_address):
-            click.echo(f"funding {admin_address}")
-            ledger.ensure_funds([admin_address])
+        if app_config.fund_if_needed():
+            click.echo(f"{app_config.pp_config.get_ledger_crypto()} was funded")
 
     contract_addr = AdminAPI.instantiate_contract(
         ledger_crypto,

@@ -10,7 +10,7 @@ from pre.contract.cosmos_contracts import (
     ProxyContract,
 )
 from pre.crypto.umbral_crypto import UmbralCrypto, UmbralPrivateKey
-from pre.ledger.cosmos.ledger import CosmosLedger
+from pre.ledger.cosmos.ledger import CosmosLedger, DEFAULT_FUNDS_AMOUNT
 from pre.storage.ipfs_storage import IpfsStorage
 
 from tests.constants import FUNDED_FETCHAI_PRIVATE_KEY_1
@@ -45,13 +45,15 @@ def test_api():
 
         # transfer funds to proxy and delegator
         ledger._send_funds(
-            admin_ledger_crypto, delegator_ledger_crypto.get_address(), 9 * 10 ** 18
+            admin_ledger_crypto,
+            delegator_ledger_crypto.get_address(),
+            DEFAULT_FUNDS_AMOUNT,
         )
         for i in range(N_PROXIES):
             ledger._send_funds(
                 admin_ledger_crypto,
                 proxies_ledger_crypto[i].get_address(),
-                9 * 10 ** 18,
+                DEFAULT_FUNDS_AMOUNT,
             )
 
         contract_address = AdminContract.instantiate_contract(

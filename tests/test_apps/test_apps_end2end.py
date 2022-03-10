@@ -19,7 +19,11 @@ from pre.contract.base_contract import (
     ProxyAlreadyRegistered,
     ProxyNotRegistered,
 )
-from pre.ledger.cosmos.ledger import BroadcastException, CosmosLedger
+from pre.ledger.cosmos.ledger import (
+    BroadcastException,
+    CosmosLedger,
+    DEFAULT_FUNDS_AMOUNT,
+)
 
 from tests.constants import FUNDED_FETCHAI_PRIVATE_KEY_1, IPFS_PORT, LOCAL_LEDGER_CONFIG
 from tests.utils import local_ledger_and_storage
@@ -113,7 +117,7 @@ class TestApps(TestCase):
         assert re.search("Public key hex for ", result.output)
         return result.output.rstrip().split(" ")[-1]
 
-    def fund(self, address, amount=9 * 10 ** 18):
+    def fund(self, address, amount=DEFAULT_FUNDS_AMOUNT):
         try:
             ledger = CosmosLedger(**self.ledger_config)
             funded_ledger_crypto = ledger.load_crypto_from_str(

@@ -13,7 +13,7 @@ from apps.keys import cli as keys_cli
 from apps.owner import cli as owner_cli
 from apps.proxy import cli as proxy_cli
 from apps.reader import cli as reader_cli
-from pre.ledger.cosmos.ledger import CosmosLedger
+from pre.ledger.cosmos.ledger import CosmosLedger, DEFAULT_FUNDS_AMOUNT
 
 from tests.constants import (
     DEFAULT_DENOMINATION,
@@ -130,7 +130,7 @@ class TestApps(TestCase):
         assert re.match("Public key hex for ", result.output)
         return result.output.rstrip().split(" ")[-1]
 
-    def fund(self, address, amount=10000):
+    def fund(self, address, amount=DEFAULT_FUNDS_AMOUNT):
         ledger = CosmosLedger(**self.ledger_config)
         funded_ledger_crypto = ledger.load_crypto_from_str(FUNDED_FETCHAI_PRIVATE_KEY_1)
         ledger._send_funds(funded_ledger_crypto, address, amount)

@@ -81,6 +81,7 @@ DEFAULT_TX_MAXIMUM_GAS_LIMIT = 2000000
 DEFAULT_CONTRACT_TX_GAS = 500000
 DEFAULT_SEND_TX_GAS = 120000
 DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
+DEFAULT_FUNDS_AMOUNT = 9 * 10 ** 18
 
 
 class BroadcastException(Exception):
@@ -92,7 +93,6 @@ class CosmosLedgerConfig(AbstractConfig):
     DEFAULT_DENOMINATION = "atestfet"
     PREFIX = "fetch"
     FETCHD_URL = "http://127.0.0.1:1317"
-    MINIMUM_LOCAL_NET_GAS_PRICE_AMOUNT = 0
 
     @classmethod
     def validate(cls, data: Dict) -> Dict:
@@ -110,7 +110,6 @@ class CosmosLedgerConfig(AbstractConfig):
                 chain_id=cls.DEFAULT_FETCH_CHAIN_ID,
                 prefix=cls.PREFIX,
                 node_address=cls.FETCHD_URL,
-                minimum_gas_price_amount=cls.MINIMUM_LOCAL_NET_GAS_PRICE_AMOUNT,
             )
         )
         return defaults
@@ -526,7 +525,7 @@ class CosmosLedger(AbstractLedger):
             if amount:
                 min_amount_required = self.get_balance(address) + amount
             else:
-                min_amount_required = 3 * 10 ** 18
+                min_amount_required = DEFAULT_FUNDS_AMOUNT
 
             # Retry in case of network issues
             while attempts_allowed > 0:
@@ -642,7 +641,7 @@ class CosmosLedger(AbstractLedger):
         if amount:
             min_amount_required = amount
         else:
-            min_amount_required = 5 * 10 ** 18
+            min_amount_required = DEFAULT_FUNDS_AMOUNT
 
         for address in addresses:
             balance = self.get_balance(address)

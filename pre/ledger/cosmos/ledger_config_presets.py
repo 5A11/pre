@@ -5,6 +5,7 @@ NODE_CONFIG_PRESETS = {
         faucet_url="https://faucet-capricorn.t-v2-london-c.fetch-ai.com",
         prefix="fetch",
         denom="atestfet",
+        minimum_gas_price_amount=500000000000,
     ),
     "local_net": dict(
         chain_id="testing",

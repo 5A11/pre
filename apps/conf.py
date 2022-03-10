@@ -18,7 +18,7 @@ from pre.contract.cosmos_contracts import CosmosContract
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.crypto.umbral_crypto import UmbralCrypto
 from pre.ledger.base_ledger import AbstractLedger, AbstractLedgerCrypto
-from pre.ledger.cosmos.ledger import CosmosLedger
+from pre.ledger.cosmos.ledger import CosmosLedger, DEFAULT_FUNDS_AMOUNT
 from pre.storage.base_storage import AbstractStorage
 from pre.storage.ipfs_storage import IpfsStorage
 
@@ -349,7 +349,7 @@ class AppConf:
         if self.do_fund:
             ledger = self.get_ledger_instance()
             addr = self.get_ledger_crypto().get_address()
-            if not ledger.get_balance(addr):
+            if ledger.get_balance(addr) < DEFAULT_FUNDS_AMOUNT:
                 ledger.ensure_funds([addr])
                 return True
         return False

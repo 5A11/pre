@@ -1,0 +1,13 @@
+version: '3.5'
+
+services:
+  fetchd:
+    build:
+      context: ../
+      dockerfile: ./docker/fetchd.Dockerfile
+  
+  pre-relayer:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    image: pre-relayer:latest

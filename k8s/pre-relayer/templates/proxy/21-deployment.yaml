@@ -1,0 +1,89 @@
+{{- if .Values.proxy.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy
+  labels:
+    app: pre-relayer
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.proxy.replicas }}
+  selector:
+    matchLabels:
+      app: pre-relayer
+  template:
+    metadata:
+      labels:
+        app: pre-relayer
+    spec:
+      initContainers:
+        - name: contract-test
+          image: {{ .Values.proxy.image }}:{{ .Values.proxy.tag }}
+          resources:
+            {{- toYaml .Values.proxy.resources | nindent 12 }}
+          env:
+            - name: CONT_ADDR_FILE
+              value: "/contract-address/cont_addr.txt"
+          volumeMounts:
+          - name: contract-address
+            mountPath: /contract-address/
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - >-
+                while ! test -s "$CONT_ADDR_FILE"; do sleep 2; done
+      containers:
+        - name: proxy
+          image: {{ .Values.proxy.image }}:{{ .Values.proxy.tag }}
+          resources:
+            {{- toYaml .Values.proxy.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.proxy.port  }}
+          env:
+            - name: LEDGER_CONFIG
+              value: "/configs/ledger_config.yaml"
+            - name: IPFS_CONFIG
+              value: "/configs/ipfs_config.yaml"
+            - name: PROXY_LEDGER
+              value: "/keys/proxy_ledger.key"
+            - name: PROXY_ENCRYPTION
+              value: "/keys/proxy_encryption.key"
+            - name: CONT_ADDR_FILE
+              value: "/contract-address/cont_addr.txt"
+          volumeMounts:
+          - name: config-volume
+            mountPath: /configs/ledger_config.yaml
+            subPath: ledger_config.yaml
+          - name: config-volume
+            mountPath: /configs/ipfs_config.yaml
+            subPath: ipfs_config.yaml
+          - name: proxy-key-volume
+            mountPath: /keys/proxy_ledger.key
+            subPath: proxy_ledger.key
+          - name: proxy-key-volume
+            mountPath: /keys/proxy_encryption.key
+            subPath: proxy_encryption.key
+          - name: contract-address
+            mountPath: /contract-address/
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - >-
+                export CONT_ADDR=$( cat ${CONT_ADDR_FILE}) && python3 apps/proxy.py --fund --contract-address ${CONT_ADDR} --ledger-config ${LEDGER_CONFIG} --ipfs-config ${IPFS_CONFIG} --ledger-private-key ${PROXY_LEDGER} --encryption-private-key ${PROXY_ENCRYPTION} run 
+      volumes:
+        - name: config-volume
+          configMap:
+            name: relayer-config
+        - name: admin-key-volume
+          secret:
+            secretName: pre-admin
+        - name: proxy-key-volume
+          secret:
+            secretName: pre-proxy
+        - name: contract-address
+          persistentVolumeClaim:
+            claimName: pre-relayer
+            readOnly: true
+      restartPolicy: "Always"
+{{ end }}

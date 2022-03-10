@@ -1,0 +1,54 @@
+{{- if .Values.admin.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.admin.name }}
+  labels:
+    app: pre-relayer
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace }}
+spec:
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app: pre-relayer
+    spec:
+      containers:
+        - name: admin
+          image: {{ .Values.admin.image }}:{{ .Values.admin.tag }}
+          resources:
+            {{- toYaml .Values.admin.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.admin.port  }}
+          env:
+            - name: LEDGER_CONFIG
+              value: "/configs/ledger_config.yaml"
+            - name: ADMIN_LEDGER
+              value: "/keys/admin_ledger.key"
+          volumeMounts:
+          - name: config-volume
+            mountPath: /configs/ledger_config.yaml
+            subPath: ledger_config.yaml
+          - name: admin-key-volume
+            mountPath: /keys/admin_ledger.key
+            subPath: admin_ledger.key
+          - name: contract-address
+            mountPath: /contract-address/
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - >-
+                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 1 --n-max-proxies 10 --proxies fetch1vz7c7h54ve0fcu6gv242xnz0nkegeaszvzs27c,fetch1njgnp7lvhzpgtx7rzt60qu4r2sg8dj0h4ln0y2,fetch10r8j0yf8emj78m3f0j7dddkrmfxpaegkxxan5c | grep 'Contract address is ' | awk -F'Contract address is ' '{ print $2 }' > /contract-address/cont_addr.txt
+      volumes:
+        - name: config-volume
+          configMap:
+            name: relayer-config
+        - name: admin-key-volume
+          secret:
+            secretName: pre-admin
+        - name: contract-address
+          persistentVolumeClaim:
+            claimName: pre-relayer
+      restartPolicy: "Never"
+{{ end }}

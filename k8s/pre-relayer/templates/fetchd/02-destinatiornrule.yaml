@@ -1,0 +1,16 @@
+{{- if .Values.fetchd.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: fetchd-dr
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+spec:
+  host: {{ .Values.fetchd.istio.dnsname }}
+  trafficPolicy:
+    loadBalancer:
+      simple: LEAST_CONN
+    tls:
+      mode: DISABLE
+{{ end }}

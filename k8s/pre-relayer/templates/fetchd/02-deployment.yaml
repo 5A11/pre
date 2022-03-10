@@ -1,0 +1,34 @@
+{{- if .Values.fetchd.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fetchd
+  labels:
+    app: fetchd
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.fetchd.replicas }}
+  selector:
+    matchLabels:
+      app: fetchd
+  template:
+    metadata:
+      labels:
+        app: fetchd
+    spec:
+      containers:
+        - name: fetchd
+          image: {{ .Values.fetchd.image }}:{{ .Values.fetchd.tag }}
+          resources:
+            {{- toYaml .Values.fetchd.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.fetchd.port  }}
+          env:
+            - name: FETCHMNEMONIC
+              valueFrom:
+                configMapKeyRef:
+                  name: fetchd-cm
+                  key: FETCHMNEMONIC
+{{ end }}

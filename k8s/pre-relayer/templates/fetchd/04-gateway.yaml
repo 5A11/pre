@@ -1,0 +1,33 @@
+{{- if .Values.fetchd.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: fetchd-gw
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+spec:
+  selector:
+    app:  {{ .Values.fetchd.istio.ingressname }}
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - {{ .Values.fetchd.istio.dnsname }}
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+    tls:
+      httpsRedirect: true
+  - hosts:
+    - {{ .Values.fetchd.istio.dnsname }}
+    port:
+      name: https
+      number: 443
+      protocol: HTTPS
+    tls:
+      credentialName: {{ .Values.fetchd.istio.certname }}
+      mode: SIMPLE
+      privateKey: sds
+      serverCertificate: sds
+{{ end }}

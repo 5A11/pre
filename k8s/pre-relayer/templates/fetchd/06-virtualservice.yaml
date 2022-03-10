@@ -1,0 +1,20 @@
+{{- if .Values.fetchd.enabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: fetchd-vsvc
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+spec:
+  gateways:
+  - fetchd-gw
+  hosts:
+  - {{ .Values.fetchd.istio.dnsname }}
+  http:
+  - route:
+    - destination:
+        host: fetchd-svc
+        port:
+          number: {{ .Values.fetchd.port }}
+{{ end }}

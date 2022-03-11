@@ -1,8 +1,11 @@
 import setuptools
+import shutil
 
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+shutil.copy("./contract/cw_proxy_reencryption.wasm", "./pre/contract/cw_proxy_reencryption.wasm")
 
 setuptools.setup(
     name="proxy-reencryption",
@@ -28,4 +31,8 @@ setuptools.setup(
         "pyyaml",
     ],
     tests_require=["tox~=3.20.0"],
+    package_data={
+        "pre": ["cw_proxy_reencryption.wasm"],
+    },
+    include_package_data=True,
 )

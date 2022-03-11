@@ -1,0 +1,2 @@
+include contract/cw_proxy_reencryption.wasm
+include pre/contract/cw_proxy_reencryption.wasm

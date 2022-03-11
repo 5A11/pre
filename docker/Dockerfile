@@ -26,8 +26,9 @@ COPY ./Pipfile ./
 RUN pipenv install -d --skip-lock --system
 
 COPY ./ ./
+COPY --from=builder-contract /build/ ./contract
 RUN pip3 install --no-cache-dir -e .
 
-COPY --from=builder-contract /build/ ./contract
+
 
 ENTRYPOINT [ "./scripts/run_tests.sh" ]

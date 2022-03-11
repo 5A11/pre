@@ -118,6 +118,7 @@ class CosmosLedgerConfig(AbstractConfig):
 # Class that provides interface to communicate with CosmWasm/Fetch blockchain
 class CosmosLedger(AbstractLedger):
     CONFIG_CLASS = CosmosLedgerConfig
+    PRIVATE_KEY_LENGTH = 32
 
     _ADDR_RE = re.compile("^fetch[0-9a-z]{39}$")
 
@@ -674,15 +675,15 @@ class CosmosLedger(AbstractLedger):
                             f"Refilling funds from validator failed after multiple attempts: {last_exception}"
                         )
 
-    @staticmethod
-    def _generate_key() -> str:
+    @classmethod
+    def _generate_key(cls) -> str:
         """
         Generate random private key
 
         :return: Random hex string representation of private key
         """
 
-        return binascii.b2a_hex(urandom(32)).decode("utf-8")
+        return binascii.b2a_hex(urandom(cls.PRIVATE_KEY_LENGTH)).decode("utf-8")
 
     def generate_tx(
         self,

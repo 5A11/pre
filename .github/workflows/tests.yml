@@ -25,5 +25,7 @@ jobs:
            pip install tox
        - name: build contract
          run: cd contract && ./build_in_docker.sh
+       - name: copy of the contract into python dir
+         run: pip install .
        - name: Run tests
          run: tox -e py39

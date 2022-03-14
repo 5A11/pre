@@ -77,15 +77,6 @@ jobs:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 
       # Deploy the Docker image to the GKE cluster
-      - name: Deploy Fetchd to Staging
-        run: |
-          helm upgrade --install --wait --timeout 360s staging-fetchd ./k8s/pre-relayer/ \
-            --set admin.enabled=false \
-            --set fetchd.tag=${{ env.SHORTSHA }}  \
-            --set proxy.enabled=false \
-            -n pre
-        env:
-          SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 
       - name: Deploy Admin to Staging
         uses: dorny/paths-filter@v2
@@ -94,6 +85,7 @@ jobs:
           filters: |
             contract:
               - 'contract/**'
+              - 'apps/admin.py'
       - if: steps.filter.outputs.contract == 'true'
         run: |
           helm upgrade --install --wait --timeout 360s staging-admin ./k8s/pre-relayer/ \

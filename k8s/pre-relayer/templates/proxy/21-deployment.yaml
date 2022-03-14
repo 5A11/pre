@@ -1,14 +1,17 @@
 {{- if .Values.proxy.enabled }}
+{{ $helmlabels := include "pre-relayer.labels" . | nindent 4 }}
+{{ $count := .Values.proxy.replicas | int }}
+{{ range until $count }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: proxy
+  name: proxy-{{ . }}
   labels:
     app: pre-relayer
-    {{- include "pre-relayer.labels" . | nindent 4 }}
-  namespace: {{ .Values.namespace }}
+    {{- $helmlabels }}
+  namespace: {{ $.Values.namespace }}
 spec:
-  replicas: {{ .Values.proxy.replicas }}
+  replicas: 1
   selector:
     matchLabels:
       app: pre-relayer
@@ -19,9 +22,9 @@ spec:
     spec:
       initContainers:
         - name: contract-test
-          image: {{ .Values.proxy.image }}:{{ .Values.proxy.tag }}
+          image: {{ $.Values.proxy.image }}:{{ $.Values.proxy.tag }}
           resources:
-            {{- toYaml .Values.proxy.resources | nindent 12 }}
+            {{- toYaml $.Values.proxy.resources | nindent 12 }}
           env:
             - name: CONT_ADDR_FILE
               value: "/contract-address/cont_addr.txt"
@@ -35,20 +38,20 @@ spec:
                 while ! test -s "$CONT_ADDR_FILE"; do sleep 2; done
       containers:
         - name: proxy
-          image: {{ .Values.proxy.image }}:{{ .Values.proxy.tag }}
+          image: {{ $.Values.proxy.image }}:{{ $.Values.proxy.tag }}
           resources:
-            {{- toYaml .Values.proxy.resources | nindent 12 }}
+            {{- toYaml $.Values.proxy.resources | nindent 12 }}
           ports:
-            - containerPort: {{ .Values.proxy.port  }}
+            - containerPort: {{ $.Values.proxy.port  }}
           env:
             - name: LEDGER_CONFIG
               value: "/configs/ledger_config.yaml"
             - name: IPFS_CONFIG
               value: "/configs/ipfs_config.yaml"
             - name: PROXY_LEDGER
-              value: "/keys/proxy_ledger.key"
+              value: "/keys/proxy_ledger{{ . }}.key"
             - name: PROXY_ENCRYPTION
-              value: "/keys/proxy_encryption.key"
+              value: "/keys/proxy_encryption{{ . }}.key"
             - name: CONT_ADDR_FILE
               value: "/contract-address/cont_addr.txt"
           volumeMounts:
@@ -59,11 +62,11 @@ spec:
             mountPath: /configs/ipfs_config.yaml
             subPath: ipfs_config.yaml
           - name: proxy-key-volume
-            mountPath: /keys/proxy_ledger.key
-            subPath: proxy_ledger.key
+            mountPath: /keys/proxy_ledger{{ . }}.key
+            subPath: proxy_ledger-{{ . }}
           - name: proxy-key-volume
-            mountPath: /keys/proxy_encryption.key
-            subPath: proxy_encryption.key
+            mountPath: /keys/proxy_encryption{{ . }}.key
+            subPath: proxy_encryption-{{ . }}
           - name: contract-address
             mountPath: /contract-address/
           command: ["/bin/sh"]
@@ -75,15 +78,13 @@ spec:
         - name: config-volume
           configMap:
             name: relayer-config
-        - name: admin-key-volume
-          secret:
-            secretName: pre-admin
         - name: proxy-key-volume
           secret:
             secretName: pre-proxy
         - name: contract-address
           persistentVolumeClaim:
             claimName: pre-relayer
-            readOnly: true
       restartPolicy: "Always"
+---
+{{ end }}
 {{ end }}

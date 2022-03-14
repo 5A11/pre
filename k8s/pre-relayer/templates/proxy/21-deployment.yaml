@@ -46,10 +46,8 @@ spec:
           env:
             - name: LEDGER_CONFIG
               value: "/configs/ledger_config.yaml"
-            - name: IPFS_CONFIG
-              value: "/configs/ipfs_config.yaml"
             - name: PROXY_LEDGER
-              value: "/keys/proxy_ledger{{ . }}.key"
+              value: "/keys/proxy_ledger-{{ . }}.key"
             - name: PROXY_ENCRYPTION
               value: "/keys/proxy_encryption{{ . }}.key"
             - name: CONT_ADDR_FILE
@@ -58,11 +56,8 @@ spec:
           - name: config-volume
             mountPath: /configs/ledger_config.yaml
             subPath: ledger_config.yaml
-          - name: config-volume
-            mountPath: /configs/ipfs_config.yaml
-            subPath: ipfs_config.yaml
           - name: proxy-key-volume
-            mountPath: /keys/proxy_ledger{{ . }}.key
+            mountPath: /keys/proxy_ledger-{{ . }}.key
             subPath: proxy_ledger-{{ . }}
           - name: proxy-key-volume
             mountPath: /keys/proxy_encryption{{ . }}.key
@@ -73,7 +68,7 @@ spec:
           args:
             - -c
             - >-
-                export CONT_ADDR=$( cat ${CONT_ADDR_FILE}) && python3 apps/proxy.py --fund --contract-address ${CONT_ADDR} --ledger-config ${LEDGER_CONFIG} --ipfs-config ${IPFS_CONFIG} --ledger-private-key ${PROXY_LEDGER} --encryption-private-key ${PROXY_ENCRYPTION} run 
+                export CONT_ADDR=$( cat ${CONT_ADDR_FILE}) && python3 apps/proxy.py --fund --contract-address ${CONT_ADDR} --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${PROXY_LEDGER} --encryption-private-key ${PROXY_ENCRYPTION} run 
       volumes:
         - name: config-volume
           configMap:

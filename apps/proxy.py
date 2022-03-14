@@ -19,7 +19,6 @@ DEFAULT_SLEEP_TIME = 5
     AppConf.opt_encryption_private_key,
     AppConf.opt_ledger_config,
     AppConf.opt_contract_address,
-    AppConf.opt_storage_config,
     AppConf.opt_do_fund,
     expose_app_config=True,
 )
@@ -37,7 +36,6 @@ def register(ctx):
         app_config.get_cryto_key(),
         app_config.get_ledger_crypto(),
         contract=app_config.get_proxy_contract(),
-        storage=None,
         crypto=app_config.get_crypto_instance(),
     )
 
@@ -56,7 +54,6 @@ def unregister(ctx):
         app_config.get_cryto_key(),
         app_config.get_ledger_crypto(),
         contract=app_config.get_proxy_contract(),
-        storage=None,
         crypto=app_config.get_crypto_instance(),
     )
     proxy_api.unregister()
@@ -74,7 +71,6 @@ def run(ctx, run_once_and_exit: bool):
         app_config.get_cryto_key(),
         app_config.get_ledger_crypto(),
         contract=app_config.get_proxy_contract(),
-        storage=app_config.get_storage_instance(),
         crypto=app_config.get_crypto_instance(),
     )
 

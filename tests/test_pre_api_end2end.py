@@ -87,7 +87,6 @@ def test_api():
                 proxy_priv_key,
                 proxy_ledger_crypto,
                 proxy_contract,
-                ipfs_storage,
                 umbral_crypto,
             )
             admin_api.add_proxy(proxy_ledger_crypto.get_address())

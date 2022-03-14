@@ -187,7 +187,6 @@ def test_proxy_api():
         per_proxy_request_reward_amount="100",
     )
 
-    storage: AbstractStorage = Mock()
     encryption_private_key = Mock()
     crypto: AbstractCrypto = Mock()
     ledger_crypto = Mock()
@@ -197,10 +196,7 @@ def test_proxy_api():
     delegatee_pubkey_bytes = b"degelatee_pubkey"
     encryption_private_key.public_key = b"pubkey"
     delegation_string = b"delegation string"
-    proxy_api = ProxyAPI(
-        encryption_private_key, ledger_crypto, contract, storage, crypto
-    )
-    fragment_bytes = b"fragment hash id"
+    proxy_api = ProxyAPI(encryption_private_key, ledger_crypto, contract, crypto)
     capsule = b"capsule"
     minimum_registration_stake = Coin(denom="atestfet", amount=str(1000))
 
@@ -228,8 +224,6 @@ def test_proxy_api():
         encryption_private_key.public_key
     )
 
-    storage.get_capsule.return_value = capsule
-    storage.store_encrypted_part.return_value = fragment_bytes
     proxy_api.process_reencryption_request(proxy_task)
 
     crypto.reencrypt.assert_called_once_with(

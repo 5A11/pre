@@ -79,7 +79,6 @@ services:
       python3 apps/proxy.py
         --fund
         --ledger-config ${LEDGER_CONFIG}
-        --ipfs-config ${IPFS_CONFIG}
         --ledger-private-key test_data/keys/proxy_${PROXY_INDEX}_ledger.key
         --encryption-private-key test_data/keys/proxy_${PROXY_INDEX}_encryption.key
     networks:

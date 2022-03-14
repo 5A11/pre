@@ -353,8 +353,6 @@ class TestApps(TestCase):
                 self.proxy_ledger_key,
                 "--encryption-private-key",
                 self.proxy_encryption_key,
-                "--ipfs-config",
-                self.ipfs_config_file,
                 "--contract-address",
                 contract_address,
                 "run",

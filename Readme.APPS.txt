@@ -85,7 +85,7 @@ Public key hex for /tmp/tmpplikfwmn/delegatee_encryption.key is 020d6e47307c2208
 Access to hash_id QmbVaAgEY9v7WTZ9v4mizq42s9ZfeiE3E6MKPBND8pPQXZ granted to 020d6e47307c220898eeec5da6ca2778d3777dc3751e6f3bd4d91a09ff425da8dd
 
 
-> ./apps/proxy.py run --ledger-config /tmp/tmpplikfwmn/ledger_config.yaml --ledger-private-key /tmp/tmpplikfwmn/proxy_ledger.key --encryption-private-key /tmp/tmpplikfwmn/proxy_encryption.key --ipfs-config /tmp/tmpplikfwmn/ipfs_config.yaml --contract-address fetch18vd8fpwxzck93qlwghaj6arh4p7c5n890l3amr --run-once-and-exit
+> ./apps/proxy.py run --ledger-config /tmp/tmpplikfwmn/ledger_config.yaml --ledger-private-key /tmp/tmpplikfwmn/proxy_ledger.key --encryption-private-key /tmp/tmpplikfwmn/proxy_encryption.key --contract-address fetch18vd8fpwxzck93qlwghaj6arh4p7c5n890l3amr --run-once-and-exit
 Proxy was registered already
 Got a reencryption task: QmbVaAgEY9v7WTZ9v4mizq42s9ZfeiE3E6MKPBND8pPQXZ: delegator: 028dc8d207eb5c990a2adf03e119dc90dc14de59e35c322686c9fd1b4a074d835f delegatee: 020d6e47307c220898eeec5da6ca2778d3777dc3751e6f3bd4d91a09ff425da8dd
 Reencryption task processed: QmbVaAgEY9v7WTZ9v4mizq42s9ZfeiE3E6MKPBND8pPQXZ: delegator: 028dc8d207eb5c990a2adf03e119dc90dc14de59e35c322686c9fd1b4a074d835f delegatee: 020d6e47307c220898eeec5da6ca2778d3777dc3751e6f3bd4d91a09ff425da8dd

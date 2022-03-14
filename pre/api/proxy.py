@@ -6,7 +6,6 @@ from pre.common import PrivateKey, ProxyTask
 from pre.contract.base_contract import AbstractProxyContract
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.ledger.base_ledger import AbstractLedgerCrypto
-from pre.storage.base_storage import AbstractStorage
 
 
 class ProxyAPI:
@@ -17,7 +16,6 @@ class ProxyAPI:
         encryption_private_key: PrivateKey,
         ledger_crypto: AbstractLedgerCrypto,
         contract: AbstractProxyContract,
-        storage: AbstractStorage,
         crypto: AbstractCrypto,
     ):
         """
@@ -26,13 +24,11 @@ class ProxyAPI:
         :param encryption_private_key: PrivateKey,
         :param ledger_crypto: ledger private key instance,
         :param contract: instance of proxy contract implementation,
-        :param storage: instance of abstract storage implementation,
         :param crypto: instance of abstract crypto implementation,
         """
         self._encryption_private_key = encryption_private_key
         self._ledger_crypto = ledger_crypto
         self._contract = contract
-        self._storage = storage
         self._crypto = crypto
 
     def _pub_key_as_bytes(self) -> bytes:
@@ -70,12 +66,10 @@ class ProxyAPI:
     def process_reencryption_request(self, proxy_task: ProxyTask):
         """
         Process reencryption request.
-        Make reencrypted fragment, store it on a storage, register its hash_id in the contract.
+        Make reencrypted fragment, store it in contract, register its hash_id in the contract.
 
         :param proxy_task: ProxyTask instance from get_next_reencryption_request
         """
-        if self._storage is None:  # pragma: nocover
-            raise ValueError("Storage was not set!")
         hash_id = proxy_task.hash_id
         delegatee_pubkey_bytes = proxy_task.delegatee_pubkey
         capsule = proxy_task.capsule

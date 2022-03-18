@@ -22,6 +22,12 @@ pub struct ProxyTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct ProxyAvailability {
+    pub proxy_pubkey: String,
+    pub stake_amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyStatus {
     pub proxy_address: Addr,
     pub stake_amount: Uint128,
@@ -33,8 +39,6 @@ pub struct ProxyStatus {
 pub struct InstantiateMsg {
     pub threshold: Option<u32>,
     pub admin: Option<Addr>,
-    // Maximum proxies you can select for delegation = Number of active proxies if None
-    pub n_max_proxies: Option<u32>,
 
     pub proxy_whitelisting: Option<bool>,
     pub proxies: Option<Vec<Addr>>,
@@ -84,10 +88,6 @@ pub enum ExecuteMsg {
         delegator_pubkey: String,
         capsule: String,
     },
-    RequestProxiesForDelegation {
-        delegator_pubkey: String,
-        delegatee_pubkey: String,
-    },
     AddDelegation {
         delegator_pubkey: String,
         delegatee_pubkey: String,
@@ -120,10 +120,6 @@ pub enum QueryMsg {
         delegator_pubkey: String,
         delegatee_pubkey: String,
     },
-    GetSelectedProxiesForDelegation {
-        delegator_pubkey: String,
-        delegatee_pubkey: String,
-    },
     GetProxyStatus {
         proxy_pubkey: String,
     },
@@ -131,7 +127,7 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetAvailableProxiesResponse {
-    pub proxy_pubkeys: Vec<String>,
+    pub proxies: Vec<ProxyAvailability>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -151,7 +147,6 @@ pub struct GetFragmentsResponse {
 pub struct GetContractStateResponse {
     pub admin: Addr,
     pub threshold: u32,
-    pub n_max_proxies: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -170,11 +165,6 @@ pub struct GetNextProxyTaskResponse {
 pub struct GetDelegationStatusResponse {
     pub delegation_state: DelegationState,
     pub total_request_reward_amount: Coin,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct GetSelectedProxiesForDelegationResponse {
-    pub proxy_pubkeys: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

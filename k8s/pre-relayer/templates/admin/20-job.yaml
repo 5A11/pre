@@ -40,7 +40,7 @@ spec:
           args:
             - -c
             - >-
-                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 1 --n-max-proxies 10 | grep 'Contract address is ' | awk -F'Contract address is ' '{ print $2 }' > /contract-address/cont_addr.txt
+                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 1 | grep 'Contract address is ' | awk -F'Contract address is ' '{ print $2 }' > /contract-address/cont_addr.txt
       volumes:
         - name: config-volume
           configMap:

@@ -34,11 +34,10 @@ class AdminAPI:
         ledger: AbstractLedger,
         admin_address: Address,
         stake_denom: str,
-        minimum_proxy_stake_amount: Optional[str] = None,
-        per_proxy_request_reward_amount: Optional[str] = None,
-        per_request_slash_stake_amount: Optional[str] = None,
+        minimum_proxy_stake_amount: Optional[int] = None,
+        per_proxy_request_reward_amount: Optional[int] = None,
+        per_request_slash_stake_amount: Optional[int] = None,
         threshold: Optional[int] = None,
-        n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
         timeout_height: Optional[int] = None,
         proxy_whitelisting: Optional[bool] = None,
@@ -52,10 +51,10 @@ class AdminAPI:
         :param ledger: ledger instance to perform contract deployment
         :param admin_address: address of contract administator
         :param stake_denom: str,
-        :param minimum_proxy_stake_amount: Optional[str],
-        :param per_proxy_request_reward_amount: Optional[str] = None,
+        :param minimum_proxy_stake_amount: Optional[int],
+        :param per_proxy_request_reward_amount: Optional[int] = None,
+        :param per_request_slash_stake_amount: Optional[int] = None,
         :param threshold: int threshold ,
-        :param n_max_proxies: max amount of proxy allowed to register,
         :param proxies: optional list of proxies addresses,
         :param timeout_height: Timeout height
         :param proxy_whitelisting: Proxy whitelisting
@@ -73,7 +72,6 @@ class AdminAPI:
             per_proxy_request_reward_amount,
             per_request_slash_stake_amount,
             threshold,
-            n_max_proxies,
             proxies or [],
             timeout_height,
             proxy_whitelisting,

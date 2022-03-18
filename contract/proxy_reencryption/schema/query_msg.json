@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QueryMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
@@ -109,30 +109,6 @@
       ],
       "properties": {
         "get_delegation_status": {
-          "type": "object",
-          "required": [
-            "delegatee_pubkey",
-            "delegator_pubkey"
-          ],
-          "properties": {
-            "delegatee_pubkey": {
-              "type": "string"
-            },
-            "delegator_pubkey": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "get_selected_proxies_for_delegation"
-      ],
-      "properties": {
-        "get_selected_proxies_for_delegation": {
           "type": "object",
           "required": [
             "delegatee_pubkey",

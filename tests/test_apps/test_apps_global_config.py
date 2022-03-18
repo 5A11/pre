@@ -42,7 +42,6 @@ class TestApps(TestCase):
     )
 
     THRESHOLD = 1
-    n_max_proxies = 10
     runner = CliRunner()
 
     def setUp(self):

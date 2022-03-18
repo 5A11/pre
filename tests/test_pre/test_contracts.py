@@ -14,6 +14,7 @@ from pre.contract.base_contract import (
     DelegationAlreadyAdded,
     DelegationAlreadyExist,
     NotAdminError,
+    NotEnoughProxies,
     NotEnoughStakeToWithdraw,
     ProxiesAreTooBusy,
     ProxyAlreadyExist,
@@ -117,7 +118,6 @@ class BaseContractTestCase(TestCase):
             minimum_proxy_stake_amount="100",
             per_proxy_request_reward_amount="100",
             threshold=self.THRESHOLD,
-            n_max_proxies=self.NUM_PROXIES,
             proxy_whitelisting=True,
         )
         assert contract_address
@@ -198,7 +198,6 @@ class TestAdminContract(BaseContractTestCase):
                 None,
                 None,
                 -1,
-                9999999,
             )
 
     def test_bad_address_queries(self):
@@ -219,12 +218,12 @@ class TestDelegatorContract(BaseContractTestCase):
                 self.ledger_crypto, self.delegator_pub_key, self.hash_id, self.capsule
             )
 
-        with pytest.raises(UnknownProxy):
+        with pytest.raises(NotEnoughProxies):
             self.delegator_contract.add_delegations(
                 self.ledger_crypto,
                 self.delegator_pub_key,
                 self.delegatee_pub_key,
-                delegations=[Delegation(self.proxy_pub_key, b"somedata")],
+                delegations=[],
             )
         assert (
             self.delegator_contract.get_delegation_status(
@@ -254,7 +253,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 self.ledger_crypto, proxy_addr=self.proxy_addr
             )
 
-        assert not self.delegator_contract.get_avaiable_proxies()
+        assert not self.delegator_contract.get_available_proxies()
 
         self.proxy_contract.proxy_register(
             self.ledger_crypto,
@@ -286,22 +285,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 stake_amount=minimum_registration_stake,
             )
 
-        assert self.delegator_contract.get_avaiable_proxies()
-
-        proxies_list = self.delegator_contract.get_selected_proxies_for_delegation(
-            delegator_pubkey_bytes=self.delegator_pub_key,
-            delegatee_pubkey_bytes=self.delegatee_pub_key,
-        )
-
-        if not proxies_list:
-            # request proxies from contract
-            proxies_list = self.delegator_contract.request_proxies_for_delegation(
-                delegator_private_key=self.ledger_crypto,
-                delegator_pubkey_bytes=self.delegator_pub_key,
-                delegatee_pubkey_bytes=self.delegatee_pub_key,
-            )
-
-        assert proxies_list
+        assert self.delegator_contract.get_available_proxies()
 
         self.delegator_contract.add_delegations(
             self.ledger_crypto,
@@ -470,7 +454,7 @@ class TestDelegatorContract(BaseContractTestCase):
 
         with pytest.raises(ProxyNotRegistered):
             self.proxy_contract.proxy_unregister(self.ledger_crypto)
-        assert not self.delegator_contract.get_avaiable_proxies()
+        assert not self.delegator_contract.get_available_proxies()
 
         # test get data entry
 

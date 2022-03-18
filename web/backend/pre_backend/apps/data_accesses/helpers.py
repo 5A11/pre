@@ -73,6 +73,7 @@ class DelegatorSDK:
             hash_id=data_id,
             delegatee_pubkey_bytes=public_key,
             threshold=settings.THRESHOLD,
+            n_max_proxies=settings.N_MAX_PROXIES
         )
 
     def grant_access(self, data_access_obj: DataAccess, reader: User) -> None:

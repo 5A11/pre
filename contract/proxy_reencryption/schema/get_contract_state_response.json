@@ -4,17 +4,11 @@
   "type": "object",
   "required": [
     "admin",
-    "n_max_proxies",
     "threshold"
   ],
   "properties": {
     "admin": {
       "$ref": "#/definitions/Addr"
-    },
-    "n_max_proxies": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0.0
     },
     "threshold": {
       "type": "integer",

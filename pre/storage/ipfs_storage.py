@@ -114,7 +114,7 @@ class IpfsStorage(AbstractStorage):
             )
         except CommunicationError as e:
             raise StorageNotAvailable(
-                f"Storage is not avaiable with address: {self._storage_config['addr']}"
+                f"Storage is not available with address: {self._storage_config['addr']}"
             ) from e
 
     def disconnect(self):

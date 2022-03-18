@@ -24,13 +24,13 @@ def make_priv_key() -> PrivateKey:
 def test_api():
     THRESHOLD = 3
     N_PROXIES = 6
-    n_max_proxies = 10
+    N_MAX_PROXIES = 10
     stake_denom = "atestfet"
 
     with local_ledger_and_storage() as confs:
         ledger_conf, ipfs_conf = confs
 
-        assert THRESHOLD < N_PROXIES < n_max_proxies
+        assert THRESHOLD < N_PROXIES < N_MAX_PROXIES
 
         ipfs_storage = IpfsStorage(**ipfs_conf)
         ipfs_storage.connect()
@@ -62,7 +62,6 @@ def test_api():
             admin_addr=admin_ledger_crypto.get_address(),
             stake_denom=stake_denom,
             threshold=THRESHOLD,
-            n_max_proxies=n_max_proxies,
         )
         admin_contract = AdminContract(ledger, contract_address)
         admin_api = AdminAPI(admin_ledger_crypto, admin_contract)
@@ -107,6 +106,7 @@ def test_api():
             hash_id=hash_id,
             delegatee_pubkey_bytes=bytes(delegatee_priv_key.public_key),
             threshold=THRESHOLD,
+            n_max_proxies=N_MAX_PROXIES,
         )
 
         for i in range(THRESHOLD):

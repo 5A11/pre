@@ -54,12 +54,9 @@ def add_data(
 @cli.command(name="grant-access")
 @click.argument("hash_id", type=str, required=True)
 @click.argument("reader-public-key", type=str, required=True)
+@click.option("--n-max-proxies", type=int, required=False, default=10)
 @click.pass_context
-def grant_access(
-    ctx,
-    hash_id: str,
-    reader_public_key: str,
-):
+def grant_access(ctx, hash_id: str, reader_public_key: str, n_max_proxies: int):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
     delegator_api = DelegatorAPI(
         encryption_private_key=app_config.get_cryto_key(),
@@ -76,6 +73,7 @@ def grant_access(
         hash_id=hash_id,
         delegatee_pubkey_bytes=delegatee_pubkey_bytes,
         threshold=app_config.threshold,
+        n_max_proxies=n_max_proxies,
     )
 
     click.echo(f"Access to hash_id {hash_id} granted to {reader_public_key}")

@@ -13,6 +13,7 @@ from pre.common import (
     DelegationStatus,
     EncryptedData,
     GetFragmentsResponse,
+    ProxyAvailability,
     ProxyTask,
     ReencryptionRequestState,
     StakingConfig,
@@ -33,6 +34,7 @@ def test_delegator_api():
 
     delegatee_pubkey_bytes = b"reader pub key"
     threshold = 2
+    n_max_proxies = 10
     hash_id = "hash_id"
     data = b"bytes"
     crypto.encrypt.return_value = EncryptedData(data), b"capsule"
@@ -51,16 +53,19 @@ def test_delegator_api():
         delegation_state=DelegationState.non_existing,
         total_request_reward_amount=total_request_reward_amount,
     )
-    contract.get_selected_proxies_for_delegation.return_value = []
-    contract.request_proxies_for_delegation.return_value = []
+    contract.get_available_proxies.return_value = []
 
     with pytest.raises(ValueError, match="proxies_list can not be empty"):
-        delegator_api.grant_access(hash_id, delegatee_pubkey_bytes, threshold)
+        delegator_api.grant_access(
+            hash_id, delegatee_pubkey_bytes, threshold, n_max_proxies
+        )
 
-    contract.request_proxies_for_delegation.return_value = [
-        b"proxy_pub_key"
+    contract.get_available_proxies.return_value = [
+        ProxyAvailability(proxy_pubkey=b"proxy_pub_key", stake_amount="123")
     ] * threshold
-    delegator_api.grant_access(hash_id, delegatee_pubkey_bytes, threshold)
+    delegator_api.grant_access(
+        hash_id, delegatee_pubkey_bytes, threshold, n_max_proxies
+    )
 
 
 def test_delegatee_api():
@@ -130,7 +135,6 @@ def test_admin_api():
     storage.store_encrypted_data.return_value = hash_id
     encryption_private_key.public_key = b"pubkey"
     proxies = ["some_proxy"]
-    max_proxies = 5
     admin_address = "admin_addr"
     label = "PRE"
     proxy_addr = "proxy_addr"
@@ -146,7 +150,6 @@ def test_admin_api():
             None,
             None,
             None,
-            max_proxies,
             proxies,
             None,
             None,
@@ -161,7 +164,6 @@ def test_admin_api():
             None,
             None,
             None,
-            max_proxies,
             proxies,
             None,
             None,
@@ -177,9 +179,7 @@ def test_admin_api():
 
 def test_proxy_api():
     contract = Mock()
-    contract.get_contract_state.return_value = ContractState(
-        admin="admin", threshold=1, n_max_proxies=1
-    )
+    contract.get_contract_state.return_value = ContractState(admin="admin", threshold=1)
 
     contract.get_staking_config.return_value = StakingConfig(
         stake_denom="atestfet",

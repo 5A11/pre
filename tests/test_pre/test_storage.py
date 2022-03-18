@@ -21,7 +21,7 @@ def test_storage_errors():
         with pytest.raises(StorageError, match="is not connected"):
             storage.disconnect()
 
-        with pytest.raises(StorageNotAvailable, match="is not avaiable with address:"):
+        with pytest.raises(StorageNotAvailable, match="is not available with address:"):
             storage = IpfsStorage(**{**ipfs_conf, "port": 65001})
             storage.connect()
 

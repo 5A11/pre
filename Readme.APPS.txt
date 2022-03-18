@@ -59,7 +59,6 @@ Ledger address for key /tmp/tmpplikfwmn/delegator_ledger.key is fetch1dnvw0mqzd8
 instantiate contract with options:
  * admin_address: fetch1y3j62ak9a9052dh2vd3gl26yn2qk06ljdr6tes
  * threshold: 1
- * n_max_proxies: 10
  * proxies: []
 
 Contract was set succesfully. Contract address is fetch18vd8fpwxzck93qlwghaj6arh4p7c5n890l3amr

@@ -1,6 +1,6 @@
-from typing import IO, List, Union
+from typing import IO, List, Optional, Union
 
-from pre.common import DelegationState, HashID, PrivateKey
+from pre.common import DelegationState, HashID, PrivateKey, ProxyAvailability
 from pre.contract.base_contract import AbstractDelegatorContract
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.ledger.base_ledger import AbstractLedgerCrypto
@@ -64,50 +64,46 @@ class DelegatorAPI:
         )
         return hash_id
 
-    def get_selected_proxies_for_delegation(
+    def get_available_proxies(
         self,
-        delegatee_pubkey_bytes: bytes,
-    ) -> List[bytes]:
+    ) -> List[ProxyAvailability]:
         """
-        Get list of proxies pub keys for delegation
+        Get list of proxies pub keys and stake_amount for delegation
 
-        :param delegatee_pubkey_bytes: reader public key in bytes
-
-        :return: List[bytes], list of proxies public keys in bytes
+        :return: List[ProxyAvailability], list of proxies public keys in bytes and stake_amount
         """
-        return self._contract.get_selected_proxies_for_delegation(
-            self._encryption_public_key,
-            delegatee_pubkey_bytes,
-        )
+        return self._contract.get_available_proxies()
 
     def _set_delegation(
         self,
         delegatee_pubkey_bytes: bytes,
         threshold: int,
+        n_max_proxies: Optional[int] = None,
     ):
         """
         Set permanent delegation for a specific delegatee.
 
         :param delegatee_pubkey_bytes: reader public key in bytes
         :param threshold: int
+        :param n_max_proxies: Optional[int]
         """
 
-        proxies_list = self.get_selected_proxies_for_delegation(delegatee_pubkey_bytes)
-        if not proxies_list:
-            # request proxies from contract
-            proxies_list = self._contract.request_proxies_for_delegation(
-                delegator_private_key=self._ledger_crypto,
-                delegator_pubkey_bytes=self._encryption_public_key,
-                delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-            )
-
+        proxies_list = self.get_available_proxies()
         if not proxies_list:
             raise ValueError("proxies_list can not be empty")
+
+        # Sort descending by stake amount
+        proxies_list.sort(reverse=True, key=lambda x: int(x.stake_amount))
+
+        n_max_proxies = n_max_proxies if n_max_proxies else len(proxies_list)
+
+        # Select up to n_max_proxies proxies with highest available stake
+        proxy_pubkeys = [i.proxy_pubkey for i in proxies_list[0:n_max_proxies]]
 
         delegations = self._crypto.generate_delegations(
             threshold=threshold,
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
-            proxies_pubkeys_bytes=proxies_list,
+            proxies_pubkeys_bytes=proxy_pubkeys,
             delegator_private_key=self._encryption_private_key,
         )
         self._contract.add_delegations(
@@ -122,6 +118,7 @@ class DelegatorAPI:
         hash_id: HashID,
         delegatee_pubkey_bytes: bytes,
         threshold: int,
+        n_max_proxies: int,
     ):
         """
         Grant access for specific data for specific delegatee.
@@ -129,6 +126,7 @@ class DelegatorAPI:
         :param hash_id: str, hash id of the encrypted data published
         :param delegatee_pubkey_bytes: reader public key in bytes
         :param threshold: int
+        :param n_max_proxies: int
         """
         delegation_state_response = self._contract.get_delegation_status(
             delegator_pubkey_bytes=bytes(self._encryption_private_key.public_key),
@@ -139,6 +137,7 @@ class DelegatorAPI:
             self._set_delegation(
                 delegatee_pubkey_bytes=delegatee_pubkey_bytes,
                 threshold=threshold,
+                n_max_proxies=n_max_proxies,
             )
 
             # Update state to get correct total_request_reward_amount

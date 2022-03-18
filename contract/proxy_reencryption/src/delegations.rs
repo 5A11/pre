@@ -21,14 +21,13 @@ static PROXY_DELEGATIONS_STORE_KEY: &[u8] = b"ProxyDelegationsStore";
 pub struct ProxyDelegation {
     pub delegator_pubkey: String,
     pub delegatee_pubkey: String,
-    pub delegation_string: Option<String>,
+    pub delegation_string: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DelegationState {
     NonExisting,
-    WaitingForDelegationStrings,
     Active,
     ProxiesAreBusy,
 }
@@ -230,34 +229,16 @@ pub fn get_delegation_state(
     let staking_config = store_get_staking_config(storage).unwrap();
 
     if !store_is_proxy_delegation_empty(storage, delegator_pubkey, delegatee_pubkey) {
-        // ProxyDelegation exist
-        let proxy_pubkey =
-            &store_get_all_proxies_from_delegation(storage, delegator_pubkey, delegatee_pubkey)[0];
-        let delegation_id = store_get_proxy_delegation_id(
+        let n_available_proxies = get_n_available_proxies_from_delegation(
             storage,
             delegator_pubkey,
             delegatee_pubkey,
-            proxy_pubkey,
-        )
-        .unwrap();
-        let delegation = store_get_delegation(storage, &delegation_id).unwrap();
-
-        if delegation.delegation_string.is_none() {
-            // ProxyDelegation string not provided
-            DelegationState::WaitingForDelegationStrings
+            &staking_config.per_request_slash_stake_amount.u128(),
+        );
+        if n_available_proxies < get_n_minimum_proxies_for_refund(&state, &staking_config) {
+            DelegationState::ProxiesAreBusy
         } else {
-            // ProxyDelegation string provided
-            let n_available_proxies = get_n_available_proxies_from_delegation(
-                storage,
-                delegator_pubkey,
-                delegatee_pubkey,
-                &staking_config.per_request_slash_stake_amount.u128(),
-            );
-            if n_available_proxies < get_n_minimum_proxies_for_refund(&state, &staking_config) {
-                DelegationState::ProxiesAreBusy
-            } else {
-                DelegationState::Active
-            }
+            DelegationState::Active
         }
     } else {
         DelegationState::NonExisting
@@ -329,7 +310,7 @@ pub fn get_n_minimum_proxies_for_refund(state: &State, staking_config: &StakingC
         return state.threshold;
     }
 
-    // n_maximum proxies that can finish job when re-encryption can still fail
+    // Maximum number of proxies that can finish job when re-encryption can still fail
     let fail_threshold: u32 = state.threshold - 1;
 
     // Worst case scenario of refunding

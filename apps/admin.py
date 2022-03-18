@@ -25,13 +25,11 @@ def cli(ctx, app_config: AppConf):
 @cli.command("instantiate-contract")
 @click.option("--admin-address", type=str, required=False)
 @click.option("--threshold", type=int, required=False, default=1)
-@click.option("--n-max-proxies", type=int, required=False, default=10)
 @click.option("--proxies", type=str, required=False)
 @click.pass_context
 def instantiate_contract(
     ctx,
     threshold,
-    n_max_proxies,
     admin_address: Optional[str] = None,
     stake_denom: str = "atestfet",
     proxies: str = "",
@@ -57,7 +55,6 @@ def instantiate_contract(
         admin_address=admin_address,
         stake_denom=stake_denom,
         threshold=threshold,
-        n_max_proxies=n_max_proxies,
         proxies=proxies_list,
     )
 

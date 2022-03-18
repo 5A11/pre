@@ -11,6 +11,7 @@ from pre.common import (
     DelegationStatus,
     GetFragmentsResponse,
     HashID,
+    ProxyAvailability,
     ProxyStatus,
     ProxyTask,
     StakingConfig,
@@ -50,11 +51,11 @@ class AbstractContractQueries(BaseAbstractContract):
     """Interface for contract queries."""
 
     @abstractmethod
-    def get_avaiable_proxies(self) -> List[bytes]:
+    def get_available_proxies(self) -> List[ProxyAvailability]:
         """
         Get proxies registered with contract.
 
-        :return: list of proxies pubkeys as bytes
+        :return: list of proxies pubkeys as bytes and stake_amount as Uint128
         """
 
     @abstractmethod
@@ -95,21 +96,6 @@ class AbstractContractQueries(BaseAbstractContract):
         """
 
     @abstractmethod
-    def get_selected_proxies_for_delegation(
-        self,
-        delegator_pubkey_bytes: bytes,
-        delegatee_pubkey_bytes: bytes,
-    ) -> List[bytes]:
-        """
-        Get selected proxy for delegation.
-
-        :param delegator_pubkey_bytes: Delegator public key as bytes
-        :param delegatee_pubkey_bytes: Delegatee public key as bytes
-
-        :return: list of proxies keys as bytes
-        """
-
-    @abstractmethod
     def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
         """
         Get next proxy task for proxy specified by proxy public key.
@@ -144,11 +130,10 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         admin_private_key: AbstractLedgerCrypto,
         admin_addr: Address,
         stake_denom: str,
-        minimum_proxy_stake_amount: Optional[str] = None,
-        per_proxy_request_reward_amount: Optional[str] = None,
-        per_request_slash_stake_amount: Optional[str] = None,
+        minimum_proxy_stake_amount: Optional[int] = None,
+        per_proxy_request_reward_amount: Optional[int] = None,
+        per_request_slash_stake_amount: Optional[int] = None,
         threshold: Optional[int] = None,
-        n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
         timeout_height: Optional[int] = None,
         proxy_whitelisting: Optional[bool] = None,
@@ -162,11 +147,10 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         :param admin_private_key: private ledger key instance
         :param admin_addr: address of contract administator
         :param stake_denom: str,
-        :param minimum_proxy_stake_amount: Optional[str]
-        :param per_proxy_request_reward_amount: Optional[str] = None
-        :param per_request_slash_stake_amount: Optional[str] = None
+        :param minimum_proxy_stake_amount: Optional[int]
+        :param per_proxy_request_reward_amount: Optional[int] = None
+        :param per_request_slash_stake_amount: Optional[int] = None
         :param threshold: int threshold ,
-        :param n_max_proxies: max amount of proxy allowed to register,
         :param proxies: optional list of proxies addresses,
         :param timeout_height: Timeout height
         :param proxy_whitelisting: Proxy whitelisting
@@ -238,7 +222,7 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         """
 
     @abstractmethod
-    def get_delegation_status(  # FIXME(LR) duplicate of get_selected_proxies_for_delegation
+    def get_delegation_status(
         self,
         delegator_pubkey_bytes: bytes,
         delegatee_pubkey_bytes: bytes,
@@ -250,38 +234,6 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         :param delegatee_pubkey_bytes: Delegatee public key as bytes
 
         :return: DelegationStatus instance
-        """
-
-    @abstractmethod
-    def get_selected_proxies_for_delegation(
-        self,
-        delegator_pubkey_bytes: bytes,
-        delegatee_pubkey_bytes: bytes,
-    ) -> List[bytes]:
-        """
-        Get selected proxies for delegation.
-
-        :param delegator_pubkey_bytes: Delegator public key as bytes
-        :param delegatee_pubkey_bytes: Delegatee public key as bytes
-
-        :return:  List of proxy public keys as bytes
-        """
-
-    @abstractmethod
-    def request_proxies_for_delegation(
-        self,
-        delegator_private_key: AbstractLedgerCrypto,
-        delegator_pubkey_bytes: bytes,
-        delegatee_pubkey_bytes: bytes,
-    ) -> List[bytes]:
-        """
-        Request proxies for delegation.
-
-        :param delegator_private_key: Delegator ledger private key
-        :param delegator_pubkey_bytes: Delegator public key as bytes
-        :param delegatee_pubkey_bytes: Delegatee public key as bytes
-
-        :return:  List of proxy public keys as bytes
         """
 
     @abstractmethod
@@ -304,11 +256,11 @@ class AbstractDelegatorContract(BaseAbstractContract, ABC):
         """
 
     @abstractmethod
-    def get_avaiable_proxies(self) -> List[bytes]:
+    def get_available_proxies(self) -> List[ProxyAvailability]:
         """
         Get list of proxies registered.
 
-        :return:  List of proxy public keys as bytes
+        :return:  List of proxy public keys as bytes and stake_amount as Uint128
         """
 
 
@@ -508,6 +460,10 @@ class DelegationAlreadyAdded(ContractExecutionError):
 
 class NotEnoughStakeToWithdraw(ContractExecutionError):
     """Not enough stake to withdraw."""
+
+
+class NotEnoughProxies(ContractExecutionError):
+    """More proxies needs to be selected."""
 
 
 class ProxiesAreTooBusy(ContractExecutionError):

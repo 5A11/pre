@@ -22,9 +22,7 @@ static DELEGATOR_ADDRESS_KEY: &[u8] = b"DelegatorAddr";
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct State {
     pub admin: Addr,
-    // n_selected proxies will be between threshold and n_max_proxies
     pub threshold: u32,
-    pub n_max_proxies: u32,
     pub proxy_whitelisting: bool,
 
     // Total number of re-encryption requests

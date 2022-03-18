@@ -26,14 +26,6 @@
         }
       ]
     },
-    "n_max_proxies": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "format": "uint32",
-      "minimum": 0.0
-    },
     "per_proxy_request_reward_amount": {
       "anyOf": [
         {
@@ -62,6 +54,12 @@
       "items": {
         "$ref": "#/definitions/Addr"
       }
+    },
+    "proxy_whitelisting": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "stake_denom": {
       "type": "string"

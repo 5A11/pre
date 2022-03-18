@@ -14,6 +14,7 @@ from pre.common import (
     GetFragmentsResponse,
     HashID,
     JSONLike,
+    ProxyAvailability,
     ProxyState,
     ProxyStatus,
     ProxyTask,
@@ -36,6 +37,7 @@ from pre.contract.base_contract import (
     DelegationAlreadyExist,
     FragmentVerificationFailed,
     NotAdminError,
+    NotEnoughProxies,
     NotEnoughStakeToWithdraw,
     ProxiesAreTooBusy,
     ProxyAlreadyExist,
@@ -94,7 +96,7 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise ProxyNotRegistered(raw_log, error_code, res)
         if "Proxy already unregistered" in raw_log:
             raise ProxyNotRegistered(raw_log, error_code, res)
-        if "No proxies selected for this delegation" in raw_log:
+        if "Unknown proxy with pubkey" in raw_log:
             raise UnknownProxy(raw_log, error_code, res)
         if "Reencryption already requested" in raw_log:
             raise ReencryptionAlreadyRequested(raw_log, error_code, res)
@@ -102,7 +104,9 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise ReencryptedCapsuleFragAlreadyProvided(raw_log, error_code, res)
         if "Entry with ID hash_id already exist" in raw_log:
             raise DataAlreadyExist(raw_log, error_code, res)
-        if "Delegation strings already provided" in raw_log:
+        if "Delegation string was already provided" in raw_log:
+            raise DelegationAlreadyExist(raw_log, error_code, res)
+        if "Delegation already exists" in raw_log:
             raise DelegationAlreadyExist(raw_log, error_code, res)
         if "This fragment was not requested" in raw_log:
             raise UnkownReencryptionRequest(raw_log, error_code, res)
@@ -120,6 +124,8 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise FragmentVerificationFailed(raw_log, error_code, res)
         if "Fragment already provided by other proxy" in raw_log:
             raise FragmentVerificationFailed(raw_log, error_code, res)
+        if "Required at least" in raw_log:
+            raise NotEnoughProxies(raw_log, error_code, res)
         raise ContractExecutionError(
             f"Contract execution failed: {raw_log}", error_code, res
         )  # pragma: nocover
@@ -149,7 +155,7 @@ class ContractQueries(AbstractContractQueries):
                 raise ContractQueryError(str(e)) from e
             raise
 
-    def get_avaiable_proxies(self) -> List[bytes]:
+    def get_available_proxies(self) -> List[ProxyAvailability]:
         """
         Get proxies registered with contract.
 
@@ -157,29 +163,14 @@ class ContractQueries(AbstractContractQueries):
         """
         state_msg: Dict = {"get_available_proxies": {}}
         json_res = self._send_query(state_msg)
-        return [b64decode(i) for i in cast(List[str], json_res["proxy_pubkeys"])]
 
-    def get_selected_proxies_for_delegation(
-        self,
-        delegator_pubkey_bytes: bytes,
-        delegatee_pubkey_bytes: bytes,
-    ) -> List[bytes]:
-        """
-        Get selected proxy for delegation.
-
-        :param delegator_pubkey_bytes: Delegator public key as bytes
-        :param delegatee_pubkey_bytes: Delegatee public key as bytes
-
-        :return: list of proxies keys as bytes
-        """
-        state_msg: Dict = {
-            "get_selected_proxies_for_delegation": {
-                "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
-                "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
-            }
-        }
-        json_res = self._send_query(state_msg)
-        return [b64decode(i) for i in cast(List[str], json_res["proxy_pubkeys"])]
+        return [
+            ProxyAvailability(
+                proxy_pubkey=b64decode(proxy["proxy_pubkey"]),
+                stake_amount=proxy["stake_amount"],
+            )
+            for proxy in cast(Dict, json_res["proxies"])
+        ]
 
     def get_data_entry(self, data_id: HashID) -> Optional[DataEntry]:
         """
@@ -208,7 +199,6 @@ class ContractQueries(AbstractContractQueries):
         return ContractState(
             admin=cast(str, json_res["admin"]),
             threshold=cast(int, json_res["threshold"]),
-            n_max_proxies=cast(int, json_res["n_max_proxies"]),
         )
 
     def get_staking_config(self) -> StakingConfig:
@@ -348,11 +338,10 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         admin_private_key: AbstractLedgerCrypto,
         admin_addr: Address,
         stake_denom: str,
-        minimum_proxy_stake_amount: Optional[str] = None,
-        per_proxy_request_reward_amount: Optional[str] = None,
-        per_request_slash_stake_amount: Optional[str] = None,
+        minimum_proxy_stake_amount: Optional[int] = None,
+        per_proxy_request_reward_amount: Optional[int] = None,
+        per_request_slash_stake_amount: Optional[int] = None,
         threshold: Optional[int] = None,
-        n_max_proxies: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
         timeout_height: Optional[int] = None,
         proxy_whitelisting: Optional[bool] = None,
@@ -364,13 +353,12 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
 
         :param ledger: ledger instance to perform contract deployment
         :param admin_private_key: private ledger key instance
-        :param admin_addr: address of contract administator
+        :param admin_addr: address of contract administrator
         :param stake_denom: str,
-        :param minimum_proxy_stake_amount: Optional[str]
-        :param per_proxy_request_reward_amount: Optional[str] = None
-        :param per_request_slash_stake_amount: Optional[str] = None
+        :param minimum_proxy_stake_amount: Optional[int]
+        :param per_proxy_request_reward_amount: Optional[int] = None
+        :param per_request_slash_stake_amount: Optional[int] = None
         :param threshold: int threshold ,
-        :param n_max_proxies: max amount of proxy allowed to register,
         :param proxies: optional list of proxies addresses,
         :param timeout_height: Timeout height
         :param proxy_whitelisting: Proxy whitelisting
@@ -394,18 +382,17 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
             init_msg["threshold"] = threshold
 
         if minimum_proxy_stake_amount is not None:
-            init_msg["minimum_proxy_stake_amount"] = minimum_proxy_stake_amount
+            init_msg["minimum_proxy_stake_amount"] = str(minimum_proxy_stake_amount)
 
         if per_proxy_request_reward_amount is not None:
-            init_msg[
-                "per_proxy_request_reward_amount"
-            ] = per_proxy_request_reward_amount
+            init_msg["per_proxy_request_reward_amount"] = str(
+                per_proxy_request_reward_amount
+            )
 
         if per_request_slash_stake_amount is not None:
-            init_msg["per_request_slash_stake_amount"] = per_request_slash_stake_amount
-
-        if n_max_proxies is not None:
-            init_msg["n_max_proxies"] = n_max_proxies
+            init_msg["per_request_slash_stake_amount"] = str(
+                per_request_slash_stake_amount
+            )
 
         if timeout_height is not None:
             init_msg["timeout_height"] = timeout_height
@@ -541,57 +528,6 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
             ledger=self.ledger, contract_address=self.contract_address
         ).get_delegation_status(delegator_pubkey_bytes, delegatee_pubkey_bytes)
 
-    def get_selected_proxies_for_delegation(
-        self,
-        delegator_pubkey_bytes: bytes,
-        delegatee_pubkey_bytes: bytes,
-    ) -> List[bytes]:
-        """
-        Get selected proxies for delegation.
-
-        :param delegator_pubkey_bytes: Delegator public key as bytes
-        :param delegatee_pubkey_bytes: Delegatee public key as bytes
-
-        :return:  List of proxy public keys as bytes
-        """
-        return ContractQueries(
-            ledger=self.ledger, contract_address=self.contract_address
-        ).get_selected_proxies_for_delegation(
-            delegator_pubkey_bytes, delegatee_pubkey_bytes
-        )
-
-    def request_proxies_for_delegation(
-        self,
-        delegator_private_key: AbstractLedgerCrypto,
-        delegator_pubkey_bytes: bytes,
-        delegatee_pubkey_bytes: bytes,
-    ) -> List[bytes]:
-        """
-        Request proxies for delegation.
-
-        :param delegator_private_key: Delegator ledger private key
-        :param delegator_pubkey_bytes: Delegator public key as bytes
-        :param delegatee_pubkey_bytes: Delegatee public key as bytes
-
-        :return:  List of proxy public keys as bytes
-        """
-        submit_msg = {
-            "request_proxies_for_delegation": {
-                "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
-                "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
-            }
-        }
-        res, error_code = self.ledger.send_execute_msg(
-            delegator_private_key, self.contract_address, submit_msg
-        )
-        self._exception_from_res(error_code, res)
-
-        # FIXME(LR) parse `res`` instead
-        return self.get_selected_proxies_for_delegation(
-            delegator_pubkey_bytes,
-            delegatee_pubkey_bytes,
-        )
-
     def request_reencryption(
         self,
         delegator_private_key: AbstractLedgerCrypto,
@@ -602,7 +538,6 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
     ):
         """
         Request reencryption for the data with proxies selected for delegation.
-
         :param delegator_private_key: Delegator ledger private key
         :param delegator_pubkey_bytes: Delegator public key as bytes
         :param hash_id: str, hash_id the encrypteed data published
@@ -624,7 +559,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
         )
         self._exception_from_res(error_code, res)
 
-    def get_avaiable_proxies(self) -> List[bytes]:
+    def get_available_proxies(self) -> List[ProxyAvailability]:
         """
         Get list of proxies registered.
 
@@ -632,7 +567,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
         """
         return ContractQueries(
             ledger=self.ledger, contract_address=self.contract_address
-        ).get_avaiable_proxies()
+        ).get_available_proxies()
 
 
 class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):

@@ -208,10 +208,9 @@ STORAGE_CONFIG["addr"] = IPFS_HOST
 IPFS_STORAGE = IpfsStorage(**STORAGE_CONFIG)
 
 STAKE_DENOM = os.environ.get("STAKE_DENOM", "atestfet")
-N_MAX_PROXIES = os.environ.get("N_MAX_PROXIES", 10)
 
 THRESHOLD = 1
-
+N_MAX_PROXIES = 10
 
 def _get_contract_address():
     # FUNDED_FETCHAI_PRIVATE_KEY_1 = (
@@ -224,7 +223,6 @@ def _get_contract_address():
     #             admin_addr=admin_ledger_crypto.get_address(),
     #             stake_denom=STAKE_DENOM,
     #             threshold=THRESHOLD,
-    #             n_max_proxies=N_MAX_PROXIES,
     # )
     return "contract-address"
 

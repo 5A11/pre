@@ -1,8 +1,8 @@
 use crate::msg::{
     ExecuteMsg, GetAvailableProxiesResponse, GetContractStateResponse, GetDataIDResponse,
     GetDelegationStatusResponse, GetFragmentsResponse, GetNextProxyTaskResponse,
-    GetProxyStatusResponse, GetSelectedProxiesForDelegationResponse, GetStakingConfigResponse,
-    InstantiateMsg, ProxyDelegationString, ProxyStatus, ProxyTask, QueryMsg,
+    GetProxyStatusResponse, GetStakingConfigResponse, InstantiateMsg, ProxyAvailability,
+    ProxyDelegationString, ProxyStatus, ProxyTask, QueryMsg,
 };
 use crate::proxies::{
     maximum_withdrawable_stake_amount, store_get_all_active_proxy_pubkeys, store_get_proxy_address,
@@ -65,7 +65,6 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let state = State {
         admin: msg.admin.unwrap_or(info.sender),
-        n_max_proxies: msg.n_max_proxies.unwrap_or(u32::MAX),
         threshold: msg.threshold.unwrap_or(1),
         next_proxy_request_id: 0,
         next_delegation_id: 0,
@@ -95,12 +94,6 @@ pub fn instantiate(
         next_request_id_to_be_checked: 0,
     };
     store_set_timeouts_config(deps.storage, &timeouts_config)?;
-
-    if state.n_max_proxies < get_n_minimum_proxies_for_refund(&state, &staking_config) {
-        return generic_err!(
-            "Value of n_max_proxies cannot be lower than minimum proxies to refund delegator."
-        );
-    }
 
     store_set_state(deps.storage, &state)?;
 
@@ -595,72 +588,6 @@ fn try_add_data(
     Ok(response)
 }
 
-fn try_request_proxies_for_delegation(
-    mut response: Response,
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    delegator_pubkey: &str,
-    delegatee_pubkey: &str,
-) -> StdResult<Response> {
-    let mut state = store_get_state(deps.storage)?;
-
-    ensure_delegator(deps.storage, delegator_pubkey, &info.sender)?;
-
-    if !store_is_proxy_delegation_empty(deps.storage, delegator_pubkey, delegatee_pubkey) {
-        return generic_err!("Delegation already exist");
-    }
-
-    let selected_proxy_pubkeys = select_proxy_pubkeys(deps.storage)?;
-    let mut selected_proxy_pubkeys_str: String = String::from("[");
-
-    // Create individual proxy delegations
-    let delegation = ProxyDelegation {
-        delegator_pubkey: delegator_pubkey.to_string(),
-        delegatee_pubkey: delegatee_pubkey.to_string(),
-        delegation_string: None,
-    };
-
-    for proxy_pubkey in selected_proxy_pubkeys {
-        store_set_delegation(deps.storage, &state.next_delegation_id, &delegation);
-        store_set_delegation_id(
-            deps.storage,
-            delegator_pubkey,
-            delegatee_pubkey,
-            &proxy_pubkey,
-            &state.next_delegation_id,
-        );
-        store_add_per_proxy_delegation(deps.storage, &proxy_pubkey, &state.next_delegation_id);
-
-        selected_proxy_pubkeys_str += format!("\"{}\", ", proxy_pubkey).as_str();
-
-        state.next_delegation_id += 1;
-    }
-    selected_proxy_pubkeys_str += "]";
-
-    store_set_state(deps.storage, &state)?;
-
-    // Return response
-    response
-        .attributes
-        .push(Attribute::new("action", "request_proxies_for_delegation"));
-    response
-        .attributes
-        .push(Attribute::new("delegator_address", info.sender.as_str()));
-    response
-        .attributes
-        .push(Attribute::new("delegator_pubkey", delegator_pubkey));
-    response
-        .attributes
-        .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
-    response.attributes.push(Attribute::new(
-        "selected_proxies",
-        selected_proxy_pubkeys_str,
-    ));
-
-    Ok(response)
-}
-
 fn try_add_delegation(
     mut response: Response,
     deps: DepsMut,
@@ -672,46 +599,65 @@ fn try_add_delegation(
 ) -> StdResult<Response> {
     ensure_delegator(deps.storage, delegator_pubkey, &info.sender)?;
 
-    let n_expected_strings =
-        store_get_all_proxies_from_delegation(deps.storage, delegator_pubkey, delegatee_pubkey)
-            .len();
-
-    if n_expected_strings == 0 {
-        return generic_err!("No proxies selected for this delegation");
+    if !store_is_proxy_delegation_empty(deps.storage, delegator_pubkey, delegatee_pubkey) {
+        return generic_err!("Delegation already exists.");
     }
 
-    if n_expected_strings != proxy_delegations.len() {
-        return generic_err!(format!(
-            "Provided wrong number of delegation strings, expected {} got {}.",
-            n_expected_strings,
-            proxy_delegations.len()
-        ));
+    let mut state: State = store_get_state(deps.storage)?;
+    let staking_config: StakingConfig = store_get_staking_config(deps.storage)?;
+
+    let n_minimum_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
+
+    if proxy_delegations.len() < n_minimum_proxies as usize {
+        return generic_err!(format!("Required at least {} proxies.", n_minimum_proxies));
     }
 
     for proxy_delegation in proxy_delegations {
-        let delegation_id = match store_get_proxy_delegation_id(
+        if store_get_proxy_address(deps.storage, &proxy_delegation.proxy_pubkey).is_none() {
+            return generic_err!(format!(
+                "Unknown proxy with pubkey {}",
+                &proxy_delegation.proxy_pubkey
+            ));
+        }
+
+        if store_get_proxy_delegation_id(
             deps.storage,
             delegator_pubkey,
             delegatee_pubkey,
             &proxy_delegation.proxy_pubkey,
-        ) {
-            None => generic_err!(format!(
-                "Proxy {} not selected for delegation.",
-                proxy_delegation.proxy_pubkey
-            )),
-            Some(delegation_id) => Ok(delegation_id),
-        }?;
-
-        let mut delegation = store_get_delegation(deps.storage, &delegation_id).unwrap();
-
-        // ProxyDelegation requested and strings already provided
-        if delegation.delegation_string.is_some() {
-            return generic_err!("ProxyDelegation strings already provided");
+        )
+        .is_some()
+        {
+            return generic_err!(format!(
+                "Delegation string was already provided for proxy {}.",
+                &proxy_delegation.proxy_pubkey
+            ));
         }
 
-        delegation.delegation_string = Some(proxy_delegation.delegation_string.clone());
-        store_set_delegation(deps.storage, &delegation_id, &delegation);
+        let delegation = ProxyDelegation {
+            delegator_pubkey: delegator_pubkey.to_string(),
+            delegatee_pubkey: delegatee_pubkey.to_string(),
+            delegation_string: proxy_delegation.delegation_string.clone(),
+        };
+
+        store_set_delegation(deps.storage, &state.next_delegation_id, &delegation);
+        store_set_delegation_id(
+            deps.storage,
+            delegator_pubkey,
+            delegatee_pubkey,
+            &proxy_delegation.proxy_pubkey,
+            &state.next_delegation_id,
+        );
+        store_add_per_proxy_delegation(
+            deps.storage,
+            &proxy_delegation.proxy_pubkey,
+            &state.next_delegation_id,
+        );
+
+        state.next_delegation_id += 1;
     }
+
+    store_set_state(deps.storage, &state)?;
 
     // Return response
     response
@@ -841,15 +787,9 @@ fn try_request_reencryption(
         .unwrap();
         let delegation = store_get_delegation(deps.storage, &delegation_id).unwrap();
 
-        // Can happen only when you request re-encryption before providing delegation strings for proxies
-        let delegation_string: String = match delegation.delegation_string {
-            None => generic_err!("Not all delegation strings provided"),
-            Some(delegation_string) => Ok(delegation_string),
-        }?;
-
         // Add reencryption task for each proxy
         new_proxy_request.proxy_pubkey = proxy_pubkey.clone();
-        new_proxy_request.delegation_string = delegation_string;
+        new_proxy_request.delegation_string = delegation.delegation_string;
         let request_id = state.next_proxy_request_id;
         store_set_proxy_reencryption_request(deps.storage, &request_id, &new_proxy_request);
         store_add_delegatee_proxy_reencryption_request(
@@ -941,6 +881,24 @@ pub fn get_next_proxy_task(
     Ok(Some(proxy_task))
 }
 
+pub fn get_proxies_availability(store: &dyn Storage) -> Vec<ProxyAvailability> {
+    let proxy_pubkeys = store_get_all_active_proxy_pubkeys(store);
+
+    let mut res: Vec<ProxyAvailability> = Vec::new();
+
+    for proxy_pubkey in proxy_pubkeys {
+        let proxy_addr = store_get_proxy_address(store, &proxy_pubkey).unwrap();
+        let proxy_entry: Proxy = store_get_proxy_entry(store, &proxy_addr).unwrap();
+
+        res.push(ProxyAvailability {
+            proxy_pubkey,
+            stake_amount: proxy_entry.stake_amount,
+        });
+    }
+
+    res
+}
+
 #[entry_point]
 pub fn execute(
     deps: DepsMut,
@@ -1015,17 +973,6 @@ pub fn execute(
             &delegatee_pubkey,
             &proxy_delegations,
         ),
-        ExecuteMsg::RequestProxiesForDelegation {
-            delegator_pubkey,
-            delegatee_pubkey,
-        } => try_request_proxies_for_delegation(
-            response,
-            deps,
-            env,
-            info,
-            &delegator_pubkey,
-            &delegatee_pubkey,
-        ),
         ExecuteMsg::RequestReencryption {
             data_id,
             delegatee_pubkey,
@@ -1037,7 +984,7 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetAvailableProxies {} => Ok(to_binary(&GetAvailableProxiesResponse {
-            proxy_pubkeys: store_get_all_active_proxy_pubkeys(deps.storage),
+            proxies: get_proxies_availability(deps.storage),
         })?),
         QueryMsg::GetDataID { data_id } => Ok(to_binary(&GetDataIDResponse {
             data_entry: store_get_data_entry(deps.storage, &data_id),
@@ -1070,7 +1017,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             Ok(to_binary(&GetContractStateResponse {
                 admin: state.admin,
                 threshold: state.threshold,
-                n_max_proxies: state.n_max_proxies,
             })?)
         }
 
@@ -1115,17 +1061,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 },
             })?)
         }
-
-        QueryMsg::GetSelectedProxiesForDelegation {
-            delegator_pubkey,
-            delegatee_pubkey,
-        } => Ok(to_binary(&GetSelectedProxiesForDelegationResponse {
-            proxy_pubkeys: store_get_all_proxies_from_delegation(
-                deps.storage,
-                &delegator_pubkey,
-                &delegatee_pubkey,
-            ),
-        })?),
 
         QueryMsg::GetProxyStatus { proxy_pubkey } => {
             let mut proxy_status: Option<ProxyStatus> = None;
@@ -1199,24 +1134,6 @@ fn ensure_stake(
         ));
     }
     Ok(())
-}
-
-fn select_proxy_pubkeys(store: &dyn Storage) -> StdResult<Vec<String>> {
-    let state: State = store_get_state(store)?;
-    let staking_config: StakingConfig = store_get_staking_config(store)?;
-
-    let proxy_pubkeys = store_get_all_active_proxy_pubkeys(store);
-
-    // Select n_max_proxies or maximum possible
-    let n_proxies = std::cmp::min(state.n_max_proxies as usize, proxy_pubkeys.len());
-
-    let n_min_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
-
-    if n_proxies < n_min_proxies as usize {
-        return generic_err!("Less than minimum proxies registered");
-    }
-
-    Ok(proxy_pubkeys[0..n_proxies].to_vec())
 }
 
 /*

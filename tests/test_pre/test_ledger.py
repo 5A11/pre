@@ -27,7 +27,7 @@ def test_crypto():
     bytes(crypto)
 
 
-def test_server_not_avaiable():
+def test_server_not_available():
     conf = CosmosLedger.CONFIG_CLASS.make_default()
     conf["node_address"] = "http://127.0.0.1:55317"
     ledger = CosmosLedger(**conf)

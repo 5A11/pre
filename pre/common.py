@@ -157,7 +157,6 @@ class ContractState:
 
     admin: Address
     threshold: int
-    n_max_proxies: int
 
 
 @dataclass
@@ -192,6 +191,14 @@ class ProxyStatus:
     stake_amount: str
     withdrawable_stake_amount: str
     proxy_state: ProxyState
+
+
+@dataclass
+class ProxyAvailability:
+    """Proxy availability data class."""
+
+    proxy_pubkey: bytes
+    stake_amount: str
 
 
 def types_from_annotations(func: Callable) -> Dict:

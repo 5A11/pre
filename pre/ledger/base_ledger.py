@@ -140,4 +140,4 @@ class AbstractLedger:
 
 
 class LedgerServerNotAvailable(Exception):
-    """Ledger server is not avaiable by address provided."""
+    """Ledger server is not available by address provided."""

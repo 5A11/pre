@@ -1,0 +1,150 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "get_available_proxies"
+      ],
+      "properties": {
+        "get_available_proxies": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_data_i_d"
+      ],
+      "properties": {
+        "get_data_i_d": {
+          "type": "object",
+          "required": [
+            "data_id"
+          ],
+          "properties": {
+            "data_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_fragments"
+      ],
+      "properties": {
+        "get_fragments": {
+          "type": "object",
+          "required": [
+            "data_id",
+            "delegatee_pubkey"
+          ],
+          "properties": {
+            "data_id": {
+              "type": "string"
+            },
+            "delegatee_pubkey": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_contract_state"
+      ],
+      "properties": {
+        "get_contract_state": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_staking_config"
+      ],
+      "properties": {
+        "get_staking_config": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_next_proxy_task"
+      ],
+      "properties": {
+        "get_next_proxy_task": {
+          "type": "object",
+          "required": [
+            "proxy_pubkey"
+          ],
+          "properties": {
+            "proxy_pubkey": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_delegation_status"
+      ],
+      "properties": {
+        "get_delegation_status": {
+          "type": "object",
+          "required": [
+            "delegatee_pubkey",
+            "delegator_pubkey"
+          ],
+          "properties": {
+            "delegatee_pubkey": {
+              "type": "string"
+            },
+            "delegator_pubkey": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_proxy_status"
+      ],
+      "properties": {
+        "get_proxy_status": {
+          "type": "object",
+          "required": [
+            "proxy_pubkey"
+          ],
+          "properties": {
+            "proxy_pubkey": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetFragmentsResponse",
+  "type": "object",
+  "required": [
+    "capsule",
+    "fragments",
+    "reencryption_request_state",
+    "threshold"
+  ],
+  "properties": {
+    "capsule": {
+      "type": "string"
+    },
+    "fragments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reencryption_request_state": {
+      "$ref": "#/definitions/ReencryptionRequestState"
+    },
+    "threshold": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "ReencryptionRequestState": {
+      "type": "string",
+      "enum": [
+        "inaccessible",
+        "ready",
+        "granted",
+        "abandoned",
+        "timed_out"
+      ]
+    }
+  }
+}

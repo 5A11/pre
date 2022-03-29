@@ -9,9 +9,7 @@ from rest_framework import serializers
 
 from .constants import (
     ENCRYPTION_MAX_LENGTH,
-    ENCRYPTION_MIN_LENGTH,
     LEDGER_MAX_LENGTH,
-    LEDGER_MIN_LENGTH,
 )
 from .helpers import create_user_profile
 from .models import UserProfile

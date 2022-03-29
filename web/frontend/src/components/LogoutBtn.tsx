@@ -4,14 +4,15 @@ import Cookies from "js-cookie";
 
 import { postApi } from "../apis/Requests";
 
-interface LogoutFormState { }
+interface LogoutBtnState { }
 
-interface LogoutFormProps {
+interface LogoutBtnProps {
     setIsLoggedIn: (value: boolean) => void;
 }
 
-class LogoutForm extends React.Component<LogoutFormProps, LogoutFormState> {
-    async handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+class LogoutBtn extends React.Component<LogoutBtnProps, LogoutBtnState> {
+
+    async handleClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): Promise<void> {
         event.preventDefault();
         await this.apiLogout();
     }
@@ -29,14 +30,8 @@ class LogoutForm extends React.Component<LogoutFormProps, LogoutFormState> {
     }
 
     render(): JSX.Element {
-        return (
-            <div>
-                <form onSubmit={this.handleSubmit.bind(this)}>
-                    <button type="submit">Logout</button>
-                </form>
-            </div>
-        );
+        return <button onClick={this.handleClick.bind(this)}>Logout</button>
     }
 }
 
-export default LogoutForm;
+export default LogoutBtn;

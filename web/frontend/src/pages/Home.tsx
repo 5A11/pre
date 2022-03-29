@@ -1,12 +1,12 @@
 import React from 'react'
 
-import UserInfo from '../components/UserInfo'
+import Startup from '../components/Startup'
 
 
 const Home = (): JSX.Element => (
   <React.Fragment>
 
-    <UserInfo />
+    <Startup />
 
   </React.Fragment>
 )

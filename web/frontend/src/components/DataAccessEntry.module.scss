@@ -1,0 +1,17 @@
+.Row {
+    display: block;
+}
+
+.Col {
+    display:inline-block;
+    overflow-y: auto;
+    width: 40%;
+    padding: 5px;
+}
+
+.CheckboxCol {
+    @extend .Col;
+    margin: 0px;
+    width: 10%;
+    display: contents;
+}

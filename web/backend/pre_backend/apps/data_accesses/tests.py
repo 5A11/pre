@@ -54,8 +54,43 @@ class DataAccessGrantedListAPIViewTestCase(TestCase):
         expected_result = [
             {
                 "id": 2,
+                "data_id": "b" * DATA_ID_MAX_LENGTH,
                 "owner": 2,
-                "readers": [1],
+                "readers": ["admin"],
+            },
+        ]
+        self.assertEqual(result, expected_result)
+
+
+class DataAccessOwnedListAPIViewTestCase(TestCase):
+    """Test case for DataAccessOwnedListAPIView."""
+
+    fixtures = [
+        "pre_backend/fixtures/data_accesses.json",
+        "pre_backend/fixtures/users.json",
+    ]
+
+    def test_unauthorized_access(self):
+        """Test for unauthorized access."""
+        url = reverse("data-access-owned-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, HTTP_UNAUTHORIZED)
+
+    def test_get_data_access_owned_list_positive(self):
+        """Test for DataAccess owned list positive result."""
+        username = "admin"
+        self.client.login(username=username, password="admin")
+
+        url = reverse("data-access-owned-list")
+        response = self.client.get(url)
+        result, status_code = response.json(), response.status_code
+        self.assertEqual(status_code, HTTP_OK)
+        expected_result = [
+            {
+                "id": 1,
+                "data_id": "a" * DATA_ID_MAX_LENGTH,
+                "owner": 1,
+                "readers": ["user"],
             },
         ]
         self.assertEqual(result, expected_result)
@@ -123,8 +158,9 @@ class DataAccessAPIViewTestCase(TestCase):
 
         expected_result = {
             "id": 1,
+            "data_id": "a" * DATA_ID_MAX_LENGTH,
             "owner": 1,
-            "readers": [2],
+            "readers": ["user"],
         }
         self.assertEqual(result, expected_result)
 

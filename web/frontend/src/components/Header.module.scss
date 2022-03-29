@@ -1,0 +1,14 @@
+.Header {
+    border-bottom: 1px solid;
+}
+
+.ColLeft {
+    display: inline-block;
+    width: 50%;
+}
+
+.ColRight {
+    display: inline-flex;
+    justify-content: right;
+    width: 50%;
+}

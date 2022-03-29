@@ -3,6 +3,8 @@
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
 
+from pre_backend.utils.serializers import UsernameRelatedField
+
 from .helpers import DelegatorSDK
 from .models import DataAccess
 
@@ -36,6 +38,7 @@ class DataAccessSerializer(serializers.ModelSerializer):
     """DataAccess serializer."""
 
     reader_public_key = serializers.CharField(write_only=True, required=False)
+    readers = UsernameRelatedField(many=True)
 
     class Meta:
         """DataAccess serializer setup."""
@@ -43,11 +46,12 @@ class DataAccessSerializer(serializers.ModelSerializer):
         model = DataAccess
         fields = (
             "id",
+            "data_id",
             "owner",
             "readers",
             "reader_public_key",
         )
-        read_only_fields = ("owner",)
+        read_only_fields = ("owner", "data_id")
 
     def update(self, instance, validated_data):
         """Update DataAccess object."""

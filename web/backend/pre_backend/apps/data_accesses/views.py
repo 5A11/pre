@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 
 # from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.exceptions import APIException
-from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveUpdateAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
@@ -41,7 +41,7 @@ class DataAccessOwnedListAPIView(ListAPIView):
         return self.request.user.data_accesses_owned
 
 
-class DataAccessAPIView(RetrieveUpdateAPIView):
+class DataAccessAPIView(RetrieveUpdateDestroyAPIView):
     """API View to retreive DataAccess."""
 
     serializer_class = DataAccessSerializer

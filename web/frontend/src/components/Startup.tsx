@@ -5,25 +5,27 @@ import Cookies from 'js-cookie'
 import { getApi } from '../apis/Requests'
 import ResponseUser from "../intefaces/ResponseUser"
 
+import Header from "./Header";
 import LoginForm from "./LoginForm"
-import LogoutForm from './LogoutForm'
 import RegisterForm from "./RegisterForm"
+import DataAccessGranted from "./DataAccessGranted";
+import DataAccessOwned from "./DataAccessOwned";
 
-import style from "./UserInfo.module.scss";
+import style from "./Startup.module.scss";
 
 
-interface UserInfoState {
+interface StartupState {
     responseUser: ResponseUser | null
     isLoggedIn: boolean
 }
 
 
-interface UserInfoProps {}
+interface StartupProps {}
 
 
-class UserInfo extends React.Component<UserInfoProps, UserInfoState> {
+class Startup extends React.Component<StartupProps, StartupState> {
 
-    constructor(props: UserInfoProps) {
+    constructor(props: StartupProps) {
         super(props)
 
         this.state = {
@@ -64,29 +66,35 @@ class UserInfo extends React.Component<UserInfoProps, UserInfoState> {
         await this.apiGetUserInfo()
     }
 
-    render(): JSX.Element {
+    renderBody():JSX.Element {
         if (this.state.isLoggedIn) {
-
-            return <div className={style.userInfoBlock}>
-
-                <LogoutForm setIsLoggedIn={this.setIsLoggedIn.bind(this)} />
-
-                <div>Welcome, {this.state.responseUser?.username}</div>
-    
+            return <div className={style.Body}>
+                <DataAccessOwned />
+                <DataAccessGranted />
             </div>
-
         }
         else {
-
-            return <div className={style.userInfoBlock}>
+            return <div className={style.Body}>
                 <LoginForm setIsLoggedIn={this.setIsLoggedIn.bind(this)} />
-                <div className={style.verticalLine} />
                 <RegisterForm />
             </div>
         }
     }
 
+    render(): JSX.Element {
+
+        return <div className={style.userInfoBlock}>
+            <Header 
+                setIsLoggedIn={this.setIsLoggedIn.bind(this)}
+                responseUser={this.state.responseUser}
+                isLoggedIn={this.state.isLoggedIn}
+            />
+            {this.renderBody()}
+
+        </div>
+    }
+
 }
 
 
-export default UserInfo
+export default Startup

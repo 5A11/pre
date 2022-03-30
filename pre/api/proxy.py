@@ -53,6 +53,10 @@ class ProxyAPI:
         """Unregister proxy."""
         self._contract.proxy_unregister(self._ledger_crypto)
 
+    def withdraw_stake(self, stake_amount: Optional[int] = None):
+        """Withdraw proxy stake."""
+        self._contract.withdraw_stake(self._ledger_crypto, stake_amount)
+
     def get_next_reencryption_request(
         self,
     ) -> Optional[ProxyTask]:

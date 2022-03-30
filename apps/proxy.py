@@ -1,4 +1,5 @@
 import time
+from typing import Optional
 
 import click
 
@@ -8,7 +9,6 @@ from pre.contract.base_contract import ProxyAlreadyRegistered
 
 
 PROG_NAME = "proxy"
-
 
 DEFAULT_SLEEP_TIME = 5
 
@@ -60,12 +60,34 @@ def unregister(ctx):
     click.echo("Proxy was unregistered")
 
 
+@cli.command(name="withdraw_stake")
+@click.option("--stake_amount", type=int, required=False)
+@click.pass_context
+def withdraw_stake(ctx, stake_amount: Optional[int] = None):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
+    proxy_api = ProxyAPI(
+        app_config.get_cryto_key(),
+        app_config.get_ledger_crypto(),
+        contract=app_config.get_proxy_contract(),
+        crypto=app_config.get_crypto_instance(),
+    )
+    proxy_api.withdraw_stake(stake_amount)
+    click.echo("Stake was withdrawn")
+
+
 @cli.command(name="run")
 @click.pass_context
 @click.option(
     "--run-once-and-exit", is_flag=True, hidden=True, help="for test purposes"
 )
-def run(ctx, run_once_and_exit: bool):
+@click.option(
+    "--auto-withdrawal",
+    is_flag=True,
+    required=False,
+    default=True,
+    help="Enable/disable automatic stake withdrawing",
+)
+def run(ctx, run_once_and_exit: bool, auto_withdrawal: bool):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
     proxy_api = ProxyAPI(
         app_config.get_cryto_key(),
@@ -90,6 +112,9 @@ def run(ctx, run_once_and_exit: bool):
                 click.echo(f"Got a reencryption task: {task}")
                 proxy_api.process_reencryption_request(task)
                 click.echo(f"Reencryption task processed: {task}")
+                if auto_withdrawal:
+                    proxy_api.withdraw_stake()
+                    click.echo("Stake withdrawn.")
             else:  # pragma: nocover
                 time.sleep(DEFAULT_SLEEP_TIME)
 

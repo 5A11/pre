@@ -654,7 +654,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
     def withdraw_stake(
         self,
         proxy_private_key: AbstractLedgerCrypto,
-        stake_amount: Optional[str] = None,
+        stake_amount: Optional[int] = None,
     ):
         """
         Withdraw proxy stake.
@@ -665,7 +665,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         if stake_amount is not None:
             submit_msg = {
                 "withdraw_stake": {
-                    "stake_amount": stake_amount,
+                    "stake_amount": str(stake_amount),
                 }
             }
         else:

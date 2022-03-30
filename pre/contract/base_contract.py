@@ -323,7 +323,7 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
     def withdraw_stake(
         self,
         proxy_private_key: AbstractLedgerCrypto,
-        stake_amount: Optional[str] = None,
+        stake_amount: Optional[int] = None,
     ):
         """
         Withdraw proxy stake.

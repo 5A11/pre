@@ -53,6 +53,17 @@ class ProxyAPI:
         """Unregister proxy."""
         self._contract.proxy_unregister(self._ledger_crypto)
 
+    def deactivate(self):
+        """Deactivate proxy."""
+        self._contract.proxy_deactivate(self._ledger_crypto)
+
+    def reactivate(self):
+        """Activate proxy after being deactivated."""
+        self._contract.proxy_register(
+            proxy_private_key=self._ledger_crypto,
+            proxy_pubkey_bytes=self._pub_key_as_bytes(),
+        )
+
     def withdraw_stake(self, stake_amount: Optional[int] = None):
         """Withdraw proxy stake."""
         self._contract.withdraw_stake(self._ledger_crypto, stake_amount)

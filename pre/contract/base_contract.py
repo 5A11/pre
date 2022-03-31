@@ -294,6 +294,17 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         """
 
     @abstractmethod
+    def proxy_deactivate(
+        self,
+        proxy_private_key: AbstractLedgerCrypto,
+    ):
+        """
+        Deactivate the proxy.
+
+        :param proxy_private_key: Proxy ledger private key
+        """
+
+    @abstractmethod
     def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
         """
         Get next proxy task.

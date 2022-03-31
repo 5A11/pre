@@ -588,11 +588,13 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         :param proxy_pubkey_bytes: Proxy public key as bytes
         :param stake_amount: Coin instance
         """
+
         submit_msg = {
             "register_proxy": {
                 "proxy_pubkey": encode_bytes(proxy_pubkey_bytes),
             }
         }
+
         res, error_code = self.ledger.send_execute_msg(
             proxy_private_key, self.contract_address, submit_msg, amount=[stake_amount]
         )
@@ -608,6 +610,21 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         :param proxy_private_key: Proxy ledger private key
         """
         submit_msg: Dict = {"unregister_proxy": {}}
+        res, error_code = self.ledger.send_execute_msg(
+            proxy_private_key, self.contract_address, submit_msg
+        )
+        self._exception_from_res(error_code, res)
+
+    def proxy_deactivate(
+        self,
+        proxy_private_key: AbstractLedgerCrypto,
+    ):
+        """
+        Deactivate the proxy.
+
+        :param proxy_private_key: Proxy ledger private key
+        """
+        submit_msg: Dict = {"deactivate_proxy": {}}
         res, error_code = self.ledger.send_execute_msg(
             proxy_private_key, self.contract_address, submit_msg
         )

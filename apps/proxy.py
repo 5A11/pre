@@ -60,6 +60,34 @@ def unregister(ctx):
     click.echo("Proxy was unregistered")
 
 
+@cli.command(name="deactivate")
+@click.pass_context
+def deactivate(ctx):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
+    proxy_api = ProxyAPI(
+        app_config.get_cryto_key(),
+        app_config.get_ledger_crypto(),
+        contract=app_config.get_proxy_contract(),
+        crypto=app_config.get_crypto_instance(),
+    )
+    proxy_api.deactivate()
+    click.echo("Proxy was deactivated")
+
+
+@cli.command(name="reactivate")
+@click.pass_context
+def reactivate(ctx):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
+    proxy_api = ProxyAPI(
+        app_config.get_cryto_key(),
+        app_config.get_ledger_crypto(),
+        contract=app_config.get_proxy_contract(),
+        crypto=app_config.get_crypto_instance(),
+    )
+    proxy_api.reactivate()
+    click.echo("Proxy was reactivated")
+
+
 @cli.command(name="withdraw_stake")
 @click.option("--stake_amount", type=int, required=False)
 @click.pass_context

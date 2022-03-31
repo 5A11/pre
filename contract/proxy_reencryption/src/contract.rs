@@ -239,23 +239,46 @@ fn try_register_proxy(
         Some(proxy) => Ok(proxy),
     }?;
 
-    if proxy.proxy_pubkey.is_some() {
-        return generic_err!("Proxy already registered.");
+    // Check if provided pubkey is not used by other proxy
+    if let Some(address) = store_get_proxy_address(deps.storage, &proxy_pubkey) {
+        if address != info.sender {
+            return generic_err!("Pubkey already used by different proxy.");
+        }
     }
 
-    if store_get_proxy_address(deps.storage, &proxy_pubkey).is_some() {
-        return generic_err!("Pubkey already used.");
+    // changes start from here
+    let mut funds_amount: u128 = 0;
+    match &proxy.proxy_pubkey {
+        // reactivation case
+        Some(pubkey) => {
+            if proxy.state == ProxyState::Registered {
+                return generic_err!("Proxy already registered.");
+            }
+
+            if pubkey != &proxy_pubkey {
+                return generic_err!(
+                    "Proxy need to be unregistered to use a different public key."
+                );
+            }
+
+            if !info.funds.is_empty() {
+                funds_amount = ensure_stake(&staking_config, &info.funds, &0u128)?;
+            }
+        }
+        // registration case
+        None => {
+            proxy.proxy_pubkey = Some(proxy_pubkey.clone());
+            funds_amount = ensure_stake(
+                &staking_config,
+                &info.funds,
+                &staking_config.minimum_proxy_stake_amount.u128(),
+            )?;
+        }
     }
 
-    ensure_stake(
-        &staking_config,
-        &info.funds,
-        &staking_config.minimum_proxy_stake_amount.u128(),
-    )?;
-
-    proxy.proxy_pubkey = Some(proxy_pubkey.clone());
+    // shared code between registration and reactivation
     proxy.state = ProxyState::Registered;
-    proxy.stake_amount = Uint128::new(proxy.stake_amount.u128() + info.funds[0].amount.u128());
+    proxy.stake_amount = proxy.stake_amount.checked_add(Uint128::new(funds_amount))?;
     store_set_proxy_entry(deps.storage, &info.sender, &proxy);
     store_set_is_proxy_active(deps.storage, &proxy_pubkey, true);
     store_set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
@@ -1119,7 +1142,7 @@ fn ensure_stake(
     staking_config: &StakingConfig,
     funds: &[Coin],
     required_stake: &u128,
-) -> StdResult<()> {
+) -> StdResult<u128> {
     if funds.len() != 1 || funds[0].denom != staking_config.stake_denom {
         return generic_err!(format!(
             "Expected 1 Coin with denom {}",
@@ -1133,7 +1156,7 @@ fn ensure_stake(
             required_stake, staking_config.stake_denom
         ));
     }
-    Ok(())
+    Ok(funds[0].amount.u128())
 }
 
 /*

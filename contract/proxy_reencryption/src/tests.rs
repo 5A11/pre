@@ -617,11 +617,13 @@ fn test_register_unregister_proxy_whitelisting() {
 
 #[test]
 fn test_register_unregister_proxy_no_whitelisting() {
+    // Test register, unregister and deactivate behaviour
     let mut deps = mock_dependencies();
     let creator = Addr::unchecked("creator".to_string());
     let proxy = Addr::unchecked("proxy1".to_string());
 
     let proxy_pubkey: String = String::from("proxy_pubkey");
+    let proxy_pubkey2: String = String::from("proxy_pubkey2");
 
     // Staking
     let stake_denom = DEFAULT_STAKE_DENOM.to_string();
@@ -646,6 +648,11 @@ fn test_register_unregister_proxy_no_whitelisting() {
     )
     .is_ok());
 
+    assert!(is_err(
+        deactivate_proxy(deps.as_mut(), &proxy, DEFAULT_BLOCK_HEIGHT,),
+        "Sender is not a proxy"
+    ));
+
     // Test if proxy can register when whitelisting is off
     assert!(register_proxy(
         deps.as_mut(),
@@ -667,6 +674,48 @@ fn test_register_unregister_proxy_no_whitelisting() {
         ),
         "already registered",
     ));
+
+    assert!(deactivate_proxy(deps.as_mut(), &proxy, DEFAULT_BLOCK_HEIGHT,).is_ok());
+
+    assert!(is_err(
+        deactivate_proxy(deps.as_mut(), &proxy, DEFAULT_BLOCK_HEIGHT,),
+        "Proxy already deactivated"
+    ));
+
+    let proxy_entry = store_get_proxy_entry(deps.as_mut().storage, &proxy).unwrap();
+    assert_eq!(
+        proxy_entry.stake_amount.u128(),
+        DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT
+    );
+
+    // Can't re-activate when providing different pubkey
+    assert!(is_err(
+        register_proxy(
+            deps.as_mut(),
+            &proxy,
+            DEFAULT_BLOCK_HEIGHT,
+            &proxy_pubkey2,
+            &proxy_stake
+        ),
+        "Proxy need to be unregistered to use a different public key"
+    ));
+
+    // Re-register/activate proxy
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy_pubkey,
+        &proxy_stake
+    )
+    .is_ok());
+
+    let proxy_entry = store_get_proxy_entry(deps.as_mut().storage, &proxy).unwrap();
+    // Provided stake is added
+    assert_eq!(
+        proxy_entry.stake_amount.u128(),
+        2 * DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT
+    );
 }
 
 #[test]

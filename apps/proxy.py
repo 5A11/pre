@@ -132,11 +132,11 @@ def run(ctx, run_once_and_exit: bool, auto_withdrawal: bool):
         click.echo("Proxy was registered")  # pragma: nocover
     except ProxyAlreadyRegistered:
         click.echo("Proxy was already registered. skip registration")
-
     try:
         while True:
-            task = proxy_api.get_next_reencryption_request()
-            if task is not None:
+            tasks = proxy_api.get_reencryption_requests()
+            if len(tasks) > 0:
+                task = tasks[0]
                 click.echo(f"Got a reencryption task: {task}")
                 proxy_api.process_reencryption_request(task)
                 click.echo(f"Reencryption task processed: {task}")

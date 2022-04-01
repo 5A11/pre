@@ -96,7 +96,7 @@ class AbstractContractQueries(BaseAbstractContract):
         """
 
     @abstractmethod
-    def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
+    def get_proxy_tasks(self, proxy_pubkey_bytes: bytes) -> List[ProxyTask]:
         """
         Get next proxy task for proxy specified by proxy public key.
 
@@ -305,7 +305,7 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         """
 
     @abstractmethod
-    def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
+    def get_proxy_tasks(self, proxy_pubkey_bytes: bytes) -> List[ProxyTask]:
         """
         Get next proxy task.
 
@@ -328,6 +328,21 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         :param hash_id: str, hash_id the encrypteed data published
         :param delegatee_pubkey_bytes: Delegatee public key as bytes
         :param fragment_bytes: reencrypted fragment
+        """
+
+    @abstractmethod
+    def skip_reencryption_task(
+        self,
+        proxy_private_key: AbstractLedgerCrypto,
+        hash_id: HashID,
+        delegatee_pubkey_bytes: bytes,
+    ):
+        """
+        Skip reencryption task.
+
+        :param proxy_private_key: Proxy ledger private key
+        :param hash_id: str, hash_id the encrypteed data published
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
         """
 
     @abstractmethod

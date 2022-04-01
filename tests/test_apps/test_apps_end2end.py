@@ -18,6 +18,7 @@ from pre.contract.base_contract import (
     ProxyAlreadyExist,
     ProxyAlreadyRegistered,
     ProxyNotRegistered,
+    UnknownProxy,
 )
 from pre.ledger.cosmos.ledger import (
     BroadcastException,
@@ -215,7 +216,7 @@ class TestApps(TestCase):
         assert result.exit_code == 0, result.output
         assert re.search("Proxy .* removed", result.output)
 
-        with pytest.raises(ProxyNotRegistered):
+        with pytest.raises(UnknownProxy):
             self.runner.invoke(
                 admin_cli,
                 [

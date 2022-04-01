@@ -1,7 +1,7 @@
 use crate::msg::{
     ExecuteMsg, GetAvailableProxiesResponse, GetContractStateResponse, GetDataIDResponse,
-    GetDelegationStatusResponse, GetFragmentsResponse, GetNextProxyTaskResponse,
-    GetProxyStatusResponse, GetStakingConfigResponse, InstantiateMsg, ProxyAvailability,
+    GetDelegationStatusResponse, GetFragmentsResponse, GetProxyStatusResponse,
+    GetProxyTasksResponse, GetStakingConfigResponse, InstantiateMsg, ProxyAvailability,
     ProxyDelegationString, ProxyStatus, ProxyTask, QueryMsg,
 };
 use crate::proxies::{
@@ -25,8 +25,8 @@ use crate::delegations::{
 };
 use crate::reencryption_requests::{
     check_and_resolve_all_requests_timeout, get_all_fragments, get_reencryption_request_state,
-    remove_proxy_reencryption_requests, store_add_delegatee_proxy_reencryption_request,
-    store_add_proxy_reencryption_request_to_queue,
+    remove_proxy_reencryption_request, remove_proxy_reencryption_requests,
+    store_add_delegatee_proxy_reencryption_request, store_add_proxy_reencryption_request_to_queue,
     store_get_all_proxy_reencryption_requests_in_queue,
     store_get_delegatee_proxy_reencryption_request, store_get_parent_reencryption_request,
     store_get_proxy_reencryption_request, store_remove_proxy_reencryption_request_from_queue,
@@ -37,6 +37,7 @@ use cosmwasm_std::{
     entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Storage, Uint128,
 };
+use std::collections::HashMap;
 
 use crate::common::add_bank_msg;
 
@@ -164,7 +165,7 @@ fn try_remove_proxy(
 
     // check if proxy_addr is authorised
     let mut proxy = match store_get_proxy_entry(deps.storage, proxy_addr) {
-        None => generic_err!(format!("{} is not a proxy", proxy_addr)),
+        None => generic_err!("Sender is not a proxy"),
         Some(proxy) => Ok(proxy),
     }?;
 
@@ -223,7 +224,7 @@ fn try_register_proxy(
         None => {
             if state.proxy_whitelisting {
                 // Whitelisting enabled - proxy is not authorised
-                generic_err!("Sender is not a proxy.")
+                generic_err!("Sender is not a proxy")
             } else {
                 // Whitelisting disabled - anyone can register
                 let new_proxy = Proxy {
@@ -479,7 +480,7 @@ fn try_provide_reencrypted_fragment(
     // Return response
     response
         .attributes
-        .push(Attribute::new("action", "try_provide_reencrypted_fragment"));
+        .push(Attribute::new("action", "provide_reencrypted_fragment"));
     response.attributes.push(Attribute::new("data_id", data_id));
     response
         .attributes
@@ -487,6 +488,77 @@ fn try_provide_reencrypted_fragment(
     response
         .attributes
         .push(Attribute::new("fragment", fragment));
+    Ok(response)
+}
+
+fn try_skip_reencryption_task(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    data_id: &str,
+    delegatee_pubkey: &str,
+) -> StdResult<Response> {
+    let staking_config = store_get_staking_config(deps.storage)?;
+    let state = store_get_state(deps.storage)?;
+
+    // Map of funds to be retrieved to delegator
+    let mut delegator_retrieve_funds_amount: HashMap<Addr, u128> = HashMap::new();
+
+    // Get proxy pubkey
+    let proxy = match store_get_proxy_entry(deps.storage, &info.sender) {
+        None => generic_err!("Sender is not a proxy"),
+        Some(proxy) => Ok(proxy),
+    }?;
+
+    let proxy_pubkey = match proxy.proxy_pubkey {
+        None => generic_err!("Proxy not registered"),
+        Some(proxy_pubkey) => Ok(proxy_pubkey),
+    }?;
+
+    // Get request_id or return error
+    let request_id: u64 = match store_get_delegatee_proxy_reencryption_request(
+        deps.storage,
+        data_id,
+        delegatee_pubkey,
+        &proxy_pubkey,
+    ) {
+        None => generic_err!("Task doesn't exist."),
+        Some(request_id) => Ok(request_id),
+    }?;
+
+    let proxy_request = store_get_proxy_reencryption_request(deps.storage, &request_id).unwrap();
+
+    if proxy_request.fragment.is_some() {
+        return generic_err!("Task was already completed.");
+    }
+
+    // Remove re-encryption request and slash proxy
+    remove_proxy_reencryption_request(
+        deps.storage,
+        &request_id,
+        &state,
+        &mut delegator_retrieve_funds_amount,
+    )?;
+
+    // Return stake from unfinished request to delegator
+    for (delegator_addr, stake_amount) in delegator_retrieve_funds_amount {
+        add_bank_msg(
+            &mut response,
+            &delegator_addr,
+            stake_amount,
+            &staking_config.stake_denom,
+        );
+    }
+
+    // Return response
+    response
+        .attributes
+        .push(Attribute::new("action", "skip_reencryption_task"));
+    response.attributes.push(Attribute::new("data_id", data_id));
+    response
+        .attributes
+        .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
     Ok(response)
 }
 
@@ -851,22 +923,23 @@ fn try_request_reencryption(
     Ok(response)
 }
 
-pub fn get_next_proxy_task(
+pub fn get_proxy_tasks(
     store: &dyn Storage,
     proxy_pubkey: &str,
     block_height: &u64,
-) -> StdResult<Option<ProxyTask>> {
+) -> StdResult<Vec<ProxyTask>> {
     // Returns first available proxy task from queue
+
+    let mut tasks: Vec<ProxyTask> = Vec::new();
 
     let requests = store_get_all_proxy_reencryption_requests_in_queue(store, proxy_pubkey);
 
     // No tasks
     if requests.is_empty() {
-        return Ok(None);
+        return Ok(tasks);
     }
 
     // Skip all TimedOut tasks
-    let mut request_to_complete: Option<ProxyReencryptionRequest> = None;
     for request_id in requests {
         let proxy_request: ProxyReencryptionRequest =
             store_get_proxy_reencryption_request(store, &request_id).unwrap();
@@ -877,31 +950,19 @@ pub fn get_next_proxy_task(
         )
         .unwrap();
         if block_height < &parent_request.timeout_height {
-            request_to_complete = Some(proxy_request);
-            break;
-        } else {
-            continue;
+            let data_entry = store_get_data_entry(store, &proxy_request.data_id).unwrap();
+
+            let proxy_task = ProxyTask {
+                data_id: proxy_request.data_id.clone(),
+                capsule: data_entry.capsule.clone(),
+                delegatee_pubkey: proxy_request.delegatee_pubkey,
+                delegator_pubkey: data_entry.delegator_pubkey,
+                delegation_string: proxy_request.delegation_string,
+            };
+            tasks.push(proxy_task);
         }
     }
-
-    // return None if all tasks are TimedOut
-    if request_to_complete.is_none() {
-        return Ok(None);
-    }
-
-    // Return first task that is not TimedOut
-    let request = request_to_complete.unwrap();
-    let data_entry = store_get_data_entry(store, &request.data_id).unwrap();
-
-    let proxy_task = ProxyTask {
-        data_id: request.data_id.clone(),
-        capsule: data_entry.capsule.clone(),
-        delegatee_pubkey: request.delegatee_pubkey,
-        delegator_pubkey: data_entry.delegator_pubkey,
-        delegation_string: request.delegation_string,
-    };
-
-    Ok(Some(proxy_task))
+    Ok(tasks)
 }
 
 pub fn get_proxies_availability(store: &dyn Storage) -> Vec<ProxyAvailability> {
@@ -962,6 +1023,10 @@ pub fn execute(
             &delegatee_pubkey,
             &fragment,
         ),
+        ExecuteMsg::SkipReencryptionTask {
+            data_id,
+            delegatee_pubkey,
+        } => try_skip_reencryption_task(response, deps, env, info, &data_id, &delegatee_pubkey),
         ExecuteMsg::UnregisterProxy {} => try_unregister_proxy(response, deps, env, info),
         ExecuteMsg::DeactivateProxy {} => try_deactivate_proxy(response, deps, env, info),
         ExecuteMsg::WithdrawStake { stake_amount } => {
@@ -1053,8 +1118,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             })?)
         }
 
-        QueryMsg::GetNextProxyTask { proxy_pubkey } => Ok(to_binary(&GetNextProxyTaskResponse {
-            proxy_task: get_next_proxy_task(deps.storage, &proxy_pubkey, &env.block.height)?,
+        QueryMsg::GetProxyTasks { proxy_pubkey } => Ok(to_binary(&GetProxyTasksResponse {
+            proxy_tasks: get_proxy_tasks(deps.storage, &proxy_pubkey, &env.block.height)?,
         })?),
 
         QueryMsg::GetDelegationStatus {

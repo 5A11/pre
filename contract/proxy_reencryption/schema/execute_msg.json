@@ -105,6 +105,30 @@
     {
       "type": "object",
       "required": [
+        "skip_reencryption_task"
+      ],
+      "properties": {
+        "skip_reencryption_task": {
+          "type": "object",
+          "required": [
+            "data_id",
+            "delegatee_pubkey"
+          ],
+          "properties": {
+            "data_id": {
+              "type": "string"
+            },
+            "delegatee_pubkey": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "deactivate_proxy"
       ],
       "properties": {

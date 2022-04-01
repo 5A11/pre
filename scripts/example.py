@@ -27,7 +27,7 @@ pre_contract = ProxyReencryptionContract.instantiate_contract(
     cosmos_endpoint, delegator_crypto, contract_filename
 )
 
-res = pre_contract.get_next_proxy_task(proxy1_crypto.get_address())
+res = pre_contract.get_proxy_tasks(proxy1_crypto.get_address())
 print(res)
 
 res, err_code = pre_contract.add_proxy(delegator_crypto, proxy1_crypto.get_address())

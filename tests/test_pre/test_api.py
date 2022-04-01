@@ -218,11 +218,9 @@ def test_proxy_api():
         delegation_string=delegation_string,
     )
 
-    contract.get_next_proxy_task.return_value = proxy_task
-    assert proxy_api.get_next_reencryption_request() == proxy_task
-    contract.get_next_proxy_task.assert_called_once_with(
-        encryption_private_key.public_key
-    )
+    contract.get_proxy_tasks.return_value = [proxy_task]
+    assert proxy_api.get_reencryption_requests()[0] == proxy_task
+    contract.get_proxy_tasks.assert_called_once_with(encryption_private_key.public_key)
 
     proxy_api.process_reencryption_request(proxy_task)
 

@@ -84,15 +84,15 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
 
         if "Pubkey already used" in raw_log:
             raise ProxyAlreadyRegistered(raw_log, error_code, res)
-        if "Sender is not a proxy." in raw_log:
+        if "Sender is not a proxy" in raw_log:
             raise UnknownProxy(raw_log, error_code, res)
-        if "Proxy already registered." in raw_log:
+        if "Proxy already registered" in raw_log:
             raise ProxyAlreadyRegistered(raw_log, error_code, res)
         if re.search("Delegator .* already registered with this pubkey", raw_log):
             raise DelegationAlreadyAdded(raw_log, error_code, res)
         if "is already proxy" in raw_log:
             raise ProxyAlreadyExist(raw_log, error_code, res)
-        if "is not a proxy" in raw_log:
+        if "Proxy not registered" in raw_log:
             raise ProxyNotRegistered(raw_log, error_code, res)
         if "Proxy already unregistered" in raw_log:
             raise ProxyNotRegistered(raw_log, error_code, res)
@@ -102,6 +102,8 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise ReencryptionAlreadyRequested(raw_log, error_code, res)
         if "Fragment already provided" in raw_log:
             raise ReencryptedCapsuleFragAlreadyProvided(raw_log, error_code, res)
+        if "Task was already completed" in raw_log:
+            raise ReencryptedCapsuleFragAlreadyProvided(raw_log, error_code, res)
         if "Entry with ID hash_id already exist" in raw_log:
             raise DataAlreadyExist(raw_log, error_code, res)
         if "Delegation string was already provided" in raw_log:
@@ -109,6 +111,8 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
         if "Delegation already exists" in raw_log:
             raise DelegationAlreadyExist(raw_log, error_code, res)
         if "This fragment was not requested" in raw_log:
+            raise UnkownReencryptionRequest(raw_log, error_code, res)
+        if "Task doesn't exist" in raw_log:
             raise UnkownReencryptionRequest(raw_log, error_code, res)
         if "contract: not found" in raw_log:
             raise BadContractAddress(raw_log, error_code, res)
@@ -219,29 +223,39 @@ class ContractQueries(AbstractContractQueries):
             ),
         )
 
-    def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
+    def get_proxy_tasks(self, proxy_pubkey_bytes: bytes) -> List[ProxyTask]:
         """
-        Get next proxy task for proxy specified by proxy public key.
+        Get proxy tasks for proxy specified by proxy public key.
 
         :param proxy_pubkey_bytes: bytes, proxy public key
 
-        :return: ProxyTask instance or None if no tasks left
+        :return: List of ProxyTask
         """
         state_msg: Dict = {
-            "get_next_proxy_task": {"proxy_pubkey": encode_bytes(proxy_pubkey_bytes)}
+            "get_proxy_tasks": {"proxy_pubkey": encode_bytes(proxy_pubkey_bytes)}
         }
         json_res = self._send_query(state_msg)
 
-        proxy_task: Dict = cast(Dict, json_res.get("proxy_task"))
-        if not proxy_task:
-            return None
-        return ProxyTask(
-            hash_id=cast(str, proxy_task["data_id"]),
-            capsule=b64decode(cast(str, proxy_task["capsule"])),
-            delegatee_pubkey=b64decode(cast(str, proxy_task["delegatee_pubkey"])),
-            delegator_pubkey=b64decode(cast(str, proxy_task["delegator_pubkey"])),
-            delegation_string=b64decode(cast(str, proxy_task["delegation_string"])),
-        )
+        proxy_tasks: Dict = cast(Dict, json_res.get("proxy_tasks"))
+
+        tasks = []
+        for proxy_task in proxy_tasks:
+            tasks.append(
+                ProxyTask(
+                    hash_id=cast(str, proxy_task["data_id"]),
+                    capsule=b64decode(cast(str, proxy_task["capsule"])),
+                    delegatee_pubkey=b64decode(
+                        cast(str, proxy_task["delegatee_pubkey"])
+                    ),
+                    delegator_pubkey=b64decode(
+                        cast(str, proxy_task["delegator_pubkey"])
+                    ),
+                    delegation_string=b64decode(
+                        cast(str, proxy_task["delegation_string"])
+                    ),
+                )
+            )
+        return tasks
 
     def get_fragments_response(
         self, hash_id: HashID, delegatee_pubkey_bytes: bytes
@@ -630,7 +644,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         )
         self._exception_from_res(error_code, res)
 
-    def get_next_proxy_task(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyTask]:
+    def get_proxy_tasks(self, proxy_pubkey_bytes: bytes) -> List[ProxyTask]:
         """
         Get next proxy task.
 
@@ -639,7 +653,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         """
         return ContractQueries(
             ledger=self.ledger, contract_address=self.contract_address
-        ).get_next_proxy_task(proxy_pubkey_bytes)
+        ).get_proxy_tasks(proxy_pubkey_bytes)
 
     def provide_reencrypted_fragment(
         self,
@@ -661,6 +675,30 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
                 "data_id": hash_id,
                 "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
                 "fragment": encode_bytes(fragment_bytes),
+            }
+        }
+        res, error_code = self.ledger.send_execute_msg(
+            proxy_private_key, self.contract_address, submit_msg
+        )
+        self._exception_from_res(error_code, res)
+
+    def skip_reencryption_task(
+        self,
+        proxy_private_key: AbstractLedgerCrypto,
+        hash_id: HashID,
+        delegatee_pubkey_bytes: bytes,
+    ):
+        """
+        Skip reencryption task.
+
+        :param proxy_private_key: Proxy ledger private key
+        :param hash_id: str, hash_id the encrypteed data published
+        :param delegatee_pubkey_bytes: Delegatee public key as bytes
+        """
+        submit_msg = {
+            "skip_reencryption_task": {
+                "data_id": hash_id,
+                "delegatee_pubkey": encode_bytes(delegatee_pubkey_bytes),
             }
         }
         res, error_code = self.ledger.send_execute_msg(

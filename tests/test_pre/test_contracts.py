@@ -176,7 +176,7 @@ class TestAdminContract(BaseContractTestCase):
             )
         self.admin_contract.remove_proxy(self.ledger_crypto, proxy_addr=self.proxy_addr)
 
-        with pytest.raises(ProxyNotRegistered):
+        with pytest.raises(UnknownProxy):
             self.admin_contract.remove_proxy(
                 self.ledger_crypto, proxy_addr=self.proxy_addr
             )
@@ -318,7 +318,7 @@ class TestDelegatorContract(BaseContractTestCase):
             == DelegationState.active
         )
 
-        assert not self.proxy_contract.get_next_proxy_task(
+        assert not self.proxy_contract.get_proxy_tasks(
             proxy_pubkey_bytes=self.proxy_pub_key
         )
 
@@ -380,7 +380,7 @@ class TestDelegatorContract(BaseContractTestCase):
         proxy_status = self.proxy_contract.get_proxy_status(b"some bad key")
         assert not proxy_status
 
-        proxy_task = self.proxy_contract.get_next_proxy_task(
+        proxy_task = self.proxy_contract.get_proxy_tasks(
             proxy_pubkey_bytes=self.proxy_pub_key
         )
         assert proxy_task

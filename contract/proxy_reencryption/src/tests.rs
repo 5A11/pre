@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::contract::{
-    execute, get_next_proxy_task, instantiate, DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
+    execute, get_proxy_tasks, instantiate, DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
     DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT, DEFAULT_REQUEST_REWARD_AMOUNT,
 };
 
@@ -212,6 +212,23 @@ fn provide_reencrypted_fragment(
         data_id: data_id.clone(),
         delegatee_pubkey: delegatee_pubkey.clone(),
         fragment: fragment.clone(),
+    };
+
+    return execute(deps, env.0, env.1, msg);
+}
+
+fn skip_reencryption_task(
+    deps: DepsMut,
+    creator: &Addr,
+    block_height: u64,
+    data_id: &String,
+    delegatee_pubkey: &String,
+) -> StdResult<Response> {
+    let env = mock_env_height(&creator, block_height, &vec![]);
+
+    let msg = ExecuteMsg::SkipReencryptionTask {
+        data_id: data_id.clone(),
+        delegatee_pubkey: delegatee_pubkey.clone(),
     };
 
     return execute(deps, env.0, env.1, msg);
@@ -428,7 +445,7 @@ fn test_add_remove_proxy() {
         &proxy,
         DEFAULT_BLOCK_HEIGHT,
         &proxy_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -492,11 +509,9 @@ fn test_register_unregister_proxy_whitelisting() {
         deps.as_mut().storage,
         &proxy_pubkey,
     ));
-    assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy_pubkey, &0)
-            .unwrap()
-            .is_none()
-    );
+    assert!(get_proxy_tasks(deps.as_mut().storage, &proxy_pubkey, &0)
+        .unwrap()
+        .is_empty());
     assert!(store_get_proxy_address(deps.as_mut().storage, &proxy_pubkey).is_none());
     let proxy = store_get_proxy_entry(deps.as_mut().storage, &proxy1).unwrap();
     assert_eq!(proxy.state, ProxyState::Authorised);
@@ -509,7 +524,7 @@ fn test_register_unregister_proxy_whitelisting() {
             &creator,
             DEFAULT_BLOCK_HEIGHT,
             &proxy_pubkey,
-            &proxy_stake
+            &proxy_stake,
         ),
         "not a proxy",
     ));
@@ -531,7 +546,7 @@ fn test_register_unregister_proxy_whitelisting() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     // Already registered
@@ -541,7 +556,7 @@ fn test_register_unregister_proxy_whitelisting() {
             &proxy1,
             DEFAULT_BLOCK_HEIGHT,
             &proxy_pubkey,
-            &proxy_stake
+            &proxy_stake,
         ),
         "already registered",
     ));
@@ -552,9 +567,9 @@ fn test_register_unregister_proxy_whitelisting() {
         &proxy_pubkey,
     ));
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy_pubkey, &DEFAULT_BLOCK_HEIGHT)
+        get_proxy_tasks(deps.as_mut().storage, &proxy_pubkey, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
-            .is_none()
+            .is_empty()
     );
     assert_eq!(
         store_get_proxy_address(deps.as_mut().storage, &proxy_pubkey).unwrap(),
@@ -575,7 +590,7 @@ fn test_register_unregister_proxy_whitelisting() {
             &proxy2,
             DEFAULT_BLOCK_HEIGHT,
             &proxy_pubkey,
-            &proxy_stake
+            &proxy_stake,
         ),
         "Pubkey already used",
     ));
@@ -649,8 +664,8 @@ fn test_register_unregister_proxy_no_whitelisting() {
     .is_ok());
 
     assert!(is_err(
-        deactivate_proxy(deps.as_mut(), &proxy, DEFAULT_BLOCK_HEIGHT,),
-        "Sender is not a proxy"
+        deactivate_proxy(deps.as_mut(), &proxy, DEFAULT_BLOCK_HEIGHT),
+        "Sender is not a proxy",
     ));
 
     // Test if proxy can register when whitelisting is off
@@ -659,7 +674,7 @@ fn test_register_unregister_proxy_no_whitelisting() {
         &proxy,
         DEFAULT_BLOCK_HEIGHT,
         &proxy_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -670,16 +685,16 @@ fn test_register_unregister_proxy_no_whitelisting() {
             &proxy,
             DEFAULT_BLOCK_HEIGHT,
             &proxy_pubkey,
-            &proxy_stake
+            &proxy_stake,
         ),
         "already registered",
     ));
 
-    assert!(deactivate_proxy(deps.as_mut(), &proxy, DEFAULT_BLOCK_HEIGHT,).is_ok());
+    assert!(deactivate_proxy(deps.as_mut(), &proxy, DEFAULT_BLOCK_HEIGHT).is_ok());
 
     assert!(is_err(
-        deactivate_proxy(deps.as_mut(), &proxy, DEFAULT_BLOCK_HEIGHT,),
-        "Proxy already deactivated"
+        deactivate_proxy(deps.as_mut(), &proxy, DEFAULT_BLOCK_HEIGHT),
+        "Proxy already deactivated",
     ));
 
     let proxy_entry = store_get_proxy_entry(deps.as_mut().storage, &proxy).unwrap();
@@ -695,9 +710,9 @@ fn test_register_unregister_proxy_no_whitelisting() {
             &proxy,
             DEFAULT_BLOCK_HEIGHT,
             &proxy_pubkey2,
-            &proxy_stake
+            &proxy_stake,
         ),
-        "Proxy need to be unregistered to use a different public key"
+        "Proxy need to be unregistered to use a different public key",
     ));
 
     // Re-register/activate proxy
@@ -706,7 +721,7 @@ fn test_register_unregister_proxy_no_whitelisting() {
         &proxy,
         DEFAULT_BLOCK_HEIGHT,
         &proxy_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -870,7 +885,7 @@ fn test_add_delegation_and_request_reencryption() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy1_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -878,7 +893,7 @@ fn test_add_delegation_and_request_reencryption() {
         &proxy2,
         DEFAULT_BLOCK_HEIGHT,
         &proxy2_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -1067,7 +1082,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy1_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -1162,7 +1177,7 @@ fn test_add_delegation_edge_cases() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy1_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -1181,7 +1196,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
         ),
-        "Unknown proxy with pubkey proxy2_pubkey"
+        "Unknown proxy with pubkey proxy2_pubkey",
     ));
 
     // Cannot add same pubkey twice
@@ -1201,7 +1216,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
         ),
-        "Delegation string was already provided for proxy proxy1_pubkey"
+        "Delegation string was already provided for proxy proxy1_pubkey",
     ));
 
     // Cannot add delegation for less than minimum number of proxies
@@ -1214,7 +1229,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATEE1_PUBKEY.to_string(),
             &vec![],
         ),
-        "Required at least 1 proxies."
+        "Required at least 1 proxies.",
     ));
 }
 
@@ -1276,7 +1291,7 @@ fn test_provide_reencrypted_fragment() {
         &proxy,
         DEFAULT_BLOCK_HEIGHT,
         &proxy_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -1456,7 +1471,7 @@ fn test_contract_lifecycle() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy1_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -1464,7 +1479,7 @@ fn test_contract_lifecycle() {
         &proxy2,
         DEFAULT_BLOCK_HEIGHT,
         &proxy2_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -1535,14 +1550,14 @@ fn test_contract_lifecycle() {
 
     // No tasks yet
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT)
+        get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
-            .is_none()
+            .is_empty()
     );
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
+        get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
-            .is_none()
+            .is_empty()
     );
 
     assert_eq!(
@@ -1617,12 +1632,10 @@ fn test_contract_lifecycle() {
 
     // Check if proxy got task 1
     let proxy1_task1 =
-        get_next_proxy_task(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT)
-            .unwrap()
-            .unwrap();
+        &get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap()[0];
     assert_eq!(
         proxy1_task1,
-        ProxyTask {
+        &ProxyTask {
             data_id: data_id.clone(),
             capsule: data_entry.capsule.clone(),
             delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
@@ -1704,12 +1717,10 @@ fn test_contract_lifecycle() {
 
     // Check if proxy got task 2
     let proxy1_task2 =
-        get_next_proxy_task(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT)
-            .unwrap()
-            .unwrap();
+        &get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap()[0];
     assert_eq!(
         proxy1_task2,
-        ProxyTask {
+        &ProxyTask {
             data_id: data_id.clone(),
             capsule: data_entry.capsule.clone(),
             delegatee_pubkey: DELEGATEE2_PUBKEY.to_string(),
@@ -1739,15 +1750,15 @@ fn test_contract_lifecycle() {
 
     // All tasks completed for proxy1
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT)
+        get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
-            .is_none()
+            .is_empty()
     );
     // But not for proxy2
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
+        !get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
-            .is_some()
+            .is_empty()
     );
 
     // Check available fragments
@@ -1812,7 +1823,7 @@ fn test_contract_lifecycle() {
         &proxy2,
         DEFAULT_BLOCK_HEIGHT,
         &proxy2_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -1941,7 +1952,7 @@ fn test_proxy_unregister_with_requests() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy1_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -1949,7 +1960,7 @@ fn test_proxy_unregister_with_requests() {
         &proxy2,
         DEFAULT_BLOCK_HEIGHT,
         &proxy2_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -1957,7 +1968,7 @@ fn test_proxy_unregister_with_requests() {
         &proxy3,
         DEFAULT_BLOCK_HEIGHT,
         &proxy3_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -1965,7 +1976,7 @@ fn test_proxy_unregister_with_requests() {
         &proxy4,
         DEFAULT_BLOCK_HEIGHT,
         &proxy4_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -1973,7 +1984,7 @@ fn test_proxy_unregister_with_requests() {
         &proxy5,
         DEFAULT_BLOCK_HEIGHT,
         &proxy5_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -2600,7 +2611,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy1_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -2608,7 +2619,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy2,
         DEFAULT_BLOCK_HEIGHT,
         &proxy2_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -2616,7 +2627,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy3,
         DEFAULT_BLOCK_HEIGHT,
         &proxy3_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -2624,7 +2635,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy4,
         DEFAULT_BLOCK_HEIGHT,
         &proxy4_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -2632,7 +2643,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy5,
         DEFAULT_BLOCK_HEIGHT,
         &proxy5_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -2822,9 +2833,9 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy2_pubkey,
     ));
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
+        !get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
-            .is_some()
+            .is_empty()
     );
     assert_eq!(
         store_get_proxy_address(deps.as_mut().storage, &proxy2_pubkey).unwrap(),
@@ -2854,9 +2865,9 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy2_pubkey,
     ));
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
+        !get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
-            .is_some()
+            .is_empty()
     );
     assert_eq!(
         store_get_proxy_address(deps.as_mut().storage, &proxy2_pubkey).unwrap(),
@@ -2981,7 +2992,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     // Already removed
     assert!(is_err(
         remove_proxy(deps.as_mut(), &creator, DEFAULT_BLOCK_HEIGHT, &proxy2),
-        "proxy_2 is not a proxy",
+        "Sender is not a proxy",
     ));
 
     // Check proxy state
@@ -2990,9 +3001,9 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &proxy2_pubkey,
     ));
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
+        get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
-            .is_none()
+            .is_empty()
     );
     assert!(store_get_proxy_address(deps.as_mut().storage, &proxy2_pubkey).is_none());
     assert!(store_get_proxy_entry(deps.as_mut().storage, &proxy2).is_none());
@@ -3201,7 +3212,7 @@ fn test_proxy_stake_withdrawal() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy1_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -3209,7 +3220,7 @@ fn test_proxy_stake_withdrawal() {
         &proxy2,
         DEFAULT_BLOCK_HEIGHT,
         &proxy2_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -3275,7 +3286,7 @@ fn test_proxy_stake_withdrawal() {
             deps.as_mut(),
             &proxy1,
             DEFAULT_BLOCK_HEIGHT,
-            &Some(Uint128::new(1))
+            &Some(Uint128::new(1)),
         ),
         "Not enough stake to withdraw",
     ));
@@ -3299,7 +3310,7 @@ fn test_proxy_stake_withdrawal() {
             deps.as_mut(),
             &proxy1,
             DEFAULT_BLOCK_HEIGHT,
-            &Some(Uint128::new(1))
+            &Some(Uint128::new(1)),
         ),
         "Not enough stake to withdraw",
     ));
@@ -3359,7 +3370,7 @@ fn test_proxy_add_stake() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy1_pubkey,
-        &proxy_stake
+        &proxy_stake,
     )
     .is_ok());
 
@@ -3368,7 +3379,7 @@ fn test_proxy_add_stake() {
             deps.as_mut(),
             &proxy1,
             DEFAULT_BLOCK_HEIGHT,
-            &proxy_wrong_coins_additional_stake
+            &proxy_wrong_coins_additional_stake,
         ),
         "Expected 1 Coin with denom atestfet",
     ));
@@ -3376,7 +3387,7 @@ fn test_proxy_add_stake() {
         deps.as_mut(),
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
-        &proxy_additional_stake
+        &proxy_additional_stake,
     )
     .is_ok());
 
@@ -3478,7 +3489,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &proxy1_pubkey,
-        &proxy1_stake
+        &proxy1_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -3486,7 +3497,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         &proxy2,
         DEFAULT_BLOCK_HEIGHT,
         &proxy2_pubkey,
-        &proxy2_stake
+        &proxy2_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -3494,7 +3505,7 @@ fn test_proxy_insufficient_funds_request_skip() {
         &proxy3,
         DEFAULT_BLOCK_HEIGHT,
         &proxy3_pubkey,
-        &proxy3_stake
+        &proxy3_stake,
     )
     .is_ok());
 
@@ -3816,7 +3827,7 @@ fn test_proxy_insufficient_funds_request_skip() {
             to_address: proxy1.to_string(),
             amount: vec![Coin::new(
                 minimum_proxy_stake_amount - per_request_slash_stake_amount,
-                stake_denom.as_str()
+                stake_denom.as_str(),
             )],
         })
     );
@@ -4034,7 +4045,7 @@ fn test_timeouts() {
         &proxy1,
         0,
         &proxy1_pubkey,
-        &proxy_register_stake
+        &proxy_register_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -4042,7 +4053,7 @@ fn test_timeouts() {
         &proxy2,
         0,
         &proxy2_pubkey,
-        &proxy_register_stake
+        &proxy_register_stake,
     )
     .is_ok());
     assert!(register_proxy(
@@ -4050,7 +4061,7 @@ fn test_timeouts() {
         &proxy3,
         0,
         &proxy3_pubkey,
-        &proxy_register_stake
+        &proxy_register_stake,
     )
     .is_ok());
 
@@ -4134,7 +4145,7 @@ fn test_timeouts() {
         220,
         &data_id1,
         &DELEGATEE1_PUBKEY.to_string(),
-        &FRAGMENT_P1_DR1_DE1.to_string()
+        &FRAGMENT_P1_DR1_DE1.to_string(),
     )
     .is_ok());
     assert!(provide_reencrypted_fragment(
@@ -4143,7 +4154,7 @@ fn test_timeouts() {
         220,
         &data_id1,
         &DELEGATEE1_PUBKEY.to_string(),
-        &FRAGMENT_P2_DR1_DE1.to_string()
+        &FRAGMENT_P2_DR1_DE1.to_string(),
     )
     .is_ok());
 
@@ -4153,7 +4164,7 @@ fn test_timeouts() {
             deps.as_mut().storage,
             &data_id1,
             DELEGATEE1_PUBKEY,
-            &220u64
+            &220u64,
         ),
         ReencryptionRequestState::Granted
     );
@@ -4163,7 +4174,7 @@ fn test_timeouts() {
             deps.as_mut().storage,
             &data_id1,
             DELEGATEE1_PUBKEY,
-            &400u64
+            &400u64,
         ),
         ReencryptionRequestState::Granted
     );
@@ -4193,7 +4204,7 @@ fn test_timeouts() {
             deps.as_mut().storage,
             &data_id1,
             DELEGATEE2_PUBKEY,
-            &350u64
+            &350u64,
         ),
         ReencryptionRequestState::TimedOut
     );
@@ -4281,7 +4292,7 @@ fn test_timeouts() {
             deps.as_mut().storage,
             &data_id1,
             &DELEGATEE2_PUBKEY.to_string(),
-            &350u64
+            &350u64,
         ),
         ReencryptionRequestState::TimedOut
     );
@@ -4301,46 +4312,38 @@ fn test_timeouts() {
             350,
             &data_id1,
             &DELEGATEE2_PUBKEY.to_string(),
-            &FRAGMENT_P1_DR1_DE2.to_string()
+            &FRAGMENT_P1_DR1_DE2.to_string(),
         ),
-        "This fragment was not requested."
+        "This fragment was not requested.",
     ));
 
     // Tasks can be obtained before timeout
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy1_pubkey, &350)
+        !get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &350)
             .unwrap()
-            .is_some()
+            .is_empty()
     );
     assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey, &350)
+        !get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &350)
             .unwrap()
-            .is_some()
+            .is_empty()
     );
-    assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy3_pubkey, &350)
-            .unwrap()
-            .is_none()
-    );
+    assert!(get_proxy_tasks(deps.as_mut().storage, &proxy3_pubkey, &350)
+        .unwrap()
+        .is_empty());
 
     // No tasks to complete after timeout
-    // These tasks still exist but are skipped in get_next_proxy_task
+    // These tasks still exist but are skipped in get_proxy_tasks
     // These tasks will be removed when ExecuteMsg triggers check_and_resolve_all_requests_timeout
-    assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy1_pubkey, &500)
-            .unwrap()
-            .is_none()
-    );
-    assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey, &500)
-            .unwrap()
-            .is_none()
-    );
-    assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy3_pubkey, &500)
-            .unwrap()
-            .is_none()
-    );
+    assert!(get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &500)
+        .unwrap()
+        .is_empty());
+    assert!(get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &500)
+        .unwrap()
+        .is_empty());
+    assert!(get_proxy_tasks(deps.as_mut().storage, &proxy3_pubkey, &500)
+        .unwrap()
+        .is_empty());
 
     // Any ExecuteMSG call at height=500 timeouts the rest of requests
     let stake_to_add = vec![Coin {
@@ -4369,21 +4372,15 @@ fn test_timeouts() {
     // req3 - (x4x)  proxy1,  (x5x)proxy2,   (x6x)proxy3  - timeout at 400 - TimedOut
 
     // Check if all tasks from queue were deleted due to timeout
-    assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy1_pubkey, &0)
-            .unwrap()
-            .is_none()
-    );
-    assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy2_pubkey, &0)
-            .unwrap()
-            .is_none()
-    );
-    assert!(
-        get_next_proxy_task(deps.as_mut().storage, &proxy3_pubkey, &0)
-            .unwrap()
-            .is_none()
-    );
+    assert!(get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &0)
+        .unwrap()
+        .is_empty());
+    assert!(get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &0)
+        .unwrap()
+        .is_empty());
+    assert!(get_proxy_tasks(deps.as_mut().storage, &proxy3_pubkey, &0)
+        .unwrap()
+        .is_empty());
 
     // Unregister proxy 1
     let res = unregister_proxy(deps.as_mut(), &proxy1, 500).unwrap();
@@ -4417,4 +4414,286 @@ fn test_timeouts() {
             )],
         })
     );
+}
+
+#[test]
+fn test_skip_task() {
+    let mut deps = mock_dependencies();
+
+    // Addresses
+    let creator = Addr::unchecked("creator".to_string());
+    let proxy1 = Addr::unchecked("proxy_1".to_string());
+    let proxy2 = Addr::unchecked("proxy_2".to_string());
+    let proxy3 = Addr::unchecked("proxy_3".to_string());
+    let proxy4 = Addr::unchecked("proxy_4".to_string());
+
+    let delegator1 = Addr::unchecked("delegator1".to_string());
+
+    // Pubkeys
+    let proxy1_pubkey: String = String::from("proxy_pubkey1");
+    let proxy2_pubkey: String = String::from("proxy_pubkey2");
+    let proxy3_pubkey: String = String::from("proxy_pubkey3");
+    let proxy4_pubkey: String = String::from("proxy_pubkey4");
+
+    let data_id1 = String::from("DATA1");
+    let delegation_string = String::from("DELESTRING");
+
+    // Staking
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
+    let minimum_proxy_stake_amount: u128 = 200;
+    let per_proxy_request_reward_amount: u128 = 40;
+    let per_request_slash_stake_amount: u128 = 98;
+
+    let request_reward = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(per_proxy_request_reward_amount * 3),
+    }];
+
+    let proxy_stake = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(minimum_proxy_stake_amount),
+    }];
+
+    // Timetous
+    let timeout_height: u64 = 100;
+
+    /*************** Initialise *************/
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        0,
+        &Some(2),
+        &None,
+        &None,
+        &stake_denom,
+        &Some(Uint128::new(minimum_proxy_stake_amount)),
+        &Some(Uint128::new(per_proxy_request_reward_amount)),
+        &Some(Uint128::new(per_request_slash_stake_amount)),
+        &Some(timeout_height),
+        &Some(false),
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy1,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy1_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy2,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy2_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy3,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy3_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy4,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy4_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    // Prepare scenario
+    // Proxy 1,2,3 gets2 re-encryption requests each
+
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .is_ok());
+
+    let proxy_delegations: Vec<ProxyDelegationString> = vec![
+        ProxyDelegationString {
+            proxy_pubkey: proxy1_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy2_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy3_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+    ];
+
+    // Add delegations
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
+        &proxy_delegations,
+    )
+    .is_ok());
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE2_PUBKEY.to_string(),
+        &proxy_delegations,
+    )
+    .is_ok());
+
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE2_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    // Not a proxy
+    assert!(is_err(
+        skip_reencryption_task(
+            deps.as_mut(),
+            &creator,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string()
+        ),
+        "Sender is not a proxy"
+    ));
+
+    // Incorrect task
+    assert!(is_err(
+        skip_reencryption_task(
+            deps.as_mut(),
+            &proxy4,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string()
+        ),
+        "Task doesn't exist"
+    ));
+
+    let p1_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p1_tasks.len(), 2);
+    let p2_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p2_tasks.len(), 2);
+    let p3_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy3_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p3_tasks.len(), 2);
+
+    // Remove request for data1 by proxy1 for delegatee1
+    assert!(skip_reencryption_task(
+        deps.as_mut(),
+        &proxy1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string()
+    )
+    .is_ok());
+
+    // Check request state
+    assert_eq!(
+        get_reencryption_request_state(
+            deps.as_mut().storage,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string(),
+            &DEFAULT_BLOCK_HEIGHT
+        ),
+        ReencryptionRequestState::Ready
+    );
+
+    let p1_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p1_tasks.len(), 1);
+    let p2_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p2_tasks.len(), 2);
+    let p3_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy3_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p3_tasks.len(), 2);
+
+    // Remove request for data1 by proxy3 for delegatee1
+    assert!(skip_reencryption_task(
+        deps.as_mut(),
+        &proxy3,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string()
+    )
+    .is_ok());
+
+    // Request is Abandoned
+    assert_eq!(
+        get_reencryption_request_state(
+            deps.as_mut().storage,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string(),
+            &DEFAULT_BLOCK_HEIGHT
+        ),
+        ReencryptionRequestState::Abandoned
+    );
+
+    let p1_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p1_tasks.len(), 1);
+    let p2_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy2_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p2_tasks.len(), 2);
+    let p3_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy3_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p3_tasks.len(), 1);
+
+    // Proxy 3 finish the task
+    assert!(provide_reencrypted_fragment(
+        deps.as_mut(),
+        &proxy2,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &FRAGMENT_P2_DR1_DE1.to_string(),
+    )
+    .is_ok());
+
+    // Can't skip finished task
+    assert!(is_err(
+        skip_reencryption_task(
+            deps.as_mut(),
+            &proxy2,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string()
+        ),
+        "Task was already completed."
+    ));
 }

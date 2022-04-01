@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 
@@ -68,22 +68,22 @@ class ProxyAPI:
         """Withdraw proxy stake."""
         self._contract.withdraw_stake(self._ledger_crypto, stake_amount)
 
-    def get_next_reencryption_request(
+    def get_reencryption_requests(
         self,
-    ) -> Optional[ProxyTask]:
+    ) -> List[ProxyTask]:
         """
-        Get next reencryption task from the contract.
+        Get reencryption tasks from the contract.
 
-        :return: ProxyTask or None
+        :return: List of ProxyTask
         """
-        return self._contract.get_next_proxy_task(self._pub_key_as_bytes())
+        return self._contract.get_proxy_tasks(self._pub_key_as_bytes())
 
     def process_reencryption_request(self, proxy_task: ProxyTask):
         """
         Process reencryption request.
         Make reencrypted fragment, store it in contract, register its hash_id in the contract.
 
-        :param proxy_task: ProxyTask instance from get_next_reencryption_request
+        :param proxy_task: ProxyTask instance from get_reencryption_requests
         """
         hash_id = proxy_task.hash_id
         delegatee_pubkey_bytes = proxy_task.delegatee_pubkey

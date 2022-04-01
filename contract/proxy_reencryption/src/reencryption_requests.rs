@@ -312,6 +312,67 @@ pub fn get_reencryption_request_state(
     }
 }
 
+pub fn remove_proxy_reencryption_request(
+    storage: &mut dyn Storage,
+    re_request_id: &u64,
+    state: &State,
+    delegator_retrieve_funds_amount: &mut HashMap<Addr, u128>,
+) -> StdResult<()> {
+    let re_request = store_get_proxy_reencryption_request(storage, re_request_id).unwrap();
+
+    let mut parent_request: ParentReencryptionRequest = store_get_parent_reencryption_request(
+        storage,
+        &re_request.data_id,
+        &re_request.delegatee_pubkey,
+    )
+    .unwrap();
+
+    // Request cannot be completed any more
+    if parent_request.n_proxy_requests < state.threshold + 1
+        && parent_request.state != ReencryptionRequestState::Abandoned
+        && parent_request.state != ReencryptionRequestState::TimedOut
+    {
+        // Return stake retrieved from slashed proxies to delegator stake before deleting parent request
+        update_retrieved_delegator_stake_map(
+            delegator_retrieve_funds_amount,
+            &parent_request.delegator_addr,
+            parent_request.delegator_provided_reward_amount.u128(),
+        );
+        parent_request.delegator_provided_reward_amount = Uint128::new(0);
+        parent_request.funds_pool = parent_request
+            .funds_pool
+            .checked_sub(parent_request.delegator_provided_reward_amount)?;
+
+        // Update parent request state
+        parent_request.state = ReencryptionRequestState::Abandoned;
+    }
+
+    // Update parent request
+    parent_request.n_proxy_requests -= 1;
+    store_set_parent_reencryption_request(
+        storage,
+        &re_request.data_id,
+        &re_request.delegatee_pubkey,
+        &parent_request,
+    );
+
+    // Delete re-encryption request
+    store_remove_delegatee_proxy_reencryption_request(
+        storage,
+        &re_request.data_id,
+        &re_request.delegatee_pubkey,
+        &re_request.proxy_pubkey,
+    );
+    store_remove_proxy_reencryption_request_from_queue(
+        storage,
+        &re_request.proxy_pubkey,
+        re_request_id,
+    );
+    store_remove_proxy_reencryption_request(storage, re_request_id);
+
+    Ok(())
+}
+
 // Delete all unfinished current proxy re-encryption requests
 pub fn remove_proxy_reencryption_requests(
     storage: &mut dyn Storage,
@@ -324,57 +385,12 @@ pub fn remove_proxy_reencryption_requests(
     let mut delegator_retrieve_funds_amount: HashMap<Addr, u128> = HashMap::new();
 
     for re_request_id in store_get_all_proxy_reencryption_requests_in_queue(storage, proxy_pubkey) {
-        let re_request = store_get_proxy_reencryption_request(storage, &re_request_id).unwrap();
-
-        let mut parent_request: ParentReencryptionRequest = store_get_parent_reencryption_request(
+        remove_proxy_reencryption_request(
             storage,
-            &re_request.data_id,
-            &re_request.delegatee_pubkey,
-        )
-        .unwrap();
-
-        // Request cannot be completed any more
-        if parent_request.n_proxy_requests < state.threshold + 1
-            && parent_request.state != ReencryptionRequestState::Abandoned
-            && parent_request.state != ReencryptionRequestState::TimedOut
-        {
-            // Return stake retrieved from slashed proxies to delegator stake before deleting parent request
-            update_retrieved_delegator_stake_map(
-                &mut delegator_retrieve_funds_amount,
-                &parent_request.delegator_addr,
-                parent_request.delegator_provided_reward_amount.u128(),
-            );
-            parent_request.delegator_provided_reward_amount = Uint128::new(0);
-            parent_request.funds_pool = parent_request
-                .funds_pool
-                .checked_sub(parent_request.delegator_provided_reward_amount)?;
-
-            // Update parent request state
-            parent_request.state = ReencryptionRequestState::Abandoned;
-        }
-
-        // Update parent request
-        parent_request.n_proxy_requests -= 1;
-        store_set_parent_reencryption_request(
-            storage,
-            &re_request.data_id,
-            &re_request.delegatee_pubkey,
-            &parent_request,
-        );
-
-        // Delete re-encryption request
-        store_remove_delegatee_proxy_reencryption_request(
-            storage,
-            &re_request.data_id,
-            &re_request.delegatee_pubkey,
-            &re_request.proxy_pubkey,
-        );
-        store_remove_proxy_reencryption_request_from_queue(
-            storage,
-            &re_request.proxy_pubkey,
             &re_request_id,
-        );
-        store_remove_proxy_reencryption_request(storage, &re_request_id);
+            &state,
+            &mut delegator_retrieve_funds_amount,
+        )?;
     }
 
     // Return stake from unfinished requests to delegators

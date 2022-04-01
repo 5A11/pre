@@ -111,7 +111,7 @@ def test_api():
 
         for i in range(THRESHOLD):
             proxy = proxies[i]
-            proxy_task = proxy.get_next_reencryption_request()
+            proxy_task = proxy.get_reencryption_requests()[0]
             assert proxy_task
             proxy.process_reencryption_request(proxy_task)
 

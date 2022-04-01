@@ -74,6 +74,10 @@ pub enum ExecuteMsg {
         delegatee_pubkey: String,
         fragment: String,
     },
+    SkipReencryptionTask {
+        data_id: String,
+        delegatee_pubkey: String,
+    },
 
     DeactivateProxy {},
     // Switch to leaving state
@@ -113,7 +117,7 @@ pub enum QueryMsg {
     GetContractState {},
     GetStakingConfig {},
 
-    GetNextProxyTask {
+    GetProxyTasks {
         proxy_pubkey: String,
     },
     GetDelegationStatus {
@@ -157,8 +161,8 @@ pub struct GetStakingConfigResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct GetNextProxyTaskResponse {
-    pub proxy_task: Option<ProxyTask>,
+pub struct GetProxyTasksResponse {
+    pub proxy_tasks: Vec<ProxyTask>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

@@ -247,7 +247,6 @@ fn try_register_proxy(
         }
     }
 
-    // changes start from here
     let mut funds_amount: u128 = 0;
     match &proxy.proxy_pubkey {
         // reactivation case
@@ -274,15 +273,14 @@ fn try_register_proxy(
                 &info.funds,
                 &staking_config.minimum_proxy_stake_amount.u128(),
             )?;
+            store_set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
         }
     }
 
-    // shared code between registration and reactivation
     proxy.state = ProxyState::Registered;
     proxy.stake_amount = proxy.stake_amount.checked_add(Uint128::new(funds_amount))?;
     store_set_proxy_entry(deps.storage, &info.sender, &proxy);
     store_set_is_proxy_active(deps.storage, &proxy_pubkey, true);
-    store_set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
 
     // Return response
     response

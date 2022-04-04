@@ -17,6 +17,7 @@ from apps.reader import cli as reader_cli
 from pre.contract.base_contract import (
     ProxyAlreadyExist,
     ProxyAlreadyRegistered,
+    ProxyNotActive,
     ProxyNotRegistered,
     UnknownProxy,
 )
@@ -250,24 +251,6 @@ class TestApps(TestCase):
         assert result.exit_code == 0, result.output
         assert re.search("Proxy was registered", result.output)
 
-        # registered twice
-        with pytest.raises(ProxyAlreadyRegistered):
-            self.runner.invoke(
-                proxy_cli,
-                [
-                    "--ledger-config",
-                    self.ledger_config_file,
-                    "--ledger-private-key",
-                    self.proxy_ledger_key,
-                    "--encryption-private-key",
-                    self.proxy_encryption_key,
-                    "--contract-address",
-                    contract_address,
-                    "register",
-                ],
-                catch_exceptions=False,
-            )
-
         data = b"some random bytes"
         data_file = self.tdir / "data.file"
         data_file.write_bytes(data)
@@ -339,7 +322,7 @@ class TestApps(TestCase):
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 1, result.output
+        assert result.exit_code == 0, result.output
         assert re.search(
             f"Data {hash_id} is NOT ready!", result.output, re.MULTILINE
         ), result.output
@@ -357,6 +340,7 @@ class TestApps(TestCase):
                 contract_address,
                 "run",
                 "--run-once-and-exit",
+                "--disable-metrics",
             ],
             catch_exceptions=False,
         )
@@ -449,7 +433,7 @@ class TestApps(TestCase):
         assert result.exit_code == 0, result.output
         assert re.search("Proxy was unregistered", result.output)
 
-        with pytest.raises(ProxyNotRegistered):
+        with pytest.raises(ProxyNotActive):
             self.runner.invoke(
                 proxy_cli,
                 [

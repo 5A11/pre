@@ -35,7 +35,7 @@ def get_data_status(
     hash_id: str,
 ):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
-    encryption_private_key = app_config.get_cryto_key()
+    encryption_private_key = app_config.get_crypto_key()
     delegatee_api = DelegateeAPI(
         encryption_private_key=encryption_private_key,
         contract=app_config.get_query_contract(),
@@ -49,7 +49,7 @@ def get_data_status(
         ctx.exit(0)
     else:
         click.echo(f"Data {hash_id} is NOT ready!")
-        ctx.exit(1)
+        ctx.exit(0)
 
 
 @cli.command(name="get-data")
@@ -66,7 +66,7 @@ def get_data(
 
     query_contract = app_config.get_query_contract()
     delegatee_api = DelegateeAPI(
-        encryption_private_key=app_config.get_cryto_key(),
+        encryption_private_key=app_config.get_crypto_key(),
         contract=query_contract,
         storage=app_config.get_storage_instance(),
         crypto=app_config.get_crypto_instance(),

@@ -95,7 +95,11 @@ class DelegatorAPI:
         # Sort descending by stake amount
         proxies_list.sort(reverse=True, key=lambda x: int(x.stake_amount))
 
-        n_max_proxies = n_max_proxies if n_max_proxies else len(proxies_list)
+        n_max_proxies = (
+            n_max_proxies
+            if n_max_proxies is not None and n_max_proxies < len(proxies_list)
+            else len(proxies_list)
+        )
 
         # Select up to n_max_proxies proxies with highest available stake
         proxy_pubkeys = [i.proxy_pubkey for i in proxies_list[0:n_max_proxies]]

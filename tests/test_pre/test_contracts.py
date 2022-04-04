@@ -2,9 +2,8 @@ from base64 import b64decode
 from unittest.case import TestCase
 
 import pytest
-from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 
-from pre.common import Delegation, DelegationState, ReencryptionRequestState
+from pre.common import Coin, Delegation, DelegationState, ReencryptionRequestState
 from pre.contract.base_contract import (
     BadContractAddress,
     ContractInstantiateFailure,

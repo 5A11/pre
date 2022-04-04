@@ -1,10 +1,14 @@
-name: Cosmwasm Rust Contract Continuous Integration
+name: Contract
 
 on:
   push:
     branches: [ master ]
+    paths:
+      - "contract/proxy_reencryption/**"
   pull_request:
     branches: [ master ]
+    paths:
+      - "contract/proxy_reencryption/**"
 
 env:
   CARGO_TERM_COLOR: always
@@ -52,8 +56,8 @@ jobs:
         cargo test --verbose
   
   code_coverage:
-    if: ${{ false }}  # disable for now
 
+    if: ${{ false }}  # disable for now
     runs-on: ubuntu-latest
 
     steps:
@@ -74,5 +78,5 @@ jobs:
     - name: Run Coverage
       run: cargo make coverage-kcov
       # TODO(LR) https://fetchai.atlassian.net/browse/COLE-1560
-      #   upload coverage information to codecov and check if declined
+      #   upload coverage information to codecov and check if decreased
       working-directory: ${CONTRACT_ROOT}

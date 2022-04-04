@@ -2,11 +2,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
-
 from pre.common import (
     Address,
     ContractState,
+    Coin,
     Delegation,
     DelegationStatus,
     GetFragmentsResponse,
@@ -272,7 +271,7 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         self,
         proxy_private_key: AbstractLedgerCrypto,
         proxy_pubkey_bytes: bytes,
-        stake_amount: Coin,
+        stake_amount: Optional[Coin] = None,
     ):
         """
         Register the proxy with contract.
@@ -414,6 +413,9 @@ class ContractExecutionError(Exception):
 
 class ProxyAlreadyExist(ContractExecutionError):
     """Proxy already exists exception."""
+
+class ProxyNotActive(ContractExecutionError):
+    """Proxy already deactivated exception."""
 
 
 class NotAdminError(ContractExecutionError):

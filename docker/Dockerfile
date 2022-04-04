@@ -20,10 +20,9 @@ USER root
 WORKDIR /workdir
 
 RUN pip3 install --no-cache-dir --upgrade pip
-RUN pip3 install --no-cache-dir --upgrade pipenv
 
-COPY ./Pipfile ./
-RUN pipenv install -d --skip-lock --system
+#COPY ./requirements.txt ./
+#RUN pip3 install -r requirements.txt
 
 COPY ./ ./
 COPY --from=builder-contract /build/ ./contract

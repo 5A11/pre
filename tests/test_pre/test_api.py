@@ -1,7 +1,6 @@
 from unittest.mock import ANY, Mock, patch
 
 import pytest
-from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 
 from pre.api.admin import AdminAPI
 from pre.api.delegatee import DelegateeAPI
@@ -9,6 +8,7 @@ from pre.api.delegator import DelegatorAPI
 from pre.api.proxy import ProxyAPI
 from pre.common import (
     ContractState,
+    Coin,
     DelegationState,
     DelegationStatus,
     EncryptedData,

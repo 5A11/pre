@@ -28,12 +28,11 @@ services:
     container_name: admin
     volumes:
       - ../test_data:/test_data
-    #entrypoint: python3 /workdir/apps/admin.py
     entrypoint: >
       python3 apps/admin.py
         --fund
         --ledger-config ${LEDGER_CONFIG}
-        --ledger-private-key test_data/keys/admin_ledger.key
+        --ledger-private-key /test_data/keys/admin_ledger.key
         instantiate-contract
           --threshold 2 
           --proxies fetch1vz7c7h54ve0fcu6gv242xnz0nkegeaszvzs27c,fetch1njgnp7lvhzpgtx7rzt60qu4r2sg8dj0h4ln0y2,fetch10r8j0yf8emj78m3f0j7dddkrmfxpaegkxxan5c
@@ -50,15 +49,15 @@ services:
     container_name: provider
     volumes:
       - ../test_data:/test_data
-      - ./:/data/:rw
+      - ../:/data/:rw
     #entrypoint: python3 /workdir/apps/owner.py
     entrypoint: >
       python3 apps/owner.py
         --fund
         --ledger-config ${LEDGER_CONFIG}
         --ipfs-config ${IPFS_CONFIG}
-        --ledger-private-key test_data/keys/owner_ledger.key
-        --encryption-private-key test_data/keys/owner_encryption.key
+        --ledger-private-key /test_data/keys/owner_ledger.key
+        --encryption-private-key /test_data/keys/owner_encryption.key
         --threshold 2
     networks:
       - localnet
@@ -78,8 +77,10 @@ services:
       python3 apps/proxy.py
         --fund
         --ledger-config ${LEDGER_CONFIG}
-        --ledger-private-key test_data/keys/proxy_${PROXY_INDEX}_ledger.key
-        --encryption-private-key test_data/keys/proxy_${PROXY_INDEX}_encryption.key
+        --ledger-private-key /test_data/keys/proxy_${PROXY_INDEX}_ledger.key
+        --encryption-private-key /test_data/keys/proxy_${PROXY_INDEX}_encryption.key
+    ports:
+      - 9090:9090
     networks:
       - localnet
 
@@ -93,15 +94,15 @@ services:
     container_name: reader
     volumes:
       - ../test_data:/test_data
-      - ./:/data/:rw
+      - ../:/data/:rw
     #entrypoint: python3 /workdir/apps/reader.py
     entrypoint: >
       python3 apps/reader.py
         --fund
         --ledger-config ${LEDGER_CONFIG}
         --ipfs-config ${IPFS_CONFIG}
-        --ledger-private-key test_data/keys/reader_ledger.key
-        --encryption-private-key test_data/keys/reader_encryption.key
+        --ledger-private-key /test_data/keys/reader_ledger.key
+        --encryption-private-key /test_data/keys/reader_encryption.key
 
     networks:
       - localnet

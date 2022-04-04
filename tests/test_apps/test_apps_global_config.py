@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import prometheus_client
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.case import TestCase
@@ -245,6 +246,9 @@ class TestApps(TestCase):
         assert result.exit_code == 0, result.output
         assert re.match("Access to .* granted to ", result.output)
 
+        # reset the underlying Prometheus registry
+        prometheus_client.REGISTRY = prometheus_client.CollectorRegistry(auto_describe=True)
+
         result = self.runner.invoke(
             proxy_cli,
             [
@@ -256,6 +260,7 @@ class TestApps(TestCase):
                 self.proxy_encryption_key,
                 "run",
                 "--run-once-and-exit",
+                "--disable-metrics",
             ],
             catch_exceptions=False,
         )

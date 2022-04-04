@@ -29,6 +29,7 @@ setuptools.setup(
         "ipfshttpclient",
         "umbral",
         "pyyaml",
+        "prometheus-client",
     ],
     tests_require=["tox~=3.20.0"],
     package_data={

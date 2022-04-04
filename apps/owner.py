@@ -36,7 +36,7 @@ def add_data(
 ):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
     delegator_api = DelegatorAPI(
-        encryption_private_key=app_config.get_cryto_key(),
+        encryption_private_key=app_config.get_crypto_key(),
         ledger_crypto=app_config.get_ledger_crypto(),
         contract=app_config.get_owner_contract(),
         storage=app_config.get_storage_instance(),
@@ -44,7 +44,7 @@ def add_data(
     )
 
     if app_config.fund_if_needed():
-        click.echo(f"{app_config.pp_config.get_ledger_crypto()} was funded")
+        click.echo(f"{app_config.get_ledger_crypto()} was funded")
 
     data = data_file.read_bytes()
     hash_id = delegator_api.add_data(data)
@@ -59,7 +59,7 @@ def add_data(
 def grant_access(ctx, hash_id: str, reader_public_key: str, n_max_proxies: int):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
     delegator_api = DelegatorAPI(
-        encryption_private_key=app_config.get_cryto_key(),
+        encryption_private_key=app_config.get_crypto_key(),
         ledger_crypto=app_config.get_ledger_crypto(),
         contract=app_config.get_owner_contract(),
         storage=app_config.get_storage_instance(),

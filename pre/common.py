@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, IO, List, NamedTuple, Optional, Union
 
-from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
+from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin as CoinPB
 
 
 Primitive = Union[str, int, bool, float]
@@ -71,6 +71,17 @@ class PrivateKey(ABC):
     def from_bytes(cls, data: bytes) -> Any:
         """Make private key from bytes."""
 
+
+@dataclass
+class Coin:
+    denom: str
+    amount: str
+
+    def to_pb(self) -> CoinPB:
+        return CoinPB(
+            denom=self.denom,
+            amount=self.amount,
+        )
 
 @dataclass
 class Delegation:

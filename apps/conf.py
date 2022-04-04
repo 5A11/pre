@@ -320,7 +320,7 @@ class AppConf:
         ledger = self.get_ledger_instance(check_availability=False)
         return ledger.load_crypto_from_file(self.ledger_private_key)
 
-    def get_cryto_key(self) -> PrivateKey:
+    def get_crypto_key(self) -> PrivateKey:
         return self.CRYPTO_CLASS.load_key(
             Path(self.encryption_private_key).read_bytes()
         )

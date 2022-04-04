@@ -3,11 +3,10 @@ from base64 import b64decode, b64encode
 from pathlib import Path
 from typing import Dict, List, Optional, cast
 
-from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
-
 from pre.common import (
     Address,
     ContractState,
+    Coin,
     Delegation,
     DelegationState,
     DelegationStatus,
@@ -40,6 +39,7 @@ from pre.contract.base_contract import (
     NotEnoughProxies,
     NotEnoughStakeToWithdraw,
     ProxiesAreTooBusy,
+    ProxyNotActive,
     ProxyAlreadyExist,
     ProxyAlreadyRegistered,
     ProxyNotRegistered,
@@ -96,6 +96,8 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise ProxyNotRegistered(raw_log, error_code, res)
         if "Proxy already unregistered" in raw_log:
             raise ProxyNotRegistered(raw_log, error_code, res)
+        if "Proxy already deactivated" in raw_log:
+            raise ProxyNotActive(raw_log, error_code, res)
         if "Unknown proxy with pubkey" in raw_log:
             raise UnknownProxy(raw_log, error_code, res)
         if "Reencryption already requested" in raw_log:
@@ -569,7 +571,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
             delegator_private_key,
             self.contract_address,
             submit_msg,
-            amount=[stake_amount],
+            amount=[stake_amount.to_pb()],
         )
         self._exception_from_res(error_code, res)
 
@@ -593,7 +595,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         self,
         proxy_private_key: AbstractLedgerCrypto,
         proxy_pubkey_bytes: bytes,
-        stake_amount: Coin,
+        stake_amount: Optional[Coin] = None,
     ):
         """
         Register the proxy with contract.
@@ -610,7 +612,25 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         }
 
         res, error_code = self.ledger.send_execute_msg(
-            proxy_private_key, self.contract_address, submit_msg, amount=[stake_amount]
+            proxy_private_key,
+            self.contract_address,
+            submit_msg,
+            amount=[stake_amount.to_pb()] if stake_amount is not None else None,
+        )
+        self._exception_from_res(error_code, res)
+
+    def proxy_deactivate(
+        self,
+        proxy_private_key: AbstractLedgerCrypto,
+    ):
+        """
+        Deactivate the proxy.
+
+        :param proxy_private_key: Proxy ledger private key
+        """
+        submit_msg: Dict = {"deactivate_proxy": {}}
+        res, error_code = self.ledger.send_execute_msg(
+            proxy_private_key, self.contract_address, submit_msg
         )
         self._exception_from_res(error_code, res)
 
@@ -734,7 +754,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
     def add_stake(self, proxy_private_key: AbstractLedgerCrypto, stake_amount: Coin):
         submit_msg: Dict = {"add_stake": {}}
         res, error_code = self.ledger.send_execute_msg(
-            proxy_private_key, self.contract_address, submit_msg, amount=[stake_amount]
+            proxy_private_key, self.contract_address, submit_msg, amount=[stake_amount.to_pb()]
         )
         self._exception_from_res(error_code, res)
 

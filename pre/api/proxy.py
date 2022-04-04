@@ -1,9 +1,7 @@
 from typing import List, Optional
 
-from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
-
-from pre.common import PrivateKey, ProxyTask
-from pre.contract.base_contract import AbstractProxyContract
+from pre.common import PrivateKey, ProxyState, ProxyTask, Coin
+from pre.contract.base_contract import AbstractProxyContract, ContractQueryError
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.ledger.base_ledger import AbstractLedgerCrypto
 
@@ -35,13 +33,27 @@ class ProxyAPI:
         """Get proxy crypto public key in bytes."""
         return bytes(self._encryption_private_key.public_key)
 
-    def register(self):
-        """Register a proxy on the specific contract."""
-        staking_config = self._contract.get_staking_config()
-        minimum_registration_stake = Coin(
-            denom=staking_config.stake_denom,
-            amount=str(staking_config.minimum_proxy_stake_amount),
+    def registered(self) -> bool:
+        status = self._contract.get_proxy_status(self._pub_key_as_bytes())
+        return (
+            status.proxy_state == ProxyState.registered if status is not None else False
         )
+
+    def register(self) -> Coin:
+        """Register a proxy on the specific contract."""
+        status = self._contract.get_proxy_status(self._pub_key_as_bytes())
+        state = status.proxy_state if status is not None else ProxyState.authorised
+        if state == ProxyState.registered:
+            return None
+
+        if state == ProxyState.leaving:
+            minimum_registration_stake = None
+        else:
+            staking_config = self._contract.get_staking_config()
+            minimum_registration_stake = Coin(
+                denom=staking_config.stake_denom,
+                amount=str(staking_config.minimum_proxy_stake_amount),
+            )
 
         self._contract.proxy_register(
             proxy_private_key=self._ledger_crypto,
@@ -49,9 +61,13 @@ class ProxyAPI:
             stake_amount=minimum_registration_stake,
         )
 
-    def unregister(self):
+        return minimum_registration_stake
+
+    def unregister(self, deactivate_only: bool = False):
         """Unregister proxy."""
-        self._contract.proxy_unregister(self._ledger_crypto)
+        self._contract.proxy_deactivate(self._ledger_crypto)
+        if not deactivate_only:
+            self._contract.proxy_unregister(self._ledger_crypto)
 
     def deactivate(self):
         """Deactivate proxy."""
@@ -77,6 +93,13 @@ class ProxyAPI:
         :return: List of ProxyTask
         """
         return self._contract.get_proxy_tasks(self._pub_key_as_bytes())
+
+    def skip_task(self, task: ProxyTask):
+        """Skip task for processing"""
+
+        self._contract.skip_reencryption_task(
+            self._ledger_crypto, task.hash_id, self._pub_key_as_bytes()
+        )
 
     def process_reencryption_request(self, proxy_task: ProxyTask):
         """

@@ -1,4 +1,4 @@
-name: End to End PRE CI
+name: end-to-end
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  local_tests:
+  tests:
 
     continue-on-error: True
     runs-on: ubuntu-latest
@@ -29,7 +29,6 @@ jobs:
   
   integration:
 
-    if: ${{ false }}  # disable for now
     continue-on-error: True
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -55,7 +54,8 @@ jobs:
     
     - name: Add data element
       run: > 
-        echo $RANDOM | md5sum | head -c 20 > original_data.txt; ls; cat original_data.txt;
+        echo $RANDOM | md5sum | head -c 20 > original_data.txt;
+        echo "[OK] Generated file: $(cat original_data.txt)";
         docker-compose -f "docker/docker-compose.yml" run owner --contract-address $CONTRACT_ADDR add-data /data/original_data.txt > logs;
         cat logs;
         export DATA_ID=$(
@@ -68,8 +68,8 @@ jobs:
     
     - name: Run proxies
       run: |
+        PROXY_INDEX=2 docker-compose -f "docker/docker-compose.yml" run proxy --contract-address $CONTRACT_ADDR run &
         docker-compose -f "docker/docker-compose.yml" run proxy --contract-address  $CONTRACT_ADDR register
-        PROXY_INDEX=2 docker-compose run proxy --contract-address $CONTRACT_ADDR run &
 
     - name: Get reader public key
       run: >
@@ -89,12 +89,13 @@ jobs:
     
     - name: Reencrypt data
       run: >
-        docker-compose run proxy --contract-address $CONTRACT_ADDR run --run-once-and-exit
+        docker-compose -f "docker/docker-compose.yml" run proxy --contract-address $CONTRACT_ADDR run --run-once-and-exit --metrics-port 9091
     
     - name: Read data
       run: |
-        docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONTRACT_ADDR get-data-status $DATA_ID
-        docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONTRACT_ADDR get-data $DATA_ID /data/decrypted_data.txt
+        docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONTRACT_ADDR get-data-status $DATA_ID;
+        docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONTRACT_ADDR get-data $DATA_ID /data/decrypted_data.txt;
+        echo "[OK] Decrypted file: $(cat decrypted_data.txt)";
         diff original_data.txt decrypted_data.txt
 
 

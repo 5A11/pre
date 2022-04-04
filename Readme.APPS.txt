@@ -3,9 +3,9 @@ addr: localhost
 port: 5001
 
 `ledger_config.yaml`
-chain_id: capricorn-1
+chain_id: dorado-1
 denom: atestfet
-node_address: http://127.0.0.1:1317
+node_address: localhost:9090
 prefix: fetch
 validator_pk: bbaef7511f275dc15f47436d14d6d3c92d4d01befea073d23d0c2750a46f6cb3
 

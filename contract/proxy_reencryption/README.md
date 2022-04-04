@@ -20,12 +20,12 @@ Install Fetchd
 ```
 git clone https://github.com/fetchai/fetchd.git
 cd fetchd
-git checkout v0.9.0
+git checkout v0.10.1
 make install
 
 # Check if wasmcli is properly installed
 fetchd version
-# Version should be 0.9.0
+# Version should be 0.10.1
 ```
 
 Compile contract

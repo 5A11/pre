@@ -8,23 +8,27 @@ from os import urandom
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
+import certifi
+import grpc
 import requests
-from cosmpy.auth.rest_client import AuthRestClient
-from cosmpy.bank.rest_client import BankRestClient
-from cosmpy.common.rest_client import RestClient
 from cosmpy.common.types import JSONLike
-from cosmpy.cosmwasm.rest_client import CosmWasmRestClient
 from cosmpy.crypto.address import Address
 from cosmpy.crypto.keypairs import PrivateKey
 from cosmpy.protos.cosmos.auth.v1beta1.auth_pb2 import BaseAccount
 from cosmpy.protos.cosmos.auth.v1beta1.query_pb2 import QueryAccountRequest
+from cosmpy.protos.cosmos.auth.v1beta1.query_pb2_grpc import QueryStub as AuthGrpcClient
 from cosmpy.protos.cosmos.bank.v1beta1.query_pb2 import QueryBalanceRequest
+from cosmpy.protos.cosmos.bank.v1beta1.query_pb2_grpc import QueryStub as BankGrpcClient
 from cosmpy.protos.cosmos.bank.v1beta1.tx_pb2 import MsgSend
+from cosmpy.protos.cosmos.base.tendermint.v1beta1.query_pb2 import GetNodeInfoRequest
+from cosmpy.protos.cosmos.base.tendermint.v1beta1.query_pb2_grpc import (
+    ServiceStub as TendermintGrpcClient,
+)
 from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
 from cosmpy.protos.cosmos.crypto.secp256k1.keys_pb2 import PubKey as ProtoPubKey
-from cosmpy.protos.cosmos.params.v1beta1.query_pb2 import (
-    QueryParamsRequest,
-    QueryParamsResponse,
+from cosmpy.protos.cosmos.params.v1beta1.query_pb2 import QueryParamsRequest
+from cosmpy.protos.cosmos.params.v1beta1.query_pb2_grpc import (
+    QueryStub as QueryParamsGrpcClient,
 )
 from cosmpy.protos.cosmos.tx.signing.v1beta1.signing_pb2 import SignMode
 from cosmpy.protos.cosmos.tx.v1beta1.service_pb2 import (
@@ -33,24 +37,28 @@ from cosmpy.protos.cosmos.tx.v1beta1.service_pb2 import (
     GetTxRequest,
     GetTxResponse,
 )
+from cosmpy.protos.cosmos.tx.v1beta1.service_pb2_grpc import ServiceStub as TxGrpcClient
 from cosmpy.protos.cosmos.tx.v1beta1.tx_pb2 import (
     AuthInfo,
     Fee,
     ModeInfo,
+    SignDoc,
     SignerInfo,
     Tx,
     TxBody,
 )
 from cosmpy.protos.cosmwasm.wasm.v1.query_pb2 import QuerySmartContractStateRequest
+from cosmpy.protos.cosmwasm.wasm.v1.query_pb2_grpc import (
+    QueryStub as CosmWasmGrpcClient,
+)
 from cosmpy.protos.cosmwasm.wasm.v1.tx_pb2 import (
     MsgExecuteContract,
     MsgInstantiateContract,
     MsgStoreCode,
 )
-from cosmpy.tx import sign_transaction
-from cosmpy.tx.rest_client import TxRestClient
 from google.protobuf.any_pb2 import Any as ProtoAny
-from google.protobuf.json_format import MessageToDict, Parse
+from google.protobuf.json_format import MessageToDict
+from grpc import insecure_channel
 
 from pre.common import (
     AbstractConfig,
@@ -69,7 +77,7 @@ _logger = get_logger(__name__)
 # Pre-configured CosmWasm nodes
 class NodeConfigPreset(Enum):
     local_net = 0
-    capricorn = 1
+    dorado = 1
 
 
 # CosmWasm client response codes
@@ -77,8 +85,8 @@ CLIENT_CODE_ERROR_EXCEPTION = 4
 CLIENT_CODE_MESSAGE_SUCCESSFUL = 0
 
 # maximum gas limit - tx will fail with higher limit
-DEFAULT_TX_MAXIMUM_GAS_LIMIT = 2000000
-DEFAULT_CONTRACT_TX_GAS = 500000
+DEFAULT_TX_MAXIMUM_GAS_LIMIT = 3000000
+DEFAULT_CONTRACT_TX_GAS = 600000
 DEFAULT_SEND_TX_GAS = 120000
 DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
 DEFAULT_FUNDS_AMOUNT = 9 * 10 ** 18
@@ -89,10 +97,10 @@ class BroadcastException(Exception):
 
 
 class CosmosLedgerConfig(AbstractConfig):
-    DEFAULT_FETCH_CHAIN_ID = "capricorn-1"
+    DEFAULT_FETCH_CHAIN_ID = "dorado-1"
     DEFAULT_DENOMINATION = "atestfet"
     PREFIX = "fetch"
-    FETCHD_URL = "http://127.0.0.1:1317"
+    FETCHD_URL = "127.0.0.1:9090"
 
     @classmethod
     def validate(cls, data: Dict) -> Dict:
@@ -121,13 +129,33 @@ class CosmosLedger(AbstractLedger):
     PRIVATE_KEY_LENGTH = 32
 
     _ADDR_RE = re.compile("^fetch[0-9a-z]{39}$")
+    _CONTRACT_ADDR_RE = re.compile("^fetch[0-9a-z]{59}$")
+
+    @staticmethod
+    def prepare_rpc_client(secure_channel: bool, node_address: str):
+        """
+        Prepare grpc client
+
+        :param secure_channel: Secure/insecure grpc channel
+        :param node_address: web address of the GRPC node
+        """
+
+        # Clients to communicate with Cosmos/CosmWasm GRPC node
+        if secure_channel:
+            with open(certifi.where(), "rb") as f:
+                trusted_certs = f.read()
+            credentials = grpc.ssl_channel_credentials(root_certificates=trusted_certs)
+            return grpc.secure_channel(node_address, credentials)
+        else:
+            return insecure_channel(node_address)
 
     def __init__(
         self,
         denom: str,
         chain_id: str,
         prefix: str,
-        node_address: str = None,
+        node_address: str,
+        secure_channel: bool = False,
         validator_pk: Optional[str] = None,
         faucet_url: Optional[str] = None,
         msg_retry_interval: int = 2,
@@ -145,7 +173,8 @@ class CosmosLedger(AbstractLedger):
         :param denom: Denom of stake
         :param chain_id: ID of a blockchain
         :param prefix: Cosmos string addresses prefix
-        :param node_address: web address of the REST node
+        :param node_address: web address of the GRPC node
+        :param secure_channel: Secure/insecure grpc channel
         :param validator_pk: Path to Validator's private key - for funding from validator
         :param faucet_url: Address of testnet faucet - for funding from testnet
         :param msg_retry_interval: Interval between message partial steps retries
@@ -170,12 +199,13 @@ class CosmosLedger(AbstractLedger):
                 validator_pk, prefix=prefix
             )
 
-        # Clients to communicate with Cosmos/CosmWasm REST node
-        self.rest_client = RestClient(self.node_address)
-        self.tx_client = TxRestClient(self.rest_client)
-        self.auth_client = AuthRestClient(self.rest_client)
-        self.wasm_client = CosmWasmRestClient(self.rest_client)
-        self.bank_client = BankRestClient(self.rest_client)
+        # Clients to communicate with Cosmos/CosmWasm GRPC node
+        self.rpc_client = self.prepare_rpc_client(secure_channel, node_address)
+        self.tx_client = TxGrpcClient(self.rpc_client)
+        self.auth_client = AuthGrpcClient(self.rpc_client)
+        self.wasm_client = CosmWasmGrpcClient(self.rpc_client)
+        self.bank_client = BankGrpcClient(self.rpc_client)
+        self.tendermint_client = TendermintGrpcClient(self.rpc_client)
 
         self.msg_retry_interval = msg_retry_interval
         self.msg_failed_retry_interval = msg_failed_retry_interval
@@ -185,6 +215,37 @@ class CosmosLedger(AbstractLedger):
         self.n_total_msg_retries = n_total_msg_retries
         self.get_response_retry_interval = get_response_retry_interval
         self.minimum_gas_price_amount = minimum_gas_price_amount
+
+    @staticmethod
+    def sign_transaction(
+        tx: Tx,
+        signer: CosmosCrypto,
+        chain_id: str,
+        account_number: int,
+        deterministic: bool = False,
+    ):
+        """
+        Sign transaction
+
+        :param tx: Transaction to be signed
+        :param signer: Signer of transaction
+        :param chain_id: Chain ID
+        :param account_number: Account Number
+        :param deterministic: Deterministic mode flag
+        """
+        sd = SignDoc()
+        sd.body_bytes = tx.body.SerializeToString()
+        sd.auth_info_bytes = tx.auth_info.SerializeToString()
+        sd.chain_id = chain_id
+        sd.account_number = account_number
+
+        data_for_signing = sd.SerializeToString()
+
+        # Generating deterministic signature:
+        signature = signer.sign(
+            data_for_signing, deterministic=deterministic, canonicalise=True
+        )
+        tx.signatures.extend([signature])
 
     def load_crypto_from_file(
         self, keyfile_path: str, prefix: Optional[str] = None
@@ -614,7 +675,9 @@ class CosmosLedger(AbstractLedger):
         # Update account number if needed - Getting account data might fail if address is not funded
         self._ensure_accont_number(crypto)
 
-        sign_transaction(tx, crypto.private_key, self.chain_id, crypto.account_number)
+        self.sign_transaction(
+            tx, crypto.private_key, self.chain_id, crypto.account_number
+        )
 
     def _ensure_accont_number(self, crypto: CosmosCrypto):
         if crypto.account_number is None:
@@ -976,8 +1039,8 @@ class CosmosLedger(AbstractLedger):
 
     def check_availability(self):
         try:
-            result = json.loads(self.rest_client.get("/node_info"))
-            if result["node_info"]["network"] != self.chain_id:
+            node_info = self.tendermint_client.GetNodeInfo(GetNodeInfoRequest())
+            if node_info.default_node_info.network != self.chain_id:
                 raise ValueError("Bad chain id")
         except Exception as e:
             raise LedgerServerNotAvailable(
@@ -987,6 +1050,11 @@ class CosmosLedger(AbstractLedger):
     @classmethod
     def validate_address(cls, address: str):
         if not cls._ADDR_RE.match(address):
+            raise ValueError(f"Cosmos address {address} is invalid")
+
+    @classmethod
+    def validate_contract_address(cls, address: str):
+        if not cls._CONTRACT_ADDR_RE.match(address):
             raise ValueError(f"Contract address {address} is invalid")
 
     def calculate_tx_fee(self, gas_limit) -> List[Coin]:
@@ -1016,12 +1084,10 @@ class CosmosLedger(AbstractLedger):
         """
 
         request = QueryParamsRequest(subspace=subspace, key=key)
-        response = self.rest_client.get(
-            "/cosmos/params/v1beta1/params",
-            request,
-        )
-        response = Parse(response, QueryParamsResponse())
-        return response.param.value
+        params_client = QueryParamsGrpcClient(self.rpc_client)
+        resp = params_client.Params(request)
+
+        return resp.param.value
 
     def query_max_gas_limit(self) -> int:
         """

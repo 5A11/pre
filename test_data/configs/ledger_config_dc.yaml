@@ -1,6 +1,6 @@
 chain_id: test
 denom: atestfet
-node_address: http://fetchd:1317
+node_address: fetchd:9090
 prefix: fetch
 validator_pk: bbaef7511f275dc15f47436d14d6d3c92d4d01befea073d23d0c2750a46f6cb3
 #funding: bbaef7511f275dc15f47436d14d6d3c92d4d01befea073d23d0c2750a46f6cb3

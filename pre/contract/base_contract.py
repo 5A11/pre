@@ -4,8 +4,8 @@ from typing import Dict, List, Optional
 
 from pre.common import (
     Address,
-    ContractState,
     Coin,
+    ContractState,
     Delegation,
     DelegationStatus,
     GetFragmentsResponse,
@@ -413,6 +413,7 @@ class ContractExecutionError(Exception):
 
 class ProxyAlreadyExist(ContractExecutionError):
     """Proxy already exists exception."""
+
 
 class ProxyNotActive(ContractExecutionError):
     """Proxy already deactivated exception."""

@@ -14,13 +14,7 @@ from apps.keys import cli as keys_cli
 from apps.owner import cli as owner_cli
 from apps.proxy import cli as proxy_cli
 from apps.reader import cli as reader_cli
-from pre.contract.base_contract import (
-    ProxyAlreadyExist,
-    ProxyAlreadyRegistered,
-    ProxyNotActive,
-    ProxyNotRegistered,
-    UnknownProxy,
-)
+from pre.contract.base_contract import ProxyAlreadyExist, ProxyNotActive, UnknownProxy
 from pre.ledger.cosmos.ledger import (
     BroadcastException,
     CosmosLedger,

@@ -1,11 +1,10 @@
-DEFAULT_FETCH_DOCKER_IMAGE_TAG = "fetchai/fetchd:0.9.0"
-DEFAULT_FETCH_LEDGER_ADDR = "http://127.0.0.1"
-DEFAULT_FETCH_LEDGER_RPC_PORT = 26657
-DEFAULT_FETCH_LEDGER_REST_PORT = 1317
-DEFAULT_FETCH_ADDR_REMOTE = "https://rest-capricorn.fetch.ai:443"
+DEFAULT_FETCH_DOCKER_IMAGE_TAG = "fetchai/fetchd:0.10.1"
+DEFAULT_FETCH_LEDGER_ADDR = "localhost"
+DEFAULT_FETCH_LEDGER_RPC_PORT = 9090
+DEFAULT_FETCH_ADDR_REMOTE = "grpc-dorado.fetch.ai:443"
 DEFAULT_FETCH_MNEMONIC = "gap bomb bulk border original scare assault pelican resemble found laptop skin gesture height inflict clinic reject giggle hurdle bubble soldier hurt moon hint"
 DEFAULT_MONIKER = "test-node"
-DEFAULT_FETCH_CHAIN_ID = "capricorn-1"
+DEFAULT_FETCH_CHAIN_ID = "dorado-1"
 DEFAULT_GENESIS_ACCOUNT = "validator"
 DEFAULT_DENOMINATION = "atestfet"
 FETCHD_INITIAL_TX_SLEEP = 6
@@ -22,8 +21,8 @@ FUNDED_FETCHAI_PRIVATE_KEY_1 = (
     "bbaef7511f275dc15f47436d14d6d3c92d4d01befea073d23d0c2750a46f6cb3"
 )
 
-FETCHD_LOCAL_URL = "http://127.0.0.1:1317"
-FETCHD_DC_URL = "http://fetchd:1317"
+FETCHD_LOCAL_URL = "localhost:9090"
+FETCHD_DC_URL = "fetchd:9090"
 FETCHD_URL = FETCHD_DC_URL
 FETCHD_DC_CHAIN_ID = "test"
 FETCHD_CHAIN_ID = FETCHD_DC_CHAIN_ID

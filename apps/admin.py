@@ -35,7 +35,6 @@ def instantiate_contract(
     proxies: str = "",
 ):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
-
     ledger = app_config.get_ledger_instance()
     ledger_crypto = app_config.get_ledger_crypto()
 

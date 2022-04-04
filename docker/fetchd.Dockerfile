@@ -1,4 +1,4 @@
-FROM fetchai/fetchd:0.9.0
+FROM fetchai/fetchd:0.10.1
 
 COPY ./scripts/run-fetch-node.sh /usr/bin/run-node.sh
 

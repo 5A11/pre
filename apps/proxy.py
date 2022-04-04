@@ -7,12 +7,9 @@ from prometheus_client import start_http_server
 from apps.conf import AppConf
 from apps.metrics import ProxyMetrics
 from pre.api.proxy import ProxyAPI
-from pre.contract.base_contract import (
-    ContractExecutionError,
-    ContractQueryError,
-)
-from pre.crypto.base_crypto import DecryptionError
+from pre.contract.base_contract import ContractExecutionError, ContractQueryError
 from pre.contract.cosmos_contracts import encode_bytes
+from pre.crypto.base_crypto import DecryptionError
 
 
 PROG_NAME = "proxy"
@@ -47,7 +44,7 @@ def register(ctx):
     )
 
     if app_config.fund_if_needed():
-        click.echo(f"{app_config.pp_config.get_ledger_crypto()} was funded")
+        click.echo(f"{app_config.get_ledger_crypto()} was funded")
 
     proxy_api.register()
     click.echo("Proxy was registered")
@@ -171,7 +168,9 @@ def run(
     try:
         if not proxy_api.registered():
             proxy_api.register()
-            click.echo("Proxy registered (or reactivated) successfully")  # pragma: nocover
+            click.echo(
+                "Proxy registered (or reactivated) successfully"
+            )  # pragma: nocover
         else:
             click.echo("Proxy was already registered. skip registration")
     except ContractExecutionError:
@@ -187,7 +186,7 @@ def run(
             try:
                 with metrics.time_query_tasks.time():
                     if not logged:
-                        click.echo(f"Querying reencryption tasks from contract...")
+                        click.echo("Querying reencryption tasks from contract...")
                         logged = True
                     task = None
                     tasks = proxy_api.get_reencryption_requests()
@@ -223,19 +222,21 @@ def run(
                     metrics.report_task_failed()
             else:  # pragma: nocover
                 time.sleep(DEFAULT_SLEEP_TIME)
-            
+
             if task_processing_failed:
                 try:
                     proxy_api.skip_task(task.hash_id)
                 except ContractExecutionError as e:
-                    click.echo(f"Error: failed to skip task {task.hash_id}")
+                    click.echo(f"Error: failed to skip task {task.hash_id}, {e}")
                     metrics.report_contract_execution_failure()
 
             if run_once_and_exit:  # pragma: nocover
                 break
     finally:
         try:
-            click.echo(f"Unregistering Proxy (deactivate only? {only_deactivate_on_exit})...")
+            click.echo(
+                f"Unregistering Proxy (deactivate only? {only_deactivate_on_exit})..."
+            )
             proxy_api.unregister(only_deactivate_on_exit)
         except ContractExecutionError:
             metrics.report_contract_execution_failure()

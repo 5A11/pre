@@ -1,7 +1,7 @@
 from typing import List, Optional
 
-from pre.common import PrivateKey, ProxyState, ProxyTask, Coin
-from pre.contract.base_contract import AbstractProxyContract, ContractQueryError
+from pre.common import Coin, PrivateKey, ProxyState, ProxyTask
+from pre.contract.base_contract import AbstractProxyContract
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.ledger.base_ledger import AbstractLedgerCrypto
 

@@ -63,8 +63,9 @@ legder_config:
   # node_address: http://fetchd-svc:1317
   # prefix: fetch
   # validator_pk: bbaef7511f275dc15f47436d14d6d3c92d4d01befea073d23d0c2750a46f6cb3
-  chain_id: capricorn-1
+  chain_id: dorado-1
   denom: atestfet
-  node_address: https://rest-capricorn.fetch.ai:443
+  node_address: grpc-dorado.fetch.ai:443
   prefix: fetch
-  faucet_url: https://faucet-capricorn.t-v2-london-c.fetch-ai.com
+  faucet_url: https://faucet-dorado.t-v2-london-c.fetch-ai.com
+  secure_channel: true

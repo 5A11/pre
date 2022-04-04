@@ -14,7 +14,7 @@ services:
       - "5001:5001"
   
   ledger:
-    image: fetchai/fetchd:0.9.0
+    image: fetchai/fetchd:0.10.1
     logging:
       driver: "none"
     volumes:
@@ -23,6 +23,7 @@ services:
     ports:
       - "1317:1317"
       - "26657:26657"
+      - "9090:9090"
 
   backend:
     build: 

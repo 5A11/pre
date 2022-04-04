@@ -3,8 +3,6 @@ set -e
 
 fetchd init test-node --chain-id test
 sed -i 's/stake/atestfet/' ~/.fetchd/config/genesis.json
-# Enable rest
-sed -i 's/enable = false/enable = true/' ~/.fetchd/config/app.toml
 
 fetchd config keyring-backend test
 echo $FETCHMNEMONIC | fetchd keys add validator --recover

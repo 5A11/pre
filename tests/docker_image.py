@@ -28,8 +28,12 @@ from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
 import pytest
-import requests
+from cosmpy.protos.cosmos.base.tendermint.v1beta1.query_pb2 import GetNodeInfoRequest
+from cosmpy.protos.cosmos.base.tendermint.v1beta1.query_pb2_grpc import (
+    ServiceStub as TendermintGrpcClient,
+)
 from docker.models.containers import Container
+from grpc import insecure_channel
 
 import docker
 from docker import DockerClient
@@ -111,7 +115,7 @@ class DockerImage(ABC):
 class FetchLedgerDockerImage(DockerImage):
     """Wrapper to Fetch ledger Docker image."""
 
-    PORTS = {1317: 1317, 26657: 26657}
+    PORTS = {1317: 1317, 26657: 26657, 9090: 9090}
 
     def __init__(
         self,
@@ -160,7 +164,6 @@ class FetchLedgerDockerImage(DockerImage):
             "fetchd collect-gentxs",
             # Enable rest-api
             'sed -i "s/stake/atestfet/" ~/.fetchd/config/genesis.json',
-            'sed -i "s/enable = false/enable = true/" ~/.fetchd/config/app.toml',
             'sed -i "s/swagger = false/swagger = true/" ~/.fetchd/config/app.toml',
             'sed -i "s/swagger = false/swagger = true/" ~/.fetchd/config/app.toml',
             'sed -i "s/3s/1s/" ~/.fetchd/config/config.toml',
@@ -192,11 +195,13 @@ class FetchLedgerDockerImage(DockerImage):
 
     def wait(self, max_attempts: int = 15, sleep_rate: float = 1.0) -> bool:
         """Wait until the image is up."""
+
         for i in range(max_attempts):
             try:
-                url = f"{self._addr}:{self._port}/net_info?"
-                response = requests.get(url)
-                assert response.status_code == 200
+                rpc_client = insecure_channel(f"{self._addr}:{self._port}")
+                tendermint_client = TendermintGrpcClient(rpc_client)
+                node_info = tendermint_client.GetNodeInfo(GetNodeInfoRequest())
+                assert node_info is not None
                 return True
             except Exception:
                 logger.info(

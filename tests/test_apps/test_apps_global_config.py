@@ -1,11 +1,11 @@
 import os
 import re
 import shutil
-import prometheus_client
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.case import TestCase
 
+import prometheus_client
 import yaml
 from click.testing import CliRunner
 
@@ -247,7 +247,9 @@ class TestApps(TestCase):
         assert re.match("Access to .* granted to ", result.output)
 
         # reset the underlying Prometheus registry
-        prometheus_client.REGISTRY = prometheus_client.CollectorRegistry(auto_describe=True)
+        prometheus_client.REGISTRY = prometheus_client.CollectorRegistry(
+            auto_describe=True
+        )
 
         result = self.runner.invoke(
             proxy_cli,

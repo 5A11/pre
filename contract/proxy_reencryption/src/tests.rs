@@ -9,8 +9,7 @@ use crate::contract::{
     DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT, DEFAULT_REQUEST_REWARD_AMOUNT,
 };
 
-// FRAGMENT_VERIFICATION
-// use crate::contract::verify_fragment
+use crate::contract::verify_fragment;
 use crate::delegations::{
     get_delegation_state, get_n_available_proxies_from_delegation,
     get_n_minimum_proxies_for_refund, store_add_per_proxy_delegation, store_get_delegation,
@@ -2180,8 +2179,6 @@ fn test_proxy_unregister_with_requests() {
         DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 3 * DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT
     );
 
-    /*
-    // FRAGMENT_VERIFICATION
     // Provide wrong fragment
     assert!(is_err(
         provide_reencrypted_fragment(
@@ -2194,7 +2191,6 @@ fn test_proxy_unregister_with_requests() {
         ),
         "Invalid KeyFrag signature",
     ));
-    */
 
     // Complete requests
     assert!(provide_reencrypted_fragment(
@@ -3939,7 +3935,6 @@ fn test_get_n_minimum_proxies_for_refund() {
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 2);
 }
 
-/*
 #[test]
 fn test_verify_fragments() {
     assert!(verify_fragment(
@@ -3958,7 +3953,6 @@ fn test_verify_fragments() {
     )
     .is_err());
 }
-*/
 
 fn add_delegation_manually(
     storage: &mut dyn Storage,

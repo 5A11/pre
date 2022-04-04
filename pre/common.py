@@ -83,6 +83,7 @@ class Coin:
             amount=self.amount,
         )
 
+
 @dataclass
 class Delegation:
     """Delegation dataclass."""

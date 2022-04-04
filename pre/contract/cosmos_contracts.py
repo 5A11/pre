@@ -5,8 +5,8 @@ from typing import Dict, List, Optional, cast
 
 from pre.common import (
     Address,
-    ContractState,
     Coin,
+    ContractState,
     Delegation,
     DelegationState,
     DelegationStatus,
@@ -39,9 +39,9 @@ from pre.contract.base_contract import (
     NotEnoughProxies,
     NotEnoughStakeToWithdraw,
     ProxiesAreTooBusy,
-    ProxyNotActive,
     ProxyAlreadyExist,
     ProxyAlreadyRegistered,
+    ProxyNotActive,
     ProxyNotRegistered,
     QueryDataEntryDoesNotExist,
     ReencryptedCapsuleFragAlreadyProvided,
@@ -153,9 +153,9 @@ class ContractQueries(AbstractContractQueries):
         try:
             return self.ledger.send_query_msg(self.contract_address, state_msg)
         except BroadcastException as e:
-            if "contract: not found: invalid request" in str(e):
+            if "contract: not found" in str(e):
                 raise ContractQueryError(str(e)) from e
-            if "Data entry doesn\\'t exist" in str(e):
+            if "Data entry doesn't exist" in str(e):
                 raise QueryDataEntryDoesNotExist(e)
             if "Generic error" in str(e):
                 raise ContractQueryError(str(e)) from e
@@ -754,7 +754,10 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
     def add_stake(self, proxy_private_key: AbstractLedgerCrypto, stake_amount: Coin):
         submit_msg: Dict = {"add_stake": {}}
         res, error_code = self.ledger.send_execute_msg(
-            proxy_private_key, self.contract_address, submit_msg, amount=[stake_amount.to_pb()]
+            proxy_private_key,
+            self.contract_address,
+            submit_msg,
+            amount=[stake_amount.to_pb()],
         )
         self._exception_from_res(error_code, res)
 
@@ -789,7 +792,7 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
 class CosmosContract:  # pylint: disable=too-few-public-methods
     """Cosmos contrct class to define all contract classes."""
 
-    _CONTRACT_ADDR_RE = re.compile("^fetch[0-9a-z]{39}$")
+    _CONTRACT_ADDR_RE = re.compile("^fetch[0-9a-z]{59}$")
     ADMIN_CONTRACT = AdminContract
     DELEGATOR_CONTRACT = DelegatorContract
     QUERIES_CONTRACT = ContractQueries
@@ -803,4 +806,6 @@ class CosmosContract:  # pylint: disable=too-few-public-methods
         :param address: str
         """
         if not cls._CONTRACT_ADDR_RE.match(address):
-            raise ValueError(f"Cosmos address {address} is invalid")
+            raise ValueError(
+                f"result = self.runner.invoke(Cosmos address {address} is invalid"
+            )

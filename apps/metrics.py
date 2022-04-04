@@ -1,9 +1,12 @@
 import contextlib
+
 from prometheus_client import Counter, Gauge, Summary
 
-class NullSummary():
+
+class NullSummary:
     def time(self):
         return contextlib.suppress()
+
 
 class ProxyMetrics:
     def __init__(self, disable: bool = False) -> None:

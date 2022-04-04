@@ -475,7 +475,7 @@ class TestDelegatorContract(BaseContractTestCase):
 
 def test_contract_validate_contract_address():
     CosmosContract.validate_contract_address(
-        "fetch18vd9fpwxzck93qlwghaj6arh4p7c5n890l3amr"
+        "fetch14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9szlkpka"
     )
 
     with pytest.raises(ValueError):

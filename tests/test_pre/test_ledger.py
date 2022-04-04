@@ -1,7 +1,7 @@
-import json
 from unittest.mock import Mock, patch
 
 import pytest
+from cosmpy.protos.cosmos.base.tendermint.v1beta1.query_pb2 import GetNodeInfoResponse
 
 from pre.contract.cosmos_contracts import CosmosContract
 from pre.ledger.base_ledger import LedgerServerNotAvailable
@@ -43,7 +43,7 @@ def test_contract_validate_address():
 
 
 def test_error_handling():
-    ledger = CosmosLedger("", "", "")
+    ledger = CosmosLedger("", "", "", node_address="http://127.0.0.1:55317")
     with patch.object(
         ledger, "generate_tx", side_effect=BroadcastException("oops")
     ), patch.object(ledger, "_sleep") as sleep_mock:
@@ -157,7 +157,6 @@ def test_error_handling():
     with patch.object(ledger, "get_balance", return_value=10000000), patch.object(
         ledger, "_sleep"
     ) as sleep_mock, patch("pre.ledger.cosmos.ledger.requests.post", return_value=resp):
-
         ledger._refill_wealth_from_faucet(["someaddr"], 10000000)
 
     sleep_mock.assert_called()
@@ -165,7 +164,6 @@ def test_error_handling():
     with patch.object(ledger, "get_balance", return_value=5000000000), patch.object(
         ledger, "_sleep"
     ) as sleep_mock, patch("requests.post", return_value=resp):
-
         ledger._refill_wealth_from_faucet(["someaddr"])
 
     with patch.object(ledger, "get_balance", return_value=1), patch.object(
@@ -173,7 +171,6 @@ def test_error_handling():
     ) as sleep_mock, patch(
         "pre.ledger.cosmos.ledger.requests.post", side_effect=Exception("oops")
     ):
-
         ledger._refill_wealth_from_faucet(["someaddr"], 10000000)
 
     sleep_mock.assert_called()
@@ -236,9 +233,9 @@ def test_ledger_load_file():
 def test_check_availability():
     ledger = CosmosLedger(**CosmosLedgerConfig.make_default())
     with patch.object(
-        ledger.rest_client,
-        "get",
-        return_value=json.dumps({"node_info": {"network": "some"}}),
+        ledger.tendermint_client,
+        "GetNodeInfo",
+        return_value=GetNodeInfoResponse(),
     ):
         with pytest.raises(LedgerServerNotAvailable, match="Bad chain id"):
             ledger.check_availability()

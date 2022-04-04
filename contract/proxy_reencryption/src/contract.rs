@@ -41,8 +41,7 @@ use std::collections::HashMap;
 
 use crate::common::add_bank_msg;
 
-// FRAGMENT_VERIFICATION
-// use umbral_pre::{Capsule, CapsuleFrag, DeserializableFromArray, PublicKey};
+use umbral_pre::{Capsule, CapsuleFrag, DeserializableFromArray, PublicKey};
 
 macro_rules! generic_err {
     ($val:expr) => {
@@ -423,15 +422,13 @@ fn try_provide_reencrypted_fragment(
         return generic_err!("Fragment already provided.");
     }
 
-    /*
     let data_entry = store_get_data_entry(deps.storage, data_id).unwrap();
     verify_fragment(
-        &fragment.to_string(),
+        fragment,
         &data_entry.capsule,
         &data_entry.delegator_pubkey,
         &proxy_request.delegatee_pubkey,
     )?;
-    */
 
     if get_all_fragments(deps.storage, data_id, delegatee_pubkey).contains(&fragment.to_string()) {
         return generic_err!("Fragment already provided by other proxy.");
@@ -1222,7 +1219,6 @@ fn ensure_stake(
     Ok(funds[0].amount.u128())
 }
 
-/*
 // FRAGMENT_VERIFICATION
 fn unwrap_or_pass_error<ResultType, ErrType: std::fmt::Display>(
     obj: Result<ResultType, ErrType>,
@@ -1282,4 +1278,3 @@ pub fn verify_fragment(
         Err(error) => generic_err!(format!("{}{}", FRAGMENT_VERIFICATION_ERROR, error)),
     }
 }
-*/

@@ -9,8 +9,8 @@ cosmos_endpoint = CosmosEndpoint(
     validator_pk="0ba1db680226f19d4a2ea64a1c0ea40d1ffa3cb98532a9fa366994bb689a34ae",
 )
 
-# For capricorn use this instead of local_net one:
-# cosmos_endpoint = CosmosEndpoint(NodeConfigPreset.capricorn)
+# For dorado use this instead of local_net one:
+# cosmos_endpoint = CosmosEndpoint(NodeConfigPreset.dorado)
 
 delegator_crypto = cosmos_endpoint.make_crypto("delegator.key")
 proxy1_crypto = cosmos_endpoint.make_crypto("proxy1.key")

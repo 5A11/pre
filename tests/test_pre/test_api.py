@@ -7,8 +7,8 @@ from pre.api.delegatee import DelegateeAPI
 from pre.api.delegator import DelegatorAPI
 from pre.api.proxy import ProxyAPI
 from pre.common import (
-    ContractState,
     Coin,
+    ContractState,
     DelegationState,
     DelegationStatus,
     EncryptedData,

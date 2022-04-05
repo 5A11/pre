@@ -49,7 +49,7 @@ services:
     container_name: provider
     volumes:
       - ../test_data:/test_data
-      - ../:/data/:rw
+      - ${PWD}/:/data/:rw
     #entrypoint: python3 /workdir/apps/owner.py
     entrypoint: >
       python3 apps/owner.py
@@ -94,7 +94,7 @@ services:
     container_name: reader
     volumes:
       - ../test_data:/test_data
-      - ../:/data/:rw
+      - ${PWD}/:/data/:rw
     #entrypoint: python3 /workdir/apps/reader.py
     entrypoint: >
       python3 apps/reader.py

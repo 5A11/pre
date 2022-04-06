@@ -1,0 +1,45 @@
+{{- if .Values.ipfs.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.ipfs.name }} 
+  labels:
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace }}
+spec:
+  serviceName: {{ .Values.ipfs.name }}-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.ipfs.name }} 
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.ipfs.name }} 
+    spec:
+      containers:
+      - name: ipfs
+        image: ipfs/go-ipfs:v0.7.0
+        ports:
+        - containerPort: {{ .Values.ipfs.dns.port }}
+          name: http
+          protocol: TCP
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /data/ipfs
+          name: ipfs-pre-storage
+          subPath: ipfs-data
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ipfs-pre-storage
+    spec:
+      storageClassName: gp2
+      volumeMode: Filesystem
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 200Gi
+{{ end }}

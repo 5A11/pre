@@ -26,9 +26,18 @@ admin:
     version: latest
 
 ipfs:
+  enabled: true
   config:
-    addr: ipfs.sandbox-london-b.fetch-ai.com
-    port: 12000
+      addr: ipfs-pre.colearn-v3.fetch-ai.com
+      port: 12000
+  name: ipfs-pre
+  dns:
+    host: ipfs-pre.colearn-v3.fetch-ai.com
+    target: fetchpub.colearn-v3.fetch-ai.com
+    cert: ipfs-pre-cert 
+    app: istio-fetchpubig
+    istio: ingressgateway
+    port: 5001
 
 
 proxy:

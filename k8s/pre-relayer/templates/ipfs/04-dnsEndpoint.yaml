@@ -1,0 +1,16 @@
+{{- if .Values.ipfs.enabled }}
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: ipfs-pre
+  labels:
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace }}
+spec:
+  endpoints:
+  - dnsName: {{ .Values.ipfs.dns.host }}
+    recordTTL: 180
+    recordType: CNAME
+    targets:
+    - {{ .Values.ipfs.dns.target }}
+{{ end }}

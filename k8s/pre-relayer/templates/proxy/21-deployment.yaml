@@ -51,7 +51,7 @@ spec:
             - name: PROXY_ENCRYPTION
               value: "/keys/proxy_encryption{{ . }}.key"
             - name: CONT_ADDR_FILE
-              value: "/contract-address/cont_addr.txt"
+              value: "/contract-address/contract.json"
           volumeMounts:
           - name: config-volume
             mountPath: /configs/ledger_config.yaml
@@ -68,7 +68,7 @@ spec:
           args:
             - -c
             - >-
-                export CONT_ADDR=$( cat ${CONT_ADDR_FILE}) && python3 apps/proxy.py --fund --contract-address ${CONT_ADDR} --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${PROXY_LEDGER} --encryption-private-key ${PROXY_ENCRYPTION} run 
+                export CONT_ADDR=$( cat ${CONT_ADDR_FILE} | jq -r .contract_address)  && python3 apps/proxy.py --fund --contract-address ${CONT_ADDR} --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${PROXY_LEDGER} --encryption-private-key ${PROXY_ENCRYPTION} run 
       volumes:
         - name: config-volume
           configMap:

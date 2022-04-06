@@ -157,6 +157,7 @@ def run(
 
     metrics = ProxyMetrics(disable_metrics)
     if not disable_metrics:
+        click.echo(f"Starting metrics server on {metrics_port}")
         start_http_server(metrics_port)
 
     click.echo(f"Proxy address {app_config.get_ledger_crypto().get_address()}")

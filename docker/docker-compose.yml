@@ -28,6 +28,7 @@ services:
     container_name: admin
     volumes:
       - ../test_data:/test_data
+      - ${PWD}/:/data/:rw
     entrypoint: >
       python3 apps/admin.py
         --fund

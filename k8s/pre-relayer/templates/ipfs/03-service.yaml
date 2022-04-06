@@ -1,0 +1,18 @@
+{{- if .Values.ipfs.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ipfs-pre-svc
+  labels:
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace }}
+spec:
+  ports:
+  - name: http
+    port: {{ .Values.ipfs.dns.port }} 
+    protocol: TCP
+    targetPort: {{ .Values.ipfs.dns.port }} 
+  selector:
+    app: {{ .Values.ipfs.name }} 
+  type: ClusterIP
+{{ end }}

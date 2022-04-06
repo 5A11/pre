@@ -1,0 +1,33 @@
+{{- if .Values.ipfs.enabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: ipfs-pre-gw
+  labels:
+    {{- include "pre-relayer.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: {{ .Values.ipfs.dns.app }}
+    istio: {{ .Values.ipfs.dns.istio }}
+  servers:
+  - hosts:
+    - {{ .Values.ipfs.dns.host }}
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+    tls:
+      httpsRedirect: false
+  - hosts:
+    - {{ .Values.ipfs.dns.host }}
+    port:
+      name: https
+      number: 443
+      protocol: HTTPS
+    tls:
+      credentialName: {{ .Values.ipfs.dns.cert }}
+      mode: SIMPLE
+      privateKey: sds
+      serverCertificate: sds
+{{ end }}

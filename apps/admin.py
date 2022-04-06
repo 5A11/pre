@@ -1,5 +1,8 @@
+from dataclasses import dataclass, asdict
 from typing import Optional
+from pathlib import Path
 
+import json
 import click
 
 from apps.conf import AppConf
@@ -7,6 +10,11 @@ from pre.api.admin import AdminAPI
 
 
 PROG_NAME = "admin"
+
+@dataclass
+class DeployedContract:
+    contract_address: str
+
 
 
 @click.group(name=PROG_NAME)
@@ -26,6 +34,12 @@ def cli(ctx, app_config: AppConf):
 @click.option("--admin-address", type=str, required=False)
 @click.option("--threshold", type=int, required=False, default=1)
 @click.option("--proxies", type=str, required=False)
+@click.option(
+    "--output-file",
+    type=str,
+    required=False,
+    help="Path to file containing deployed contract address",
+)
 @click.pass_context
 def instantiate_contract(
     ctx,
@@ -33,6 +47,7 @@ def instantiate_contract(
     admin_address: Optional[str] = None,
     stake_denom: str = "atestfet",
     proxies: str = "",
+    output_file: Optional[str] = None,
 ):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
     ledger = app_config.get_ledger_instance()
@@ -64,7 +79,7 @@ def instantiate_contract(
     if app_config.do_fund:
         ledger = app_config.get_ledger_instance()
         if app_config.fund_if_needed():
-            click.echo(f"{app_config.get_ledger_crypto()} was funded.")
+            click.echo(f"{app_config.get_ledger_crypto().get_address()} was funded.")
 
     contract_addr = AdminAPI.instantiate_contract(
         ledger_crypto,
@@ -72,6 +87,12 @@ def instantiate_contract(
         contract_cls=app_config.CONTRACT_CLASS.ADMIN_CONTRACT,
         **kwargs,  # type: ignore
     )
+
+    if output_file is not None:
+        contract = DeployedContract(contract_addr)
+        Path(output_file).write_text(json.dumps(asdict(contract)))
+
+
     click.echo()
     click.echo(f"Contract was set succesfully. Contract address is {contract_addr}")
 

@@ -92,18 +92,23 @@ jobs:
             --set admin.name=admin-${{ env.SHORTSHA }} \
             --set admin.tag=${{ env.SHORTSHA }}  \
             --set proxy.enabled=false \
-            --set fetchd.enabled=false \
+            --set ipfs.enabled=false \
             -n pre
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 
+      - name: Sleep for 300 seconds
+        uses: jakejarvis/wait-action@master
+        with:
+          time: '300s'
+
       - name: Deploy Proxy to Staging
         run: |
-          helm upgrade --install --wait --timeout 360s staging-proxy ./k8s/pre-relayer/ \
+          helm upgrade --install --wait --timeout 600s staging-proxy ./k8s/pre-relayer/ \
             --set admin.enabled=false \
             --set fetchd.tag=${{ env.SHORTSHA }}  \
             --set proxy.tag=${{ env.SHORTSHA }}  \
-            --set fetchd.enabled=false \
+            --set ipfs.enabled=false \
             -n pre
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}

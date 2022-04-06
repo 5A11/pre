@@ -21,8 +21,7 @@ WORKDIR /workdir
 
 RUN pip3 install --no-cache-dir --upgrade pip
 
-#COPY ./requirements.txt ./
-#RUN pip3 install -r requirements.txt
+RUN apt install -y jq
 
 COPY ./ ./
 COPY --from=builder-contract /build/ ./contract

@@ -27,7 +27,7 @@ spec:
             {{- toYaml $.Values.proxy.resources | nindent 12 }}
           env:
             - name: CONT_ADDR_FILE
-              value: "/contract-address/cont_addr.txt"
+              value: "/contract-address/contract.json"
           volumeMounts:
           - name: contract-address
             mountPath: /contract-address/

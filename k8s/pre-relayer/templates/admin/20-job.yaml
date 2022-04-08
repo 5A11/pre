@@ -40,7 +40,33 @@ spec:
           args:
             - -c
             - >-
-                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 2 --output-file /contract-address/contract.json
+                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 2 --output-file /contract-address/latest.json
+        - name: contract
+          image: {{ .Values.admin.contract }}
+          resources:
+            {{- toYaml .Values.admin.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.admin.port  }}
+          volumeMounts:
+          - name: contract-address
+            mountPath: /contract-address/
+          - name: admin-key-volume
+            mountPath: /keys/cred.rc
+            subPath: cred.rc
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - >-
+                echo "waiting 15s" &&
+                sleep 30s &&
+                echo "copying contract" &&
+                cp /contract-address/latest.json /contract-address/contract-{{ .Values.admin.tag }}.json &&
+                source /keys/cred.rc && 
+                echo "uploading contract" &&
+                aws s3 cp /contract-address/latest.json s3://pre-relayer/contract/ &&
+                aws s3 cp /contract-address/contract-{{ .Values.admin.tag }}.json s3://pre-relayer/contract/ &&
+                echo "contract uploaded" &&
+                exit 0
       volumes:
         - name: config-volume
           configMap:

@@ -6,6 +6,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: proxy-{{ . }}
+  annotations:
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '8080'
+    prometheus.io/path: '/metrics'
   labels:
     app: pre-relayer
     {{- $helmlabels }}
@@ -20,22 +24,6 @@ spec:
       labels:
         app: pre-relayer
     spec:
-      initContainers:
-        - name: contract-test
-          image: {{ $.Values.proxy.image }}:{{ $.Values.proxy.tag }}
-          resources:
-            {{- toYaml $.Values.proxy.resources | nindent 12 }}
-          env:
-            - name: CONT_ADDR_FILE
-              value: "/contract-address/contract.json"
-          volumeMounts:
-          - name: contract-address
-            mountPath: /contract-address/
-          command: ["/bin/sh"]
-          args:
-            - -c
-            - >-
-                while ! test -s "$CONT_ADDR_FILE"; do sleep 2; done
       containers:
         - name: proxy
           image: {{ $.Values.proxy.image }}:{{ $.Values.proxy.tag }}
@@ -50,8 +38,6 @@ spec:
               value: "/keys/proxy_ledger-{{ . }}.key"
             - name: PROXY_ENCRYPTION
               value: "/keys/proxy_encryption{{ . }}.key"
-            - name: CONT_ADDR_FILE
-              value: "/contract-address/contract.json"
           volumeMounts:
           - name: config-volume
             mountPath: /configs/ledger_config.yaml
@@ -62,13 +48,12 @@ spec:
           - name: proxy-key-volume
             mountPath: /keys/proxy_encryption{{ . }}.key
             subPath: proxy_encryption-{{ . }}
-          - name: contract-address
-            mountPath: /contract-address/
           command: ["/bin/sh"]
           args:
             - -c
             - >-
-                export CONT_ADDR=$( cat ${CONT_ADDR_FILE} | jq -r .contract_address)  && python3 apps/proxy.py --fund --contract-address ${CONT_ADDR} --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${PROXY_LEDGER} --encryption-private-key ${PROXY_ENCRYPTION} run 
+                export CONT_ADDR=$( curl https://pre-relayer.s3.us-west-2.amazonaws.com/contract/latest.json | jq -r .contract_address)  && 
+                python3 apps/proxy.py --fund --contract-address ${CONT_ADDR} --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${PROXY_LEDGER} --encryption-private-key ${PROXY_ENCRYPTION} run 
       volumes:
         - name: config-volume
           configMap:
@@ -76,9 +61,6 @@ spec:
         - name: proxy-key-volume
           secret:
             secretName: pre-proxy
-        - name: contract-address
-          persistentVolumeClaim:
-            claimName: pre-relayer
       restartPolicy: "Always"
 ---
 {{ end }}

@@ -1,15 +1,14 @@
 
 namespace: pre
 
-sha: "3bab254"
-
 admin:
   enabled: true
   name: admin
   image: "gcr.io/fetch-ai-images/colearn-pre-relayer"
-  tag: "2a4b916"
+  tag: "12df337"
   port: 80
   replicas: 1
+  contract: "amazon/aws-cli:latest"
     
   resources:
     requests:
@@ -23,6 +22,10 @@ admin:
     key: colearn-v3/pre-relayer
     name: admin_ledger.key
     property: admin-ledger
+    version: latest
+  creds:
+    key: colearn-v3/pre-contract
+    name: cred.rc
     version: latest
 
 ipfs:
@@ -43,7 +46,7 @@ ipfs:
 proxy:
   enabled: true
   image: "gcr.io/fetch-ai-images/colearn-pre-relayer"
-  tag: "2a4b916"
+  tag: "12df337"
   port: 80
   replicas: 5
 

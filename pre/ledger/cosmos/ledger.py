@@ -132,7 +132,7 @@ class CosmosLedger(AbstractLedger):
     _CONTRACT_ADDR_RE = re.compile("^fetch[0-9a-z]{59}$")
 
     @staticmethod
-    def prepare_rpc_client(secure_channel: bool, node_address: str):
+    def prepare_grpc_client(secure_channel: bool, node_address: str):
         """
         Prepare grpc client
 
@@ -200,12 +200,13 @@ class CosmosLedger(AbstractLedger):
             )
 
         # Clients to communicate with Cosmos/CosmWasm GRPC node
-        self.rpc_client = self.prepare_rpc_client(secure_channel, node_address)
+        self.rpc_client = self.prepare_grpc_client(secure_channel, node_address)
         self.tx_client = TxGrpcClient(self.rpc_client)
         self.auth_client = AuthGrpcClient(self.rpc_client)
         self.wasm_client = CosmWasmGrpcClient(self.rpc_client)
         self.bank_client = BankGrpcClient(self.rpc_client)
         self.tendermint_client = TendermintGrpcClient(self.rpc_client)
+        self.params_client = QueryParamsGrpcClient(self.rpc_client)
 
         self.msg_retry_interval = msg_retry_interval
         self.msg_failed_retry_interval = msg_failed_retry_interval
@@ -219,7 +220,7 @@ class CosmosLedger(AbstractLedger):
     @staticmethod
     def sign_transaction(
         tx: Tx,
-        signer: CosmosCrypto,
+        signer: PrivateKey,
         chain_id: str,
         account_number: int,
         deterministic: bool = False,
@@ -945,7 +946,6 @@ class CosmosLedger(AbstractLedger):
                 # This fails when Tx is not on chain yet - not an actual error
                 last_exception = e
                 self._sleep(self.get_response_retry_interval)
-                continue
 
         if tx_response is None:
             raise BroadcastException(
@@ -1038,14 +1038,26 @@ class CosmosLedger(AbstractLedger):
         return send_msg_packed
 
     def check_availability(self):
-        try:
-            node_info = self.tendermint_client.GetNodeInfo(GetNodeInfoRequest())
-            if node_info.default_node_info.network != self.chain_id:
-                raise ValueError("Bad chain id")
-        except Exception as e:
+
+        last_exception: Optional[Exception] = None
+        done = False
+        for _ in range(self.n_total_msg_retries):
+            try:
+                node_info = self.tendermint_client.GetNodeInfo(GetNodeInfoRequest())
+                if node_info.default_node_info.network != self.chain_id:
+                    last_exception = ValueError(
+                        f"Bad chain id, expected {node_info.default_node_info.network}, got {self.chain_id}"
+                    )
+                    break
+                done = True
+                break
+            except Exception as e:
+                last_exception = e
+
+        if not done and last_exception is not None:
             raise LedgerServerNotAvailable(
-                f"ledger server is not available with address: {self.node_address}: {e}"
-            ) from e
+                f"ledger server is not available with address: {self.node_address}: {last_exception}"
+            ) from last_exception
 
     @classmethod
     def validate_address(cls, address: str):
@@ -1084,8 +1096,19 @@ class CosmosLedger(AbstractLedger):
         """
 
         request = QueryParamsRequest(subspace=subspace, key=key)
-        params_client = QueryParamsGrpcClient(self.rpc_client)
-        resp = params_client.Params(request)
+
+        last_exception: Optional[Exception] = None
+        for _ in range(self.n_total_msg_retries):
+            try:
+                resp = self.params_client.Params(request)
+                break
+            except Exception as e:
+                last_exception = e
+
+        if resp is None and last_exception is not None:
+            raise LedgerServerNotAvailable(
+                f"ledger server is not available with address: {self.node_address}: {last_exception}"
+            ) from last_exception
 
         return resp.param.value
 

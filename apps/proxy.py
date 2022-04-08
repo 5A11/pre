@@ -224,11 +224,11 @@ def run(
             else:  # pragma: nocover
                 time.sleep(DEFAULT_SLEEP_TIME)
 
-            if task_processing_failed:
+            if task is not None and task_processing_failed:
                 try:
-                    proxy_api.skip_task(task.hash_id)
+                    proxy_api.skip_task(task)
                 except ContractExecutionError as e:
-                    click.echo(f"Error: failed to skip task {task.hash_id}, {e}")
+                    click.echo(f"Error: failed to skip task {task}, {e}")
                     metrics.report_contract_execution_failure()
 
             if run_once_and_exit:  # pragma: nocover

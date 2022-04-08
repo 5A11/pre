@@ -307,8 +307,10 @@ class AppConf:
 
     def get_ledger_instance(self, check_availability=True) -> AbstractLedger:
         ledger = self.LEDGER_CLASS(**self.ledger_config)
+
         if check_availability:
             ledger.check_availability()
+
         return ledger
 
     def get_storage_instance(self) -> AbstractStorage:

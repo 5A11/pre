@@ -2,7 +2,9 @@ import contextlib
 
 from prometheus_client import Counter, Gauge, Summary
 
+
 PROM_NAMESPACE = "pre"
+
 
 class NullSummary:
     def time(self):

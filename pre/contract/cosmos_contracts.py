@@ -649,21 +649,6 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         )
         self._exception_from_res(error_code, res)
 
-    def proxy_deactivate(
-        self,
-        proxy_private_key: AbstractLedgerCrypto,
-    ):
-        """
-        Deactivate the proxy.
-
-        :param proxy_private_key: Proxy ledger private key
-        """
-        submit_msg: Dict = {"deactivate_proxy": {}}
-        res, error_code = self.ledger.send_execute_msg(
-            proxy_private_key, self.contract_address, submit_msg
-        )
-        self._exception_from_res(error_code, res)
-
     def get_proxy_tasks(self, proxy_pubkey_bytes: bytes) -> List[ProxyTask]:
         """
         Get next proxy task.

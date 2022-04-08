@@ -39,7 +39,7 @@ class ProxyAPI:
             status.proxy_state == ProxyState.registered if status is not None else False
         )
 
-    def register(self) -> Coin:
+    def register(self) -> Optional[Coin]:
         """Register a proxy on the specific contract."""
         status = self._contract.get_proxy_status(self._pub_key_as_bytes())
         state = status.proxy_state if status is not None else ProxyState.authorised

@@ -1,8 +1,8 @@
-from dataclasses import dataclass, asdict
-from typing import Optional
-from pathlib import Path
-
 import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Optional
+
 import click
 
 from apps.conf import AppConf
@@ -11,10 +11,10 @@ from pre.api.admin import AdminAPI
 
 PROG_NAME = "admin"
 
+
 @dataclass
 class DeployedContract:
     contract_address: str
-
 
 
 @click.group(name=PROG_NAME)
@@ -91,7 +91,6 @@ def instantiate_contract(
     if output_file is not None:
         contract = DeployedContract(contract_addr)
         Path(output_file).write_text(json.dumps(asdict(contract)))
-
 
     click.echo()
     click.echo(f"Contract was set succesfully. Contract address is {contract_addr}")

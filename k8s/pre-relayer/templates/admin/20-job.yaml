@@ -4,7 +4,7 @@ kind: Job
 metadata:
   name: {{ .Values.admin.name }}
   labels:
-    app: pre-relayer
+    app: pre-relayer-admin
     {{- include "pre-relayer.labels" . | nindent 4 }}
   namespace: {{ .Values.namespace }}
 spec:

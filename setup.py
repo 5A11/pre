@@ -23,7 +23,7 @@ setuptools.setup(
     ],
     python_requires=">=3.6",
     install_requires=[
-        "cosmpy @git+https://git@github.com/fetchai/cosmpy@integration/dorado",
+        "cosmpy==v0.3.1",
         "requests",
         "click",
         "ipfshttpclient",

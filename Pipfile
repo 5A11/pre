@@ -6,7 +6,7 @@ name = "pypi"
 [packages]
 cryptography = "*"
 ipfshttpclient = "*"
-cosmpy = { git = 'https://github.com/fetchai/cosmpy.git', ref = 'integration/dorado' }
+cosmpy = "==v0.3.1"
 requests = "*"
 click = "*"
 umbral = "*"

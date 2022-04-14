@@ -169,6 +169,7 @@ class ContractState:
 
     admin: Address
     threshold: int
+    terminated: bool
 
 
 @dataclass

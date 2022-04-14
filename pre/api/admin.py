@@ -98,3 +98,12 @@ class AdminAPI:
         """
 
         self._contract.remove_proxy(self._ledger_crypto, proxy_address)
+
+    def terminate_contract(self):
+        """
+        Terminate contract.
+
+        :return: None
+        """
+
+        self._contract.terminate_contract(self._ledger_crypto)

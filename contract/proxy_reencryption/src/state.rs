@@ -28,6 +28,8 @@ pub struct State {
     // Total number of re-encryption requests
     pub next_proxy_request_id: u64,
     pub next_delegation_id: u64,
+
+    pub terminated: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

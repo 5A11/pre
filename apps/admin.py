@@ -136,6 +136,23 @@ def remove_proxy(
     click.echo(f"Proxy {proxy_address} removed")
 
 
+@cli.command("terminate-contract")
+@AppConf.deco(
+    AppConf.opt_ledger_private_key,
+    AppConf.opt_ledger_config,
+    AppConf.opt_contract_address,
+    expose_app_config=True,
+)
+def terminate_contract(
+    app_config: AppConf,
+):
+    ledger_crypto = app_config.get_ledger_crypto()
+    contract = app_config.get_admin_contract()
+    api = AdminAPI(ledger_crypto=ledger_crypto, contract=contract)
+    api.terminate_contract()
+    click.echo("Contract was terminated")
+
+
 if __name__ == "__main__":
     cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
         prog_name=PROG_NAME

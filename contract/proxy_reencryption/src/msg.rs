@@ -63,6 +63,7 @@ pub enum ExecuteMsg {
     RemoveProxy {
         proxy_addr: Addr,
     },
+    TerminateContract {},
 
     // Proxy actions
     RegisterProxy {
@@ -151,6 +152,7 @@ pub struct GetFragmentsResponse {
 pub struct GetContractStateResponse {
     pub admin: Addr,
     pub threshold: u32,
+    pub terminated: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

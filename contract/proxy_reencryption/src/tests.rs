@@ -1,12 +1,12 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    Addr, BankMsg, Coin, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Storage, SubMsg,
-    Uint128,
+    Addr, BankMsg, Coin, DepsMut, Env, MessageInfo, Response, StdError, StdResult, SubMsg, Uint128,
 };
 
 use crate::contract::{
-    execute, get_proxy_tasks, instantiate, DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT,
-    DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT, DEFAULT_REQUEST_REWARD_AMOUNT,
+    execute, get_proxies_availability, get_proxy_tasks, instantiate,
+    DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT, DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT,
+    DEFAULT_REQUEST_REWARD_AMOUNT,
 };
 
 use crate::contract::verify_fragment;
@@ -19,7 +19,7 @@ use crate::delegations::{
 use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegationString, ProxyTask};
 use crate::proxies::{
     store_get_all_active_proxy_pubkeys, store_get_is_proxy_active, store_get_proxy_address,
-    store_get_proxy_entry, ProxyState,
+    store_get_proxy_entry, Proxy, ProxyState,
 };
 use crate::reencryption_requests::{
     get_all_fragments, get_reencryption_request_state,
@@ -118,6 +118,14 @@ fn add_proxy(
     let msg = ExecuteMsg::AddProxy {
         proxy_addr: proxy_addr.clone(),
     };
+
+    return execute(deps, env.0, env.1, msg);
+}
+
+fn terminate_contract(deps: DepsMut, creator: &Addr, block_height: u64) -> StdResult<Response> {
+    let env = mock_env_height(&creator, block_height, &vec![]);
+
+    let msg = ExecuteMsg::TerminateContract {};
 
     return execute(deps, env.0, env.1, msg);
 }
@@ -3837,6 +3845,7 @@ fn test_get_n_minimum_proxies_for_refund() {
         next_proxy_request_id: 0,
         next_delegation_id: 0,
         proxy_whitelisting: false,
+        terminated: false,
     };
     let mut staking_config = StakingConfig {
         stake_denom: "denom".to_string(),
@@ -3954,26 +3963,6 @@ fn test_verify_fragments() {
     .is_err());
 }
 
-fn add_delegation_manually(
-    storage: &mut dyn Storage,
-    proxy_delegation: &ProxyDelegation,
-    starting_id: u64,
-    proxy_pubkeys: &Vec<String>,
-) {
-    for i in 0..proxy_pubkeys.len() {
-        let delegation_id = i as u64 + starting_id;
-        store_set_delegation(storage, &delegation_id, &proxy_delegation);
-        store_set_delegation_id(
-            storage,
-            &proxy_delegation.delegator_pubkey,
-            &proxy_delegation.delegatee_pubkey,
-            &proxy_pubkeys[i],
-            &delegation_id,
-        );
-        store_add_per_proxy_delegation(storage, &proxy_pubkeys[i], &delegation_id);
-    }
-}
-
 #[test]
 fn test_timeouts() {
     let mut deps = mock_dependencies();
@@ -4081,38 +4070,77 @@ fn test_timeouts() {
     )
     .is_ok());
 
-    // Add delegations manually
-    let delegation1 = ProxyDelegation {
-        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
-        delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
-        delegation_string: delegation_string.clone(),
-    };
-    let delegation1_proxies = vec![
-        proxy1_pubkey.clone(),
-        proxy2_pubkey.clone(),
-        proxy3_pubkey.clone(),
+    // Add delegations
+    let delegation1: Vec<ProxyDelegationString> = vec![
+        ProxyDelegationString {
+            proxy_pubkey: proxy1_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy2_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy3_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
     ];
-    add_delegation_manually(deps.as_mut().storage, &delegation1, 0, &delegation1_proxies);
 
-    let delegation2 = ProxyDelegation {
-        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
-        delegatee_pubkey: DELEGATEE2_PUBKEY.to_string(),
-        delegation_string: delegation_string.clone(),
-    };
-    let delegation2_proxies = vec![proxy1_pubkey.clone(), proxy3_pubkey.clone()];
-    add_delegation_manually(deps.as_mut().storage, &delegation2, 3, &delegation2_proxies);
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
+        &delegation1,
+    )
+    .is_ok());
 
-    let delegation3 = ProxyDelegation {
-        delegator_pubkey: DELEGATOR2_PUBKEY.to_string(),
-        delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
-        delegation_string: delegation_string.clone(),
-    };
-    let delegation3_proxies = vec![
-        proxy1_pubkey.clone(),
-        proxy2_pubkey.clone(),
-        proxy3_pubkey.clone(),
+    let delegation2: Vec<ProxyDelegationString> = vec![
+        ProxyDelegationString {
+            proxy_pubkey: proxy1_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy3_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
     ];
-    add_delegation_manually(deps.as_mut().storage, &delegation3, 5, &delegation3_proxies);
+
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE2_PUBKEY.to_string(),
+        &delegation2,
+    )
+    .is_ok());
+
+    let delegation3: Vec<ProxyDelegationString> = vec![
+        ProxyDelegationString {
+            proxy_pubkey: proxy1_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy2_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy3_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+    ];
+
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator2,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR2_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
+        &delegation3,
+    )
+    .is_ok());
 
     /*************** Add and check re-encryption requests *************/
 
@@ -4411,6 +4439,207 @@ fn test_timeouts() {
 }
 
 #[test]
+fn test_terminate_contract() {
+    let mut deps = mock_dependencies();
+
+    // Addresses
+    let creator = Addr::unchecked("creator".to_string());
+    let proxy1 = Addr::unchecked("proxy_1".to_string());
+    let proxy2 = Addr::unchecked("proxy_2".to_string());
+    let proxy3 = Addr::unchecked("proxy_3".to_string());
+
+    let delegator1 = Addr::unchecked("delegator1".to_string());
+    let delegator2 = Addr::unchecked("delegator2".to_string());
+
+    // Pubkeys
+    let proxy1_pubkey: String = String::from("proxy_pubkey1");
+    let proxy2_pubkey: String = String::from("proxy_pubkey2");
+    let proxy3_pubkey: String = String::from("proxy_pubkey3");
+
+    let data_id1 = String::from("DATA1");
+    let delegation_string = String::from("DELESTRING");
+
+    // Staking
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
+    let minimum_proxy_stake_amount: u128 = 200;
+    let per_proxy_request_reward_amount: u128 = 40;
+    let per_request_slash_stake_amount: u128 = 98;
+
+    let request_reward = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(per_proxy_request_reward_amount * 3),
+    }];
+
+    let proxy_stake = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(minimum_proxy_stake_amount),
+    }];
+
+    // Timetous
+    let timeout_height: u64 = 100;
+
+    /*************** Initialise *************/
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        0,
+        &Some(1),
+        &None,
+        &None,
+        &stake_denom,
+        &Some(Uint128::new(minimum_proxy_stake_amount)),
+        &Some(Uint128::new(per_proxy_request_reward_amount)),
+        &Some(Uint128::new(per_request_slash_stake_amount)),
+        &Some(timeout_height),
+        &Some(false),
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy1,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy1_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy2,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy2_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    // Prepare scenario
+    // Proxy 1,2 gets2 re-encryption requests each
+
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .is_ok());
+
+    let proxy_delegations: Vec<ProxyDelegationString> = vec![
+        ProxyDelegationString {
+            proxy_pubkey: proxy1_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy2_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+    ];
+
+    // Add delegations
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
+        &proxy_delegations,
+    )
+    .is_ok());
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE2_PUBKEY.to_string(),
+        &proxy_delegations,
+    )
+    .is_ok());
+
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE2_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    // Both proxies are available
+    assert_eq!(get_proxies_availability(deps.as_mut().storage).len(), 2);
+
+    // Terminate contract
+    assert!(is_err(
+        terminate_contract(deps.as_mut(), &delegator1, DEFAULT_BLOCK_HEIGHT),
+        "Only admin can execute this method.",
+    ));
+    assert!(terminate_contract(deps.as_mut(), &creator, DEFAULT_BLOCK_HEIGHT).is_ok());
+    assert!(is_err(
+        terminate_contract(deps.as_mut(), &creator, DEFAULT_BLOCK_HEIGHT),
+        "Contract was terminated.",
+    ));
+
+    // No proxies are available
+    assert!(get_proxies_availability(deps.as_mut().storage).is_empty());
+
+    let proxy_entry: Proxy = store_get_proxy_entry(deps.as_mut().storage, &proxy1).unwrap();
+    assert_eq!(proxy_entry.state, ProxyState::Leaving);
+
+    let proxy_entry: Proxy = store_get_proxy_entry(deps.as_mut().storage, &proxy2).unwrap();
+    assert_eq!(proxy_entry.state, ProxyState::Leaving);
+
+    // Check if contract state is terminated
+    let state: State = store_get_state(deps.as_mut().storage).unwrap();
+    assert!(state.terminated);
+
+    assert!(is_err(
+        add_delegation(
+            deps.as_mut(),
+            &delegator2,
+            DEFAULT_BLOCK_HEIGHT,
+            &DELEGATOR2_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string(),
+            &proxy_delegations,
+        ),
+        "Contract was terminated."
+    ));
+
+    assert!(is_err(
+        register_proxy(
+            deps.as_mut(),
+            &proxy3,
+            DEFAULT_BLOCK_HEIGHT,
+            &proxy3_pubkey,
+            &proxy_stake,
+        ),
+        "Contract was terminated."
+    ));
+
+    // Proxies still can finish their jobs
+    assert!(provide_reencrypted_fragment(
+        deps.as_mut(),
+        &proxy1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &FRAGMENT_P1_DR1_DE1.to_string(),
+    )
+    .is_ok());
+}
+
+#[test]
 fn test_skip_task() {
     let mut deps = mock_dependencies();
 
@@ -4579,9 +4808,9 @@ fn test_skip_task() {
             &creator,
             DEFAULT_BLOCK_HEIGHT,
             &data_id1,
-            &DELEGATEE1_PUBKEY.to_string()
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
-        "Sender is not a proxy"
+        "Sender is not a proxy",
     ));
 
     // Incorrect task
@@ -4591,9 +4820,9 @@ fn test_skip_task() {
             &proxy4,
             DEFAULT_BLOCK_HEIGHT,
             &data_id1,
-            &DELEGATEE1_PUBKEY.to_string()
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
-        "Task doesn't exist"
+        "Task doesn't exist",
     ));
 
     let p1_tasks =
@@ -4612,7 +4841,7 @@ fn test_skip_task() {
         &proxy1,
         DEFAULT_BLOCK_HEIGHT,
         &data_id1,
-        &DELEGATEE1_PUBKEY.to_string()
+        &DELEGATEE1_PUBKEY.to_string(),
     )
     .is_ok());
 
@@ -4622,7 +4851,7 @@ fn test_skip_task() {
             deps.as_mut().storage,
             &data_id1,
             &DELEGATEE1_PUBKEY.to_string(),
-            &DEFAULT_BLOCK_HEIGHT
+            &DEFAULT_BLOCK_HEIGHT,
         ),
         ReencryptionRequestState::Ready
     );
@@ -4643,7 +4872,7 @@ fn test_skip_task() {
         &proxy3,
         DEFAULT_BLOCK_HEIGHT,
         &data_id1,
-        &DELEGATEE1_PUBKEY.to_string()
+        &DELEGATEE1_PUBKEY.to_string(),
     )
     .is_ok());
 
@@ -4653,7 +4882,7 @@ fn test_skip_task() {
             deps.as_mut().storage,
             &data_id1,
             &DELEGATEE1_PUBKEY.to_string(),
-            &DEFAULT_BLOCK_HEIGHT
+            &DEFAULT_BLOCK_HEIGHT,
         ),
         ReencryptionRequestState::Abandoned
     );
@@ -4686,8 +4915,8 @@ fn test_skip_task() {
             &proxy2,
             DEFAULT_BLOCK_HEIGHT,
             &data_id1,
-            &DELEGATEE1_PUBKEY.to_string()
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
-        "Task was already completed."
+        "Task was already completed.",
     ));
 }

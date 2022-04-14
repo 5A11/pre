@@ -4,11 +4,15 @@
   "type": "object",
   "required": [
     "admin",
+    "terminated",
     "threshold"
   ],
   "properties": {
     "admin": {
       "$ref": "#/definitions/Addr"
+    },
+    "terminated": {
+      "type": "boolean"
     },
     "threshold": {
       "type": "integer",

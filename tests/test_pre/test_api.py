@@ -179,7 +179,9 @@ def test_admin_api():
 
 def test_proxy_api():
     contract = Mock()
-    contract.get_contract_state.return_value = ContractState(admin="admin", threshold=1)
+    contract.get_contract_state.return_value = ContractState(
+        admin="admin", threshold=1, terminated=False
+    )
 
     contract.get_staking_config.return_value = StakingConfig(
         stake_denom="atestfet",

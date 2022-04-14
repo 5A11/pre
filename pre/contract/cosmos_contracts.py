@@ -29,6 +29,7 @@ from pre.contract.base_contract import (
     ContractExecutionError,
     ContractInstantiateFailure,
     ContractQueryError,
+    ContractTerminated,
     DataAlreadyExist,
     DataEntry,
     DataEntryDoesNotExist,
@@ -132,6 +133,8 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise FragmentVerificationFailed(raw_log, error_code, res)
         if "Required at least" in raw_log:
             raise NotEnoughProxies(raw_log, error_code, res)
+        if "Contract was terminated." in raw_log:
+            raise ContractTerminated(raw_log, error_code, res)
         raise ContractExecutionError(
             f"Contract execution failed: {raw_log}", error_code, res
         )  # pragma: nocover
@@ -205,6 +208,7 @@ class ContractQueries(AbstractContractQueries):
         return ContractState(
             admin=cast(str, json_res["admin"]),
             threshold=cast(int, json_res["threshold"]),
+            terminated=cast(bool, json_res["terminated"]),
         )
 
     def get_staking_config(self) -> StakingConfig:
@@ -456,6 +460,20 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         :return: None
         """
         submit_msg = {"remove_proxy": {"proxy_addr": proxy_addr}}
+        res, error_code = self.ledger.send_execute_msg(
+            admin_private_key, self.contract_address, submit_msg
+        )
+        self._exception_from_res(error_code, res)
+
+    def terminate_contract(self, admin_private_key: AbstractLedgerCrypto):
+        """
+        Terminate contract.
+
+        :param admin_private_key: private ledger key instance
+
+        :return: None
+        """
+        submit_msg: Dict = {"terminate_contract": {}}
         res, error_code = self.ledger.send_execute_msg(
             admin_private_key, self.contract_address, submit_msg
         )

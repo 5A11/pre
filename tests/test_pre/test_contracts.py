@@ -8,6 +8,7 @@ from pre.contract.base_contract import (
     BadContractAddress,
     ContractInstantiateFailure,
     ContractQueryError,
+    ContractTerminated,
     DataAlreadyExist,
     DataEntryDoesNotExist,
     DelegationAlreadyAdded,
@@ -33,12 +34,13 @@ from pre.contract.cosmos_contracts import (
     ProxyContract,
 )
 from pre.crypto.umbral_crypto import UmbralCrypto
-from pre.ledger.cosmos.ledger import CosmosLedger, DEFAULT_FUNDS_AMOUNT
+from pre.ledger.cosmos.ledger import CosmosLedger
 from pre.storage.ipfs_storage import IpfsStorage
 
 from tests.constants import (
     DEFAULT_DENOMINATION,
     DEFAULT_FETCH_CHAIN_ID,
+    DEFAULT_TESTS_FUNDS_AMOUNT,
     FETCHD_LOCAL_URL,
     FUNDED_FETCHAI_PRIVATE_KEY_1,
     PREFIX,
@@ -78,10 +80,12 @@ class BaseContractTestCase(TestCase):
         self.ledger._send_funds(
             self.validator,
             self.ledger_crypto.get_address(),
-            amount=DEFAULT_FUNDS_AMOUNT,
+            amount=DEFAULT_TESTS_FUNDS_AMOUNT,
         )
         self.ledger._send_funds(
-            self.validator, self.some_crypto.get_address(), amount=DEFAULT_FUNDS_AMOUNT
+            self.validator,
+            self.some_crypto.get_address(),
+            amount=DEFAULT_TESTS_FUNDS_AMOUNT,
         )
         self.contract_addr = self._setup_a_contract()
         self.proxy_addr = self.ledger_crypto.get_address()
@@ -180,8 +184,23 @@ class TestAdminContract(BaseContractTestCase):
                 self.ledger_crypto, proxy_addr=self.proxy_addr
             )
 
+    def test_terminate_contract(self):
+        assert not self.contract_queries.get_contract_state().terminated
+
+        with pytest.raises(NotAdminError):
+            self.admin_contract.terminate_contract(self.some_crypto)
+
+        self.admin_contract.terminate_contract(self.ledger_crypto)
+
+        assert self.contract_queries.get_contract_state().terminated
+
+        with pytest.raises(ContractTerminated):
+            self.admin_contract.terminate_contract(self.ledger_crypto)
+
     def test_get_contract_state(self):
-        assert self.contract_queries.get_contract_state().threshold == self.THRESHOLD
+        contract_state = self.contract_queries.get_contract_state()
+        assert contract_state.threshold == self.THRESHOLD
+        assert not contract_state.terminated
 
     def test_bad_set_contract(self):
         with pytest.raises(

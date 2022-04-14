@@ -45,6 +45,18 @@
     {
       "type": "object",
       "required": [
+        "terminate_contract"
+      ],
+      "properties": {
+        "terminate_contract": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "register_proxy"
       ],
       "properties": {

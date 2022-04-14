@@ -69,6 +69,7 @@ pub fn instantiate(
         next_proxy_request_id: 0,
         next_delegation_id: 0,
         proxy_whitelisting: msg.proxy_whitelisting.unwrap_or(false),
+        terminated: false,
     };
 
     if state.threshold == 0 {
@@ -207,6 +208,46 @@ fn try_remove_proxy(
     Ok(response)
 }
 
+fn try_terminate_contract(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> StdResult<Response> {
+    let mut state: State = store_get_state(deps.storage)?;
+
+    ensure_admin(&state, &info.sender)?;
+
+    ensure_not_terminated(&state)?;
+
+    let proxy_pubkeys = store_get_all_active_proxy_pubkeys(deps.storage);
+
+    for proxy_pubkey in proxy_pubkeys {
+        let proxy_address = store_get_proxy_address(deps.storage, &proxy_pubkey).unwrap();
+
+        let mut proxy_entry = store_get_proxy_entry(deps.storage, &proxy_address).unwrap();
+
+        store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
+        remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+
+        proxy_entry.state = ProxyState::Leaving;
+        store_set_proxy_entry(deps.storage, &proxy_address, &proxy_entry);
+    }
+
+    // Update contract state
+    state.terminated = true;
+    store_set_state(deps.storage, &state)?;
+
+    // Return response
+    response
+        .attributes
+        .push(Attribute::new("action", "terminate_contract"));
+    response
+        .attributes
+        .push(Attribute::new("admin", info.sender.as_str()));
+    Ok(response)
+}
+
 // Proxy actions
 
 fn try_register_proxy(
@@ -218,6 +259,8 @@ fn try_register_proxy(
 ) -> StdResult<Response> {
     let staking_config = store_get_staking_config(deps.storage)?;
     let state: State = store_get_state(deps.storage)?;
+
+    ensure_not_terminated(&state)?;
 
     let mut proxy = match store_get_proxy_entry(deps.storage, &info.sender) {
         None => {
@@ -689,12 +732,14 @@ fn try_add_delegation(
 ) -> StdResult<Response> {
     ensure_delegator(deps.storage, delegator_pubkey, &info.sender)?;
 
+    let mut state: State = store_get_state(deps.storage)?;
+    let staking_config: StakingConfig = store_get_staking_config(deps.storage)?;
+
+    ensure_not_terminated(&state)?;
+
     if !store_is_proxy_delegation_empty(deps.storage, delegator_pubkey, delegatee_pubkey) {
         return generic_err!("Delegation already exists.");
     }
-
-    let mut state: State = store_get_state(deps.storage)?;
-    let staking_config: StakingConfig = store_get_staking_config(deps.storage)?;
 
     let n_minimum_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
 
@@ -774,6 +819,13 @@ fn try_request_reencryption(
     data_id: &str,
     delegatee_pubkey: &str,
 ) -> StdResult<Response> {
+    // Load config
+    let staking_config: StakingConfig = store_get_staking_config(deps.storage)?;
+    let mut state: State = store_get_state(deps.storage)?;
+    let timeouts_config: TimeoutsConfig = store_get_timeouts_config(deps.storage)?;
+
+    ensure_not_terminated(&state)?;
+
     // Only data owner can request reencryption
     let data_entry: DataEntry = match store_get_data_entry(deps.storage, data_id) {
         None => generic_err!("Data entry doesn't exist."),
@@ -781,11 +833,6 @@ fn try_request_reencryption(
     }?;
 
     ensure_delegator(deps.storage, &data_entry.delegator_pubkey, &info.sender)?;
-
-    // Load config
-    let staking_config: StakingConfig = store_get_staking_config(deps.storage)?;
-    let mut state: State = store_get_state(deps.storage)?;
-    let timeouts_config: TimeoutsConfig = store_get_timeouts_config(deps.storage)?;
 
     // Get selected proxies for current delegation
     let proxy_pubkeys = store_get_all_proxies_from_delegation(
@@ -1000,6 +1047,7 @@ pub fn execute(
         ExecuteMsg::RemoveProxy { proxy_addr } => {
             try_remove_proxy(response, deps, env, info, &proxy_addr)
         }
+        ExecuteMsg::TerminateContract {} => try_terminate_contract(response, deps, env, info),
 
         // Proxy actions
         ExecuteMsg::RegisterProxy { proxy_pubkey } => {
@@ -1100,6 +1148,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             Ok(to_binary(&GetContractStateResponse {
                 admin: state.admin,
                 threshold: state.threshold,
+                terminated: state.terminated,
             })?)
         }
 
@@ -1195,6 +1244,14 @@ fn ensure_delegator(
         // Reserve delegator_pubkey for current delegator_address
         store_set_delegator_address(storage, delegator_pubkey, delegator_address);
     }
+    Ok(())
+}
+
+fn ensure_not_terminated(state: &State) -> StdResult<()> {
+    if state.terminated {
+        return generic_err!("Contract was terminated.");
+    }
+
     Ok(())
 }
 

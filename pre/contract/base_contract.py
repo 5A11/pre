@@ -182,6 +182,16 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         :return: None
         """
 
+    @abstractmethod
+    def terminate_contract(self, admin_private_key: AbstractLedgerCrypto):
+        """
+        Terminate contract.
+
+        :param admin_private_key: private ledger key instance
+
+        :return: None
+        """
+
 
 class AbstractDelegatorContract(BaseAbstractContract, ABC):
     """Interface for delegator contract."""
@@ -505,3 +515,7 @@ class FragmentVerificationFailed(ContractExecutionError):
 
 class QueryDataEntryDoesNotExist(ContractQueryError):
     """Data entry was not registered exception."""
+
+
+class ContractTerminated(ContractExecutionError):
+    """Contract terminated."""

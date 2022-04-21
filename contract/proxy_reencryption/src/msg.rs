@@ -64,6 +64,9 @@ pub enum ExecuteMsg {
         proxy_addr: Addr,
     },
     TerminateContract {},
+    WithdrawContract {
+        recipient_addr: Addr,
+    },
 
     // Proxy actions
     RegisterProxy {

@@ -7,6 +7,7 @@ from pre.common import Coin, Delegation, DelegationState, ReencryptionRequestSta
 from pre.contract.base_contract import (
     BadContractAddress,
     ContractInstantiateFailure,
+    ContractNotTerminated,
     ContractQueryError,
     ContractTerminated,
     DataAlreadyExist,
@@ -196,6 +197,20 @@ class TestAdminContract(BaseContractTestCase):
 
         with pytest.raises(ContractTerminated):
             self.admin_contract.terminate_contract(self.ledger_crypto)
+
+    def test_withdraw_contract(self):
+        # Need a new contract because it was terminated in previous test
+        self.contract_addr = self._setup_a_contract()
+
+        recipient_addr = self.ledger.make_new_crypto().get_address()
+
+        with pytest.raises(ContractNotTerminated):
+            self.admin_contract.withdraw_contract(self.ledger_crypto, recipient_addr)
+
+        self.admin_contract.terminate_contract(self.ledger_crypto)
+
+        with pytest.raises(NotEnoughStakeToWithdraw):
+            self.admin_contract.withdraw_contract(self.ledger_crypto, recipient_addr)
 
     def test_get_contract_state(self):
         contract_state = self.contract_queries.get_contract_state()

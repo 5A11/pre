@@ -424,8 +424,6 @@ pub fn check_and_resolve_all_requests_timeout(
 
     let mut delegator_retrieve_funds_amount: HashMap<Addr, u128> = HashMap::new();
     for i in timeouts_config.next_request_id_to_be_checked..state.next_proxy_request_id {
-        timeouts_config.next_request_id_to_be_checked = i;
-
         match store_get_proxy_reencryption_request(storage, &i) {
             // Skip if request was deleted
             None => {
@@ -452,10 +450,12 @@ pub fn check_and_resolve_all_requests_timeout(
                 // Skip completed requests
                 else if request_state != ReencryptionRequestState::Granted {
                     // If request is Active it will become new next_request_id_to_be_checked
+                    timeouts_config.next_request_id_to_be_checked = i;
                     break;
                 }
             }
         }
+        timeouts_config.next_request_id_to_be_checked = i + 1;
     }
     // If this finish without being terminated next_request_id_to_be_checked == next_proxy_request_id
 

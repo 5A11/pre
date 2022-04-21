@@ -28,6 +28,7 @@ from pre.contract.base_contract import (
     BadContractAddress,
     ContractExecutionError,
     ContractInstantiateFailure,
+    ContractNotTerminated,
     ContractQueryError,
     ContractTerminated,
     DataAlreadyExist,
@@ -135,6 +136,11 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise NotEnoughProxies(raw_log, error_code, res)
         if "Contract was terminated." in raw_log:
             raise ContractTerminated(raw_log, error_code, res)
+        if "Contract not terminated" in raw_log:
+            raise ContractNotTerminated(raw_log, error_code, res)
+        if "Nothing to withdraw" in raw_log:
+            raise NotEnoughStakeToWithdraw(raw_log, error_code, res)
+
         raise ContractExecutionError(
             f"Contract execution failed: {raw_log}", error_code, res
         )  # pragma: nocover
@@ -474,6 +480,23 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         :return: None
         """
         submit_msg: Dict = {"terminate_contract": {}}
+        res, error_code = self.ledger.send_execute_msg(
+            admin_private_key, self.contract_address, submit_msg
+        )
+        self._exception_from_res(error_code, res)
+
+    def withdraw_contract(
+        self, admin_private_key: AbstractLedgerCrypto, recipient_addr: Address
+    ):
+        """
+        Withdraw all remaining stake from contract after termination.
+
+        :param admin_private_key: private ledger key instance
+        :param recipient_addr: str
+
+        :return: None
+        """
+        submit_msg = {"withdraw_contract": {"recipient_addr": recipient_addr}}
         res, error_code = self.ledger.send_execute_msg(
             admin_private_key, self.contract_address, submit_msg
         )

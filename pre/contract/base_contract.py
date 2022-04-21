@@ -192,6 +192,19 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         :return: None
         """
 
+    @abstractmethod
+    def withdraw_contract(
+        self, admin_private_key: AbstractLedgerCrypto, recipient_addr: Address
+    ):
+        """
+        Withdraw all remaining stake from contract after termination.
+
+        :param admin_private_key: private ledger key instance
+        :param recipient_addr: str
+
+        :return: None
+        """
+
 
 class AbstractDelegatorContract(BaseAbstractContract, ABC):
     """Interface for delegator contract."""
@@ -519,3 +532,7 @@ class QueryDataEntryDoesNotExist(ContractQueryError):
 
 class ContractTerminated(ContractExecutionError):
     """Contract terminated."""
+
+
+class ContractNotTerminated(ContractExecutionError):
+    """Contract not terminated."""

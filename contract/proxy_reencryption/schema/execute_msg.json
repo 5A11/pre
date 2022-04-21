@@ -57,6 +57,26 @@
     {
       "type": "object",
       "required": [
+        "withdraw_contract"
+      ],
+      "properties": {
+        "withdraw_contract": {
+          "type": "object",
+          "required": [
+            "recipient_addr"
+          ],
+          "properties": {
+            "recipient_addr": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "register_proxy"
       ],
       "properties": {

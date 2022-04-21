@@ -153,6 +153,19 @@ def terminate_contract(
     click.echo("Contract was terminated")
 
 
+@click.argument("recipient-address", type=str, required=True)
+def withdraw_contract(
+    app_config: AppConf,
+    recipient_address: str,
+):
+    app_config.validate_address(recipient_address)
+    ledger_crypto = app_config.get_ledger_crypto()
+    contract = app_config.get_admin_contract()
+    api = AdminAPI(ledger_crypto=ledger_crypto, contract=contract)
+    api.withdraw_contract(recipient_address)
+    click.echo(f"Contract of balance was withdrawn to {recipient_address}")
+
+
 if __name__ == "__main__":
     cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
         prog_name=PROG_NAME

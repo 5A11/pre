@@ -61,6 +61,7 @@ const DEFAULT_BLOCK_HEIGHT: u64 = 100;
 
 fn mock_env_height(signer: &Addr, height: u64, coins: &Vec<Coin>) -> (Env, MessageInfo) {
     let mut env = mock_env();
+
     env.block.height = height;
     let info = mock_info(signer.as_str(), &coins);
 
@@ -126,6 +127,21 @@ fn terminate_contract(deps: DepsMut, creator: &Addr, block_height: u64) -> StdRe
     let env = mock_env_height(&creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::TerminateContract {};
+
+    return execute(deps, env.0, env.1, msg);
+}
+
+fn withdraw_contract(
+    deps: DepsMut,
+    creator: &Addr,
+    block_height: u64,
+    recipient_addr: &Addr,
+) -> StdResult<Response> {
+    let env = mock_env_height(&creator, block_height, &vec![]);
+
+    let msg = ExecuteMsg::WithdrawContract {
+        recipient_addr: recipient_addr.clone(),
+    };
 
     return execute(deps, env.0, env.1, msg);
 }
@@ -4246,7 +4262,7 @@ fn test_timeouts() {
         store_get_timeouts_config(deps.as_mut().storage)
             .unwrap()
             .next_request_id_to_be_checked,
-        2
+        3
     );
 
     // Height = 250
@@ -4447,6 +4463,7 @@ fn test_terminate_contract() {
     let proxy1 = Addr::unchecked("proxy_1".to_string());
     let proxy2 = Addr::unchecked("proxy_2".to_string());
     let proxy3 = Addr::unchecked("proxy_3".to_string());
+    let recipient = Addr::unchecked("recipient".to_string());
 
     let delegator1 = Addr::unchecked("delegator1".to_string());
     let delegator2 = Addr::unchecked("delegator2".to_string());
@@ -4580,6 +4597,17 @@ fn test_terminate_contract() {
     // Both proxies are available
     assert_eq!(get_proxies_availability(deps.as_mut().storage).len(), 2);
 
+    // Try to withdraw contract
+    assert!(is_err(
+        withdraw_contract(deps.as_mut(), &delegator1, DEFAULT_BLOCK_HEIGHT, &recipient),
+        "Only admin can execute this method.",
+    ));
+
+    assert!(is_err(
+        withdraw_contract(deps.as_mut(), &creator, DEFAULT_BLOCK_HEIGHT, &recipient),
+        "Contract not terminated",
+    ));
+
     // Terminate contract
     assert!(is_err(
         terminate_contract(deps.as_mut(), &delegator1, DEFAULT_BLOCK_HEIGHT),
@@ -4637,6 +4665,63 @@ fn test_terminate_contract() {
         &FRAGMENT_P1_DR1_DE1.to_string(),
     )
     .is_ok());
+
+    // There are pending requests at DEFAULT_BLOCK_HEIGHT
+    assert!(is_err(
+        withdraw_contract(deps.as_mut(), &creator, DEFAULT_BLOCK_HEIGHT, &recipient),
+        "There are requests to be resolved",
+    ));
+
+    // All requests time out at DEFAULT_BLOCK_HEIGHT+timeout_height
+    assert!(is_err(
+        withdraw_contract(
+            deps.as_mut(),
+            &creator,
+            DEFAULT_BLOCK_HEIGHT + timeout_height,
+            &recipient
+        ),
+        "Nothing to withdraw",
+    ));
+
+    // Add balance to contract
+    let contract_balance: Vec<Coin> = vec![
+        Coin {
+            denom: "something".to_string(),
+            amount: Uint128::new(123),
+        },
+        Coin {
+            denom: stake_denom.clone(),
+            // amount is equal to remaining proxy stake amount
+            amount: Uint128::new(2 * minimum_proxy_stake_amount - 254),
+        },
+    ];
+    deps.querier
+        .update_balance(mock_env().contract.address, contract_balance.clone());
+
+    // Withdrawing is now possible
+    let res = withdraw_contract(
+        deps.as_mut(),
+        &creator,
+        DEFAULT_BLOCK_HEIGHT + timeout_height,
+        &recipient,
+    )
+    .unwrap();
+
+    // Return remaining stake to recipient
+    assert_eq!(
+        res.messages[0],
+        SubMsg::new(BankMsg::Send {
+            to_address: recipient.to_string(),
+            amount: [
+                Coin {
+                    denom: "something".to_string(),
+                    amount: Uint128::new(123)
+                },
+                // proxy stake got subtracted
+            ]
+            .to_vec(),
+        })
+    );
 }
 
 #[test]

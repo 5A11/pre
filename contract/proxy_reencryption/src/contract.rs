@@ -5,9 +5,10 @@ use crate::msg::{
     ProxyDelegationString, ProxyStatus, ProxyTask, QueryMsg,
 };
 use crate::proxies::{
-    maximum_withdrawable_stake_amount, store_get_all_active_proxy_pubkeys, store_get_proxy_address,
-    store_get_proxy_entry, store_remove_proxy_address, store_remove_proxy_entry,
-    store_set_is_proxy_active, store_set_proxy_address, store_set_proxy_entry, Proxy, ProxyState,
+    maximum_withdrawable_stake_amount, store_get_all_active_proxy_pubkeys, store_get_all_proxies,
+    store_get_proxy_address, store_get_proxy_entry, store_remove_proxy_address,
+    store_remove_proxy_entry, store_set_is_proxy_active, store_set_proxy_address,
+    store_set_proxy_entry, Proxy, ProxyState,
 };
 use crate::state::{
     store_get_data_entry, store_get_delegator_address, store_get_staking_config, store_get_state,
@@ -34,8 +35,8 @@ use crate::reencryption_requests::{
     ParentReencryptionRequest, ProxyReencryptionRequest, ReencryptionRequestState,
 };
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Storage, Uint128,
+    entry_point, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Storage, SubMsg, Uint128,
 };
 use std::collections::HashMap;
 
@@ -242,6 +243,82 @@ fn try_terminate_contract(
     response
         .attributes
         .push(Attribute::new("action", "terminate_contract"));
+    response
+        .attributes
+        .push(Attribute::new("admin", info.sender.as_str()));
+    Ok(response)
+}
+
+fn try_withdraw_contract(
+    mut response: Response,
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    recipient_addr: &Addr,
+) -> StdResult<Response> {
+    let state: State = store_get_state(deps.storage)?;
+
+    ensure_admin(&state, &info.sender)?;
+
+    if !state.terminated {
+        return generic_err!("Contract not terminated");
+    }
+
+    // Withdrawal is possible when contract is terminated and all requests are resolved/timed-out
+    let timeouts_config: TimeoutsConfig = store_get_timeouts_config(deps.storage).unwrap();
+    if timeouts_config.next_request_id_to_be_checked < state.next_proxy_request_id {
+        return generic_err!("There are requests to be resolved, cannot withdraw");
+    }
+
+    let mut contract_balance: Vec<Coin> = deps.querier.query_all_balances(env.contract.address)?;
+
+    let staking_config = store_get_staking_config(deps.storage)?;
+
+    // Count all remaining proxies stake amount
+    let mut proxies_stake_amount: u128 = 0;
+
+    let proxies = store_get_all_proxies(deps.storage);
+    for proxy_addr in proxies {
+        let proxy_entry = store_get_proxy_entry(deps.storage, &proxy_addr).unwrap();
+
+        proxies_stake_amount += proxy_entry.stake_amount.u128();
+    }
+
+    // Subtract returned stake to proxies
+    let mut stake_i: Option<usize> = None;
+    for (i, coin) in contract_balance.iter_mut().enumerate() {
+        if coin.denom == staking_config.stake_denom {
+            coin.amount = coin
+                .amount
+                .checked_sub(Uint128::new(proxies_stake_amount))?;
+            stake_i = Some(i);
+            break;
+        }
+    }
+
+    // Remove Coin if amount after subtracting is 0
+    if let Some(i) = stake_i {
+        if contract_balance[i].amount.u128() == 0u128 {
+            contract_balance.remove(i);
+        }
+    }
+
+    if contract_balance.is_empty() {
+        return generic_err!("Nothing to withdraw");
+    }
+
+    // Return remaining stake to recipient
+    response.messages.push(SubMsg::new(BankMsg::Send {
+        to_address: recipient_addr.to_string(),
+        amount: contract_balance,
+    }));
+
+    response
+        .attributes
+        .push(Attribute::new("action", "withdraw_contract"));
+    response
+        .attributes
+        .push(Attribute::new("recipient_addr", recipient_addr.as_str()));
     response
         .attributes
         .push(Attribute::new("admin", info.sender.as_str()));
@@ -1048,6 +1125,9 @@ pub fn execute(
             try_remove_proxy(response, deps, env, info, &proxy_addr)
         }
         ExecuteMsg::TerminateContract {} => try_terminate_contract(response, deps, env, info),
+        ExecuteMsg::WithdrawContract { recipient_addr } => {
+            try_withdraw_contract(response, deps, env, info, &recipient_addr)
+        }
 
         // Proxy actions
         ExecuteMsg::RegisterProxy { proxy_pubkey } => {

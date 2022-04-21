@@ -76,6 +76,19 @@ pub fn store_get_proxy_address(storage: &dyn Storage, proxy_pubkey: &str) -> Opt
     res.map(|res| Addr::unchecked(String::from_utf8(res).unwrap()))
 }
 
+pub fn store_get_all_proxies(storage: &dyn Storage) -> Vec<Addr> {
+    let store = ReadonlyPrefixedStorage::new(storage, PROXY_ADDRESS_KEY);
+
+    let mut deserialized_keys: Vec<Addr> = Vec::new();
+
+    for pair in store.range(None, None, Order::Ascending) {
+        // Deserialize keys
+        deserialized_keys.push(Addr::unchecked(String::from_utf8(pair.1).unwrap()));
+    }
+
+    deserialized_keys
+}
+
 // IS_PROXY_ACTIVE
 pub fn store_set_is_proxy_active(
     storage: &mut dyn Storage,

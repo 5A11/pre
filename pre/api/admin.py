@@ -107,3 +107,12 @@ class AdminAPI:
         """
 
         self._contract.terminate_contract(self._ledger_crypto)
+
+    def withdraw_contract(self, recipient_addr: Address):
+        """
+        Withdraw all remaining stake from contract after termination.
+
+        :param recipient_addr: str
+
+        :return: None
+        """

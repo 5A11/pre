@@ -89,7 +89,7 @@ DEFAULT_TX_MAXIMUM_GAS_LIMIT = 3000000
 DEFAULT_CONTRACT_TX_GAS = 600000
 DEFAULT_SEND_TX_GAS = 120000
 DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
-DEFAULT_FUNDS_AMOUNT = 9 * 10 ** 18
+DEFAULT_FUNDS_AMOUNT = 9 * 10**18
 
 
 class BroadcastException(Exception):
@@ -161,8 +161,7 @@ class CosmosLedger(AbstractLedger):
         msg_retry_interval: int = 2,
         msg_failed_retry_interval: int = 10,
         faucet_retry_interval: int = 20,
-        n_sending_retries: int = 1,  # 5,
-        n_total_msg_retries: int = 1,  # 10,
+        n_total_msg_retries: int = 10,  # 10,
         get_response_retry_interval: float = 0.5,  # 2,
         n_get_response_retries: int = 30,  # 30,
         minimum_gas_price_amount: int = DEFAULT_MINIMUM_GAS_PRICE_AMOUNT,
@@ -180,7 +179,6 @@ class CosmosLedger(AbstractLedger):
         :param msg_retry_interval: Interval between message partial steps retries
         :param msg_failed_retry_interval: Interval between complete send/settle message attempts
         :param faucet_retry_interval: Get wealth from faucet retry interval
-        :param n_sending_retries: Number of send transaction retries
         :param n_total_msg_retries: Number of total send/settle transaction retries
         :param get_response_retry_interval: Retry interval for getting receipt
         :param n_get_response_retries: Number of get receipt retries
@@ -212,7 +210,6 @@ class CosmosLedger(AbstractLedger):
         self.msg_failed_retry_interval = msg_failed_retry_interval
         self.faucet_retry_interval = faucet_retry_interval
         self.n_get_response_retries = n_get_response_retries
-        self.n_sending_retries = n_sending_retries
         self.n_total_msg_retries = n_total_msg_retries
         self.get_response_retry_interval = get_response_retry_interval
         self.minimum_gas_price_amount = minimum_gas_price_amount
@@ -281,6 +278,7 @@ class CosmosLedger(AbstractLedger):
         :param gas_limit:  Maximum amount of gas to be used on executing command
         :return: Deployment transaction response
         """
+
         attempt = 0
         res = None
         code_id: Optional[int] = None
@@ -464,7 +462,7 @@ class CosmosLedger(AbstractLedger):
         last_exception: Optional[Exception] = None
 
         if retries is None:
-            retries = self.n_sending_retries
+            retries = self.n_total_msg_retries
 
         for _ in range(retries):
             try:

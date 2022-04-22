@@ -1,0 +1,69 @@
+
+namespace: pre-test
+
+admin:
+  enabled: true
+  name: admin
+  image: "gcr.io/fetch-ai-images/colearn-pre-relayer"
+  tag: "cff7b66"
+  port: 80
+  replicas: 1
+  contract: "amazon/aws-cli:latest"
+    
+  resources:
+    requests:
+      memory: "100Mi"
+      cpu: "100m"
+    limits:
+      memory: "200Mi"
+      cpu: "200m"
+
+
+  creds:
+    key: colearn-v3/pre-contract
+    name: cred.rc
+    version: latest
+
+ipfs:
+  enabled: true
+  config:
+      addr: ipfs-pre.colearn-v3.fetch-ai.com
+      port: 12000
+  name: ipfs-pre
+  dns:
+    host: ipfs-pre.colearn-v3.fetch-ai.com
+    target: fetchpub.colearn-v3.fetch-ai.com
+    cert: ipfs-pre-cert 
+    app: istio-fetchpubig
+    istio: ingressgateway
+    port: 5001
+
+
+proxy:
+  enabled: true
+  image: "gcr.io/fetch-ai-images/colearn-pre-relayer"
+  tag: "cff7b66"
+  port: 9090
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "100Mi"
+      cpu: "100m"
+    limits:
+      memory: "200Mi"
+      cpu: "200m"
+
+
+legder_config:
+  # chain_id: test
+  # denom: atestfet
+  # node_address: http://fetchd-svc:1317
+  # prefix: fetch
+  # validator_pk: bbaef7511f275dc15f47436d14d6d3c92d4d01befea073d23d0c2750a46f6cb3
+  chain_id: dorado-1
+  denom: atestfet
+  node_address: grpc-dorado.fetch.ai:443
+  prefix: fetch
+  faucet_url: https://faucet-dorado.t-v2-london-c.fetch-ai.com
+  secure_channel: true

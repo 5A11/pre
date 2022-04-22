@@ -1,0 +1,57 @@
+{{- if .Values.proxy.enabled }}
+{{ $helmlabels := include "pre-relayer-test.labels" . | nindent 4 }}
+{{ $tag := .Values.admin.tag }}
+{{ $count := .Values.proxy.replicas | int }}
+{{ range until $count }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy-{{ $tag }}-{{ . }}
+  annotations:
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '9090'
+    prometheus.io/path: '/metrics'
+  labels:
+    app: pre-relayer-test
+    {{- $helmlabels }}
+  namespace: {{ $.Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pre-relayer-test
+  template:
+    metadata:
+      labels:
+        app: pre-relayer-test
+    spec:
+      containers:
+        - name: proxy
+          image: {{ $.Values.proxy.image }}:{{ $.Values.proxy.tag }}
+          resources:
+            {{- toYaml $.Values.proxy.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ $.Values.proxy.port  }}
+          env:
+            - name: LEDGER_CONFIG
+              value: "/configs/ledger_config.yaml"
+          volumeMounts:
+          - name: config-volume
+            mountPath: /configs/ledger_config.yaml
+            subPath: ledger_config.yaml
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - >-
+                export CONT_ADDR=$( curl https://pre-relayer.s3.us-west-2.amazonaws.com/contract/contract-test-{{ $.Values.proxy.tag }}.json | jq -r .contract_address)  && 
+                PYTHONPATH=. python3 ./apps/keys.py generate-crypto-key pk-{{ $.Values.proxy.tag }}.key &&
+                PYTHONPATH=. python3 ./apps/keys.py generate-ledger-key --ledger-config ${LEDGER_CONFIG} lk-{{ $.Values.proxy.tag }}.key && 
+                python3 apps/proxy.py --fund --contract-address ${CONT_ADDR} --ledger-config ${LEDGER_CONFIG} --ledger-private-key lk-{{ $.Values.proxy.tag }}.key --encryption-private-key pk-{{ $.Values.proxy.tag }}.key run
+      volumes:
+        - name: config-volume
+          configMap:
+            name: relayer-config
+      restartPolicy: "Always"
+---
+{{ end }}
+{{ end }}

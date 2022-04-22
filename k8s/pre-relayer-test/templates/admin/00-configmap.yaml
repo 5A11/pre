@@ -1,0 +1,14 @@
+{{- if .Values.admin.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relayer-config
+  namespace: {{ $.Values.namespace }}
+  labels:
+    {{- include "pre-relayer-test.labels" . | nindent 4 }}
+data:
+  ledger_config.yaml: |
+    {{- toYaml $.Values.legder_config | nindent 4 }}
+  ipfs_config.yaml: |
+    {{- toYaml $.Values.ipfs.config | nindent 4 }}
+{{ end }}

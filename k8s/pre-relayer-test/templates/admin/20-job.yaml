@@ -1,0 +1,75 @@
+{{- if .Values.admin.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.admin.name }}
+  labels:
+    app: pre-relayer-admin
+    {{- include "pre-relayer-test.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace }}
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app: pre-relayer
+    spec:
+      containers:
+        - name: admin
+          image: {{ .Values.admin.image }}:{{ .Values.admin.tag }}
+          resources:
+            {{- toYaml .Values.admin.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.admin.port  }}
+          env:
+            - name: LEDGER_CONFIG
+              value: "/configs/ledger_config.yaml"
+          volumeMounts:
+          - name: config-volume
+            mountPath: /configs/ledger_config.yaml
+            subPath: ledger_config.yaml
+          - name: contract-address
+            mountPath: /contract-address/
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - >-
+                PYTHONPATH=. python3 ./apps/keys.py generate-ledger-key --ledger-config ${LEDGER_CONFIG} lk-{{ $.Values.admin.tag }}.key &&
+                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key lk-{{ $.Values.admin.tag }}.key instantiate-contract --threshold 2 --output-file /contract-address/contract-test-{{ .Values.admin.tag }}.json
+        - name: contract
+          image: {{ .Values.admin.contract }}
+          resources:
+            {{- toYaml .Values.admin.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.admin.port  }}
+          volumeMounts:
+          - name: contract-address
+            mountPath: /contract-address/
+          - name: admin-key-volume
+            mountPath: /keys/cred.rc
+            subPath: cred.rc
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - >-
+                echo "checking if contract is deployed or not " &&
+                while ! test -s "/contract-address/contract-test-{{ .Values.admin.tag }}.json"; do sleep 2; done &&
+                echo "contract found" &&
+                source /keys/cred.rc && 
+                echo "uploading test contract" &&
+                aws s3 cp /contract-address/contract-test-{{ .Values.admin.tag }}.json s3://pre-relayer/contract/ &&
+                echo "test contract uploaded" &&
+                exit 0
+      volumes:
+        - name: config-volume
+          configMap:
+            name: relayer-config
+        - name: admin-key-volume
+          secret:
+            secretName: pre-admin
+        - name: contract-address
+          persistentVolumeClaim:
+            claimName: pre-relayer
+      restartPolicy: "Never"
+{{ end }}

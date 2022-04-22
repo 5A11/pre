@@ -24,6 +24,12 @@ spec:
         - containerPort: {{ .Values.ipfs.dns.port }}
           name: http
           protocol: TCP
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - >-
+              ipfs config --json API.HTTPHeaders.Access-Control-Allow-Credentials "[\"true\"]" && 
+              ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin "[\"*\"]"
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
         volumeMounts:

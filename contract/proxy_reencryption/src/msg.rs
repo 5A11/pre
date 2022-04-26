@@ -54,6 +54,12 @@ pub struct InstantiateMsg {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Tag {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     // Admin actions
@@ -94,7 +100,8 @@ pub enum ExecuteMsg {
     AddData {
         data_id: String,
         delegator_pubkey: String,
-        capsule: String,
+        capsule: String, // symmetric key encoded with data owner public key (only data owner can decode this)
+        tags: Option<Vec<Tag>>,
     },
     AddDelegation {
         delegator_pubkey: String,
@@ -179,4 +186,35 @@ pub struct GetDelegationStatusResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetProxyStatusResponse {
     pub proxy_status: Option<ProxyStatus>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct InstantiateMsgResponse {
+    pub threshold: u32,
+    pub admin: Addr,
+
+    pub proxy_whitelisting: bool,
+    pub proxies: Option<Vec<Addr>>,
+
+    // Staking
+    pub stake_denom: String,
+    pub minimum_proxy_stake_amount: Uint128,
+    pub per_proxy_request_reward_amount: Uint128,
+    pub per_request_slash_stake_amount: Uint128,
+
+    // Timeouts
+    pub timeout_height: u64,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct ProxyStake {
+    pub proxy_addr: Addr,
+    pub stake: Uint128,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecuteMsgJSONResponse {
+    RequestReencryption { proxies: Vec<ProxyStake> },
 }

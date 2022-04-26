@@ -1,8 +1,8 @@
 use crate::msg::{
-    ExecuteMsg, GetAvailableProxiesResponse, GetContractStateResponse, GetDataIDResponse,
-    GetDelegationStatusResponse, GetFragmentsResponse, GetProxyStatusResponse,
-    GetProxyTasksResponse, GetStakingConfigResponse, InstantiateMsg, ProxyAvailability,
-    ProxyDelegationString, ProxyStatus, ProxyTask, QueryMsg,
+    ExecuteMsg, ExecuteMsgJSONResponse, GetAvailableProxiesResponse, GetContractStateResponse,
+    GetDataIDResponse, GetDelegationStatusResponse, GetFragmentsResponse, GetProxyStatusResponse,
+    GetProxyTasksResponse, GetStakingConfigResponse, InstantiateMsg, InstantiateMsgResponse,
+    ProxyAvailability, ProxyDelegationString, ProxyStake, ProxyStatus, ProxyTask, QueryMsg,
 };
 use crate::proxies::{
     maximum_withdrawable_stake_amount, store_get_all_active_proxy_pubkeys, store_get_all_proxies,
@@ -105,13 +105,32 @@ pub fn instantiate(
         stake_amount: Uint128::new(0),
     };
 
-    if let Some(proxies_addr) = msg.proxies {
+    if let Some(ref proxies_addr) = msg.proxies {
         for proxy_addr in proxies_addr {
-            store_set_proxy_entry(deps.storage, &proxy_addr, &new_proxy);
+            store_set_proxy_entry(deps.storage, proxy_addr, &new_proxy);
         }
     };
 
-    Ok(Response::default())
+    let json_response = InstantiateMsgResponse {
+        threshold: state.threshold,
+        admin: state.admin,
+        proxy_whitelisting: state.proxy_whitelisting,
+        proxies: msg.proxies,
+        stake_denom: staking_config.stake_denom,
+        minimum_proxy_stake_amount: staking_config.minimum_proxy_stake_amount,
+        per_proxy_request_reward_amount: staking_config.per_proxy_request_reward_amount,
+        per_request_slash_stake_amount: staking_config.per_request_slash_stake_amount,
+        timeout_height: timeouts_config.timeout_height,
+    };
+
+    let serialized_json_response = match serde_json::to_string(&json_response) {
+        Ok(s) => Ok(s),
+        Err(_err) => generic_err!("failed to serialize json response"),
+    }?;
+    let response = Response::new()
+        .add_attribute("indexer", "fetchai.pre")
+        .add_attribute("json", serialized_json_response);
+    Ok(response)
 }
 
 // Admin actions
@@ -463,6 +482,9 @@ fn try_unregister_proxy(
     response
         .attributes
         .push(Attribute::new("proxy", info.sender.as_str()));
+    response
+        .attributes
+        .push(Attribute::new("proxy_pubkey", proxy_pubkey.as_str()));
     Ok(response)
 }
 
@@ -603,6 +625,9 @@ fn try_provide_reencrypted_fragment(
     response
         .attributes
         .push(Attribute::new("fragment", fragment));
+    response
+        .attributes
+        .push(Attribute::new("new_stake", proxy.stake_amount));
     Ok(response)
 }
 
@@ -724,9 +749,12 @@ fn try_withdraw_stake(
         .attributes
         .push(Attribute::new("action", "withdraw_stake"));
     response.attributes.push(Attribute::new(
-        "stake_amount",
+        "withdrawn_stake",
         Uint128::new(withdraw_stake_amount),
     ));
+    response
+        .attributes
+        .push(Attribute::new("new_stake", proxy.stake_amount));
     Ok(response)
 }
 
@@ -756,7 +784,10 @@ fn try_add_stake(
         .push(Attribute::new("action", "add_stake"));
     response
         .attributes
-        .push(Attribute::new("stake_amount", info.funds[0].amount));
+        .push(Attribute::new("added_stake", info.funds[0].amount));
+    response
+        .attributes
+        .push(Attribute::new("new_stake", proxy.stake_amount));
     Ok(response)
 }
 
@@ -974,6 +1005,8 @@ fn try_request_reencryption(
         timeout_height: env.block.height + timeouts_config.timeout_height,
     };
 
+    let mut proxy_stake = Vec::new();
+
     // Assign re-encrpytion requests to all available proxies
     for proxy_pubkey in &proxy_pubkeys {
         // Check if proxy has enough stake
@@ -1015,6 +1048,11 @@ fn try_request_reencryption(
         );
         store_add_proxy_reencryption_request_to_queue(deps.storage, proxy_pubkey, &request_id);
         state.next_proxy_request_id += 1;
+
+        proxy_stake.push(ProxyStake {
+            proxy_addr: proxy_addr.clone(),
+            stake: proxy.stake_amount,
+        });
     }
 
     store_set_parent_reencryption_request(deps.storage, data_id, delegatee_pubkey, &parent_request);
@@ -1030,6 +1068,14 @@ fn try_request_reencryption(
         );
     }
 
+    let json_response = ExecuteMsgJSONResponse::RequestReencryption {
+        proxies: proxy_stake,
+    };
+    let serialized_json_response = match serde_json::to_string(&json_response) {
+        Ok(s) => Ok(s),
+        Err(_err) => generic_err!("failed to serialize json response"),
+    }?;
+
     // Return response
     response
         .attributes
@@ -1038,6 +1084,9 @@ fn try_request_reencryption(
     response
         .attributes
         .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
+    response
+        .attributes
+        .push(Attribute::new("json", serialized_json_response));
 
     Ok(response)
 }
@@ -1162,6 +1211,7 @@ pub fn execute(
             data_id,
             delegator_pubkey,
             capsule,
+            ..
         } => try_add_data(
             response,
             deps,

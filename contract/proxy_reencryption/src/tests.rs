@@ -271,6 +271,7 @@ fn add_data(
         data_id: data_id.clone(),
         delegator_pubkey: delegator_pubkey.clone(),
         capsule: capsule.clone(),
+        tags: None,
     };
 
     return execute(deps, env.0, env.1, msg);

@@ -1,17 +1,19 @@
 from typing import IO, List, Tuple, Union, cast
 
-import nacl
-from umbral import Capsule as _Capsule
-from umbral import KeyFrag
-from umbral import PublicKey as _PublicKey
-from umbral import SecretKey as _SecretKey
-from umbral import Signer as _Signer
-from umbral import VerifiedCapsuleFrag as _VerifiedCapsuleFrag
-from umbral import decrypt_original, encrypt, generate_kfrags, reencrypt
-from umbral.capsule_frag import CapsuleFrag
-from umbral.errors import VerificationError
-from umbral.openssl import ErrorInvalidPointEncoding
-from umbral.pre import decrypt_reencrypted
+from umbral_pre import Capsule as _Capsule
+from umbral_pre import CapsuleFrag, KeyFrag
+from umbral_pre import PublicKey as _PublicKey
+from umbral_pre import SecretKey as _SecretKey
+from umbral_pre import Signer as _Signer
+from umbral_pre import VerificationError
+from umbral_pre import VerifiedCapsuleFrag as _VerifiedCapsuleFrag
+from umbral_pre import (
+    decrypt_original,
+    decrypt_reencrypted,
+    encrypt,
+    generate_kfrags,
+    reencrypt,
+)
 
 from pre.common import Capsule, Delegation, EncryptedData, PrivateKey, PublicKey
 from pre.crypto.base_crypto import (
@@ -119,7 +121,7 @@ class UmbralDelegation:
     def from_bytes(cls, data: bytes) -> "UmbralDelegation":
         try:
             return cls(_Delegation.from_bytes(data))
-        except ErrorInvalidPointEncoding as e:
+        except Exception as e:
             raise IncorrectFormatOfDelegationString(str(e)) from e
 
 
@@ -188,6 +190,8 @@ class UmbralCrypto(AbstractCrypto):
             signer=_Signer(umb_delegator_private_key),
             threshold=threshold,
             shares=len(proxies_pubkeys_bytes),
+            sign_delegating_key=False,
+            sign_receiving_key=False,
         )
 
         delegations: List[Delegation] = []
@@ -227,6 +231,7 @@ class UmbralCrypto(AbstractCrypto):
 
         :return: bytes representation of reencryption fragment
         """
+
         umb_capsule = UmbralCapsule.from_bytes(capsule_bytes).umbral_capsule
         umb_delegation = UmbralDelegation.from_bytes(delegation_bytes).umbral_delegation
         umb_proxy_private_key = cast(UmbralPrivateKey, proxy_private_key).umbral_key
@@ -242,10 +247,7 @@ class UmbralCrypto(AbstractCrypto):
                 umb_proxy_private_key, umb_delegation.capsule, umb_delegation.data
             )
         except ValueError as e:
-            if hasattr(e, "__cause__") and isinstance(
-                e.__cause__, nacl.exceptions.CryptoError
-            ):
-                e = e.__cause__
+            if "Decryption" in str(e):
                 raise DecryptionError(str(e)) from e
             raise
         kfrag = KeyFrag.from_bytes(dec_kfrag).verify(

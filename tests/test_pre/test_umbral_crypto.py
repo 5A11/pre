@@ -1,7 +1,6 @@
 from typing import List
 
 import pytest
-from umbral import SecretKey
 
 from pre.common import ReencryptedFragment
 from pre.crypto.base_crypto import (
@@ -13,7 +12,7 @@ from pre.crypto.umbral_crypto import UmbralCrypto, UmbralPrivateKey, UmbralPubli
 
 
 def new_umbral_key():
-    return UmbralPrivateKey(SecretKey.random())
+    return UmbralPrivateKey.random()
 
 
 def test_encryption_delegation_reencryption_decryption_cycle():
@@ -56,7 +55,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
         )
 
     # delegation does not match proxy key
-    with pytest.raises(DecryptionError, match="Decryption failed."):
+    with pytest.raises(DecryptionError, match="Decryption of ciphertext failed"):
         crypto.reencrypt(
             capsule,
             bytes(delegations[1].delegation_string),

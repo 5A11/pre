@@ -228,6 +228,15 @@
             },
             "delegator_pubkey": {
               "type": "string"
+            },
+            "tags": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/definitions/Tag"
+              }
             }
           }
         }
@@ -306,6 +315,21 @@
           "type": "string"
         },
         "proxy_pubkey": {
+          "type": "string"
+        }
+      }
+    },
+    "Tag": {
+      "type": "object",
+      "required": [
+        "key",
+        "value"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
           "type": "string"
         }
       }

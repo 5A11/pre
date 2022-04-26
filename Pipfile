@@ -9,7 +9,7 @@ ipfshttpclient = "*"
 cosmpy = "==v0.3.1"
 requests = "*"
 click = "*"
-umbral = "*"
+umbral-pre = "==0.5.2"
 pyyaml = "*"
 
 [dev-packages]

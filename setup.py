@@ -27,7 +27,7 @@ setuptools.setup(
         "requests",
         "click",
         "ipfshttpclient",
-        "umbral",
+        "umbral-pre==0.5.2",
         "pyyaml",
         "prometheus-client",
     ],

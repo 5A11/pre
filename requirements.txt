@@ -1,4 +1,4 @@
-umbral
+umbral-pre==0.5.2
 cryptography
 ipfshttpclient
 click

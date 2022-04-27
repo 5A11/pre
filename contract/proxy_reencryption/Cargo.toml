@@ -4,7 +4,7 @@ description = "An implementation of the proxy reencryption contract"
 version = "0.1.0"
 authors = ["Fetch AI <developer@fetch.ai>"]
 edition = "2018"
-repository = "https://github.com/CosmWasm/cosmwasm-examples"
+repository = "https://github.com/fetchai/pre"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

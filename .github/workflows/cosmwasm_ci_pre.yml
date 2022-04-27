@@ -1,4 +1,4 @@
-name: Contract
+name: Contract PRE
 
 on:
   push:

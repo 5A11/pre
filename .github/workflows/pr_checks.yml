@@ -27,7 +27,6 @@ jobs:
       - name: Configuring Docker to use gcloud Auth
         run: |
           gcloud auth configure-docker -q
-
       # Push image to Google Container Registry
       - name: Build and Push Images
         run: |
@@ -88,10 +87,10 @@ jobs:
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 
-      - name: Sleep for 30s seconds
+      - name: Sleep for 60s seconds
         uses: jakejarvis/wait-action@master
         with:
-          time: '30s'
+          time: '60s'
 
       - name: Deploy Proxy to Sandbox
         run: |
@@ -102,12 +101,79 @@ jobs:
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 
+      - name: Sleep for 60s seconds
+        uses: jakejarvis/wait-action@master
+        with:
+          time: '60s'
+
+     # Improvement : Check for No of proxies running 
+      # matches no of proxies stated in values
+
+
+      # Building Images for Docker
+      
+      - name: Build images
+        run: docker-compose -f "docker/docker-compose.yml" build owner reader
+      
+      # Reteriving the pushed contract
+      - name: Get Staging Contract
+        run: >
+          export CONT_ADDR=$( curl https://pre-relayer.s3.us-west-2.amazonaws.com/contract/contract-test-${{ env.SHORTSHA }}.json | jq -r .contract_address) ; 
+          echo "CONT_ADDR=${CONT_ADDR}" >> $GITHUB_ENV
+        env:
+          SHORTSHA: ${{ steps.vars.outputs.sha_short }}
+
+     # Adding Random Data 
+      - name: Add data element
+        run: > 
+          echo $RANDOM | md5sum | head -c 20 > original_data.txt;
+          echo "[OK] Generated file: $(cat original_data.txt)";
+          docker-compose -f "docker/docker-compose.yml" run owner --contract-address $CONT_ADDR add-data /data/original_data.txt > logs;
+          cat logs;
+          export DATA_ID=$(
+            cat logs |
+            grep 'hash_id is ' |
+            awk -F'hash_id is ' '{ print $2 }'
+          );
+          echo "[OK] Data id [${DATA_ID}]";
+          echo "DATA_ID=${DATA_ID}" >>  $GITHUB_ENV
+          
+      # Getting Reader Public Key  
+      - name: Get reader public key
+        run: >
+          docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONT_ADDR get-data-status $DATA_ID > logs;
+          cat logs;
+          export READER_PUBKEY=$(
+            cat logs |
+            grep 'reader public key: ' |
+            awk -F'reader public key: ' '{ print $2 }'
+          );
+          echo "[OK] Reader Public key [${READER_PUBKEY}]";
+          echo "READER_PUBKEY=${READER_PUBKEY}" >>  $GITHUB_ENV
       - name: Sleep for 30s seconds
         uses: jakejarvis/wait-action@master
         with:
           time: '30s'
 
-      - name: Cleaning Up Admin/Proxy from Sandbox
+      # Granting Access to the Data
+      - name: Grant access to data
+        run: >
+          docker-compose -f "docker/docker-compose.yml" run owner --contract-address $CONT_ADDR grant-access $DATA_ID $READER_PUBKEY 
+      - name: Sleep for 30s seconds
+        uses: jakejarvis/wait-action@master
+        with:
+          time: '30s'
+      
+      # Reading the data
+      - name: Read data
+        run: |
+          docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONT_ADDR get-data-status $DATA_ID;
+          docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONT_ADDR get-data $DATA_ID /data/decrypted_data.txt;
+          echo "[OK] Decrypted file: $(cat decrypted_data.txt)";
+          diff original_data.txt decrypted_data.txt
+      # Removing Admin and Proxy K8s Deployment
+      - name: Cleaning Up Admin and Proxy from Sandbox
+        if: always()
         run: |
           helm uninstall sandbox-admin-${{ env.SHORTSHA }} -n pre-test
           helm uninstall sandbox-proxy-${{ env.SHORTSHA }} -n pre-test

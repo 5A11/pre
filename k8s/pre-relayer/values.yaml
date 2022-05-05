@@ -79,5 +79,5 @@ legder_config:
   denom: atestfet
   node_address: grpc-dorado.fetch.ai:443
   prefix: fetch
-  faucet_url: https://faucet-dorado.t-v2-london-c.fetch-ai.com
+  faucet_url: https://faucet-dorado.fetch.ai
   secure_channel: true

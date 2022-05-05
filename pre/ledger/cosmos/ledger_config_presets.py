@@ -2,7 +2,7 @@ NODE_CONFIG_PRESETS = {
     "dorado": dict(
         chain_id="dorado-1",
         node_address="grpc-dorado.fetch.ai:443",
-        faucet_url="https://faucet-dorado.t-v2-london-c.fetch-ai.com",
+        faucet_url="https://faucet-dorado.fetch.ai",
         prefix="fetch",
         denom="atestfet",
         minimum_gas_price_amount=500000000000,

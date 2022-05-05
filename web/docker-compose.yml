@@ -14,7 +14,7 @@ services:
       - "5001:5001"
   
   ledger:
-    image: fetchai/fetchd:0.10.1
+    image: fetchai/fetchd:0.10.4
     logging:
       driver: "none"
     volumes:

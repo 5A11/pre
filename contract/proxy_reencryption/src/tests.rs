@@ -4,12 +4,11 @@ use cosmwasm_std::{
 };
 
 use crate::contract::{
-    execute, get_proxies_availability, get_proxy_tasks, instantiate,
+    execute, get_proxies_availability, get_proxy_tasks, instantiate, verify_fragment,
     DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT, DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT,
     DEFAULT_REQUEST_REWARD_AMOUNT,
 };
 
-//use crate::contract::verify_fragment;
 use crate::delegations::{
     get_delegation_state, get_n_available_proxies_from_delegation,
     get_n_minimum_proxies_for_refund, store_add_per_proxy_delegation, store_get_delegation,
@@ -2204,7 +2203,6 @@ fn test_proxy_unregister_with_requests() {
         DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT - 3 * DEFAULT_PER_REQUEST_SLASH_STAKE_AMOUNT
     );
 
-    /*
     // Provide wrong fragment
     assert!(is_err(
         provide_reencrypted_fragment(
@@ -2217,7 +2215,6 @@ fn test_proxy_unregister_with_requests() {
         ),
         "Invalid KeyFrag signature",
     ));
-     */
 
     // Complete requests
     assert!(provide_reencrypted_fragment(
@@ -3963,7 +3960,6 @@ fn test_get_n_minimum_proxies_for_refund() {
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 2);
 }
 
-/*
 #[test]
 fn test_verify_fragments() {
     assert!(verify_fragment(
@@ -3982,7 +3978,6 @@ fn test_verify_fragments() {
     )
     .is_err());
 }
- */
 
 #[test]
 fn test_timeouts() {

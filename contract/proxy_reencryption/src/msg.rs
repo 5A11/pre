@@ -13,7 +13,7 @@ pub struct ProxyDelegationString {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct ProxyTask {
+pub struct ProxyTaskResponse {
     pub data_id: String,
     pub capsule: String,
     pub delegatee_pubkey: String,
@@ -22,13 +22,13 @@ pub struct ProxyTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct ProxyAvailability {
+pub struct ProxyAvailabilityResponse {
     pub proxy_pubkey: String,
     pub stake_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct ProxyStatus {
+pub struct ProxyStatusResponse {
     pub proxy_address: Addr,
     pub stake_amount: Uint128,
     pub withdrawable_stake_amount: Uint128,
@@ -46,8 +46,8 @@ pub struct InstantiateMsg {
     // Staking
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Option<Uint128>,
-    pub per_proxy_request_reward_amount: Option<Uint128>,
-    pub per_request_slash_stake_amount: Option<Uint128>,
+    pub per_proxy_task_reward_amount: Option<Uint128>,
+    pub per_task_slash_stake_amount: Option<Uint128>,
 
     // Timeouts
     pub timeout_height: Option<u64>,
@@ -142,7 +142,7 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetAvailableProxiesResponse {
-    pub proxies: Vec<ProxyAvailability>,
+    pub proxies: Vec<ProxyAvailabilityResponse>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -169,12 +169,12 @@ pub struct GetContractStateResponse {
 pub struct GetStakingConfigResponse {
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Uint128,
-    pub per_proxy_request_reward_amount: Uint128,
+    pub per_proxy_task_reward_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetProxyTasksResponse {
-    pub proxy_tasks: Vec<ProxyTask>,
+    pub proxy_tasks: Vec<ProxyTaskResponse>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -185,7 +185,7 @@ pub struct GetDelegationStatusResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetProxyStatusResponse {
-    pub proxy_status: Option<ProxyStatus>,
+    pub proxy_status: Option<ProxyStatusResponse>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -199,8 +199,8 @@ pub struct InstantiateMsgResponse {
     // Staking
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Uint128,
-    pub per_proxy_request_reward_amount: Uint128,
-    pub per_request_slash_stake_amount: Uint128,
+    pub per_proxy_task_reward_amount: Uint128,
+    pub per_task_slash_stake_amount: Uint128,
 
     // Timeouts
     pub timeout_height: u64,
@@ -208,7 +208,7 @@ pub struct InstantiateMsgResponse {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct ProxyStake {
+pub struct ProxyStakeResponse {
     pub proxy_addr: Addr,
     pub stake: Uint128,
 }
@@ -216,5 +216,5 @@ pub struct ProxyStake {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsgJSONResponse {
-    RequestReencryption { proxies: Vec<ProxyStake> },
+    RequestReencryption { proxies: Vec<ProxyStakeResponse> },
 }

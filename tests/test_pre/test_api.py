@@ -186,7 +186,7 @@ def test_proxy_api():
     contract.get_staking_config.return_value = StakingConfig(
         stake_denom="atestfet",
         minimum_proxy_stake_amount="1000",
-        per_proxy_request_reward_amount="100",
+        per_proxy_task_reward_amount="100",
     )
 
     encryption_private_key = Mock()

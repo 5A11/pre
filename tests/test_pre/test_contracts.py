@@ -118,9 +118,9 @@ class BaseContractTestCase(TestCase):
             admin_private_key=self.ledger_crypto,
             admin_addr=self.ledger_crypto.get_address(),
             stake_denom=self.STAKE_DENOM,
-            per_request_slash_stake_amount="100",
+            per_task_slash_stake_amount="100",
             minimum_proxy_stake_amount="100",
-            per_proxy_request_reward_amount="100",
+            per_proxy_task_reward_amount="100",
             threshold=self.THRESHOLD,
             proxy_whitelisting=True,
         )

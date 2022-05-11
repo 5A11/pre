@@ -123,8 +123,11 @@ pub fn store_get_all_active_proxy_pubkeys(storage: &dyn Storage) -> Vec<String> 
     deserialized_keys
 }
 
-// Other
-pub fn maximum_withdrawable_stake_amount(staking_config: &StakingConfig, proxy: &Proxy) -> u128 {
+// High level methods
+pub fn get_maximum_withdrawable_stake_amount(
+    staking_config: &StakingConfig,
+    proxy: &Proxy,
+) -> u128 {
     if proxy.stake_amount.u128() > staking_config.minimum_proxy_stake_amount.u128() {
         proxy.stake_amount.u128() - staking_config.minimum_proxy_stake_amount.u128()
     } else {

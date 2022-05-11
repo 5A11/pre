@@ -230,8 +230,8 @@ class ContractQueries(AbstractContractQueries):
             minimum_proxy_stake_amount=cast(
                 str, json_res["minimum_proxy_stake_amount"]
             ),
-            per_proxy_request_reward_amount=cast(
-                str, json_res["per_proxy_request_reward_amount"]
+            per_proxy_task_reward_amount=cast(
+                str, json_res["per_proxy_task_reward_amount"]
             ),
         )
 
@@ -365,8 +365,8 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         admin_addr: Address,
         stake_denom: str,
         minimum_proxy_stake_amount: Optional[int] = None,
-        per_proxy_request_reward_amount: Optional[int] = None,
-        per_request_slash_stake_amount: Optional[int] = None,
+        per_proxy_task_reward_amount: Optional[int] = None,
+        per_task_slash_stake_amount: Optional[int] = None,
         threshold: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
         timeout_height: Optional[int] = None,
@@ -382,8 +382,8 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         :param admin_addr: address of contract administrator
         :param stake_denom: str,
         :param minimum_proxy_stake_amount: Optional[int]
-        :param per_proxy_request_reward_amount: Optional[int] = None
-        :param per_request_slash_stake_amount: Optional[int] = None
+        :param per_proxy_task_reward_amount: Optional[int] = None
+        :param per_task_slash_stake_amount: Optional[int] = None
         :param threshold: int threshold ,
         :param proxies: optional list of proxies addresses,
         :param timeout_height: Timeout height
@@ -410,15 +410,11 @@ class AdminContract(AbstractAdminContract, ContractExecuteExceptionMixIn):
         if minimum_proxy_stake_amount is not None:
             init_msg["minimum_proxy_stake_amount"] = str(minimum_proxy_stake_amount)
 
-        if per_proxy_request_reward_amount is not None:
-            init_msg["per_proxy_request_reward_amount"] = str(
-                per_proxy_request_reward_amount
-            )
+        if per_proxy_task_reward_amount is not None:
+            init_msg["per_proxy_task_reward_amount"] = str(per_proxy_task_reward_amount)
 
-        if per_request_slash_stake_amount is not None:
-            init_msg["per_request_slash_stake_amount"] = str(
-                per_request_slash_stake_amount
-            )
+        if per_task_slash_stake_amount is not None:
+            init_msg["per_task_slash_stake_amount"] = str(per_task_slash_stake_amount)
 
         if timeout_height is not None:
             init_msg["timeout_height"] = timeout_height

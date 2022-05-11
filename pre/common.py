@@ -176,7 +176,7 @@ class ContractState:
 class StakingConfig:
     stake_denom: str
     minimum_proxy_stake_amount: str
-    per_proxy_request_reward_amount: str
+    per_proxy_task_reward_amount: str
 
 
 @dataclass

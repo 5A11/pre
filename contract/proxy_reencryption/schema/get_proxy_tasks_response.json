@@ -9,12 +9,12 @@
     "proxy_tasks": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/ProxyTask"
+        "$ref": "#/definitions/ProxyTaskResponse"
       }
     }
   },
   "definitions": {
-    "ProxyTask": {
+    "ProxyTaskResponse": {
       "type": "object",
       "required": [
         "capsule",

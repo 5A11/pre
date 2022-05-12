@@ -9,12 +9,12 @@
     "proxies": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/ProxyAvailability"
+        "$ref": "#/definitions/ProxyAvailabilityResponse"
       }
     }
   },
   "definitions": {
-    "ProxyAvailability": {
+    "ProxyAvailabilityResponse": {
       "type": "object",
       "required": [
         "proxy_pubkey",

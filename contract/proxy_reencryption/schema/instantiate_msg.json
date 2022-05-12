@@ -26,7 +26,7 @@
         }
       ]
     },
-    "per_proxy_request_reward_amount": {
+    "per_proxy_task_reward_amount": {
       "anyOf": [
         {
           "$ref": "#/definitions/Uint128"
@@ -36,7 +36,7 @@
         }
       ]
     },
-    "per_request_slash_stake_amount": {
+    "per_task_slash_stake_amount": {
       "anyOf": [
         {
           "$ref": "#/definitions/Uint128"

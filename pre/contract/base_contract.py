@@ -130,8 +130,8 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         admin_addr: Address,
         stake_denom: str,
         minimum_proxy_stake_amount: Optional[int] = None,
-        per_proxy_request_reward_amount: Optional[int] = None,
-        per_request_slash_stake_amount: Optional[int] = None,
+        per_proxy_task_reward_amount: Optional[int] = None,
+        per_task_slash_stake_amount: Optional[int] = None,
         threshold: Optional[int] = None,
         proxies: Optional[List[Address]] = None,
         timeout_height: Optional[int] = None,
@@ -147,8 +147,8 @@ class AbstractAdminContract(BaseAbstractContract, ABC):
         :param admin_addr: address of contract administator
         :param stake_denom: str,
         :param minimum_proxy_stake_amount: Optional[int]
-        :param per_proxy_request_reward_amount: Optional[int] = None
-        :param per_request_slash_stake_amount: Optional[int] = None
+        :param per_proxy_task_reward_amount: Optional[int] = None
+        :param per_task_slash_stake_amount: Optional[int] = None
         :param threshold: int threshold ,
         :param proxies: optional list of proxies addresses,
         :param timeout_height: Timeout height

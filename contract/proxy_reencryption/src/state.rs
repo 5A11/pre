@@ -25,8 +25,8 @@ pub struct State {
     pub threshold: u32,
     pub proxy_whitelisting: bool,
 
-    // Total number of re-encryption requests
-    pub next_proxy_request_id: u64,
+    // Total number of re-encryption tasks
+    pub next_proxy_task_id: u64,
     pub next_delegation_id: u64,
 
     pub terminated: bool,
@@ -36,14 +36,14 @@ pub struct State {
 pub struct StakingConfig {
     pub stake_denom: String,
     pub minimum_proxy_stake_amount: Uint128,
-    pub per_proxy_request_reward_amount: Uint128,
-    pub per_request_slash_stake_amount: Uint128,
+    pub per_proxy_task_reward_amount: Uint128,
+    pub per_task_slash_stake_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct TimeoutsConfig {
     pub timeout_height: u64,
-    pub next_request_id_to_be_checked: u64,
+    pub next_task_id_to_be_checked: u64,
 }
 
 // Store structures

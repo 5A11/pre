@@ -233,7 +233,7 @@ pub fn get_delegation_state(
             storage,
             delegator_pubkey,
             delegatee_pubkey,
-            &staking_config.per_request_slash_stake_amount.u128(),
+            &staking_config.per_task_slash_stake_amount.u128(),
         );
         if n_available_proxies < get_n_minimum_proxies_for_refund(&state, &staking_config) {
             DelegationState::ProxiesAreBusy
@@ -306,7 +306,7 @@ pub fn get_n_minimum_proxies_for_refund(state: &State, staking_config: &StakingC
     // n_minimum_proxies = (threshold-1) + ceil((reward_amount*(threshold-1))/slash_amount)
 
     // Prevent zero division
-    if staking_config.per_request_slash_stake_amount.u128() == 0 {
+    if staking_config.per_task_slash_stake_amount.u128() == 0 {
         return state.threshold;
     }
 
@@ -315,15 +315,15 @@ pub fn get_n_minimum_proxies_for_refund(state: &State, staking_config: &StakingC
 
     // Worst case scenario of refunding
     let maximum_amount_to_refund: u128 =
-        staking_config.per_proxy_request_reward_amount.u128() * fail_threshold as u128;
+        staking_config.per_proxy_task_reward_amount.u128() * fail_threshold as u128;
 
     // Number of extra proxies needed to refund
-    // n_extra_proxies = CEIL(maximum_amount_to_refund/per_request_slash_stake_amount)
+    // n_extra_proxies = CEIL(maximum_amount_to_refund/per_task_slash_stake_amount)
     let mut n_extra_proxies =
-        maximum_amount_to_refund / staking_config.per_request_slash_stake_amount.u128();
+        maximum_amount_to_refund / staking_config.per_task_slash_stake_amount.u128();
 
     // Ceiling division
-    if maximum_amount_to_refund % staking_config.per_request_slash_stake_amount.u128() != 0 {
+    if maximum_amount_to_refund % staking_config.per_task_slash_stake_amount.u128() != 0 {
         n_extra_proxies += 1;
     }
 

@@ -89,7 +89,7 @@ DEFAULT_TX_MAXIMUM_GAS_LIMIT = 3000000
 DEFAULT_CONTRACT_TX_GAS = 600000
 DEFAULT_SEND_TX_GAS = 120000
 DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
-DEFAULT_FUNDS_AMOUNT = 9 * 10**18
+DEFAULT_FUNDS_AMOUNT = 9 * 10 ** 18
 
 
 class BroadcastException(Exception):
@@ -1096,6 +1096,7 @@ class CosmosLedger(AbstractLedger):
         request = QueryParamsRequest(subspace=subspace, key=key)
 
         last_exception: Optional[Exception] = None
+        resp = None
         for _ in range(self.n_total_msg_retries):
             try:
                 resp = self.params_client.Params(request)

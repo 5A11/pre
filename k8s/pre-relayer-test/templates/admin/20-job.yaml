@@ -64,12 +64,12 @@ spec:
       volumes:
         - name: config-volume
           configMap:
-            name: relayer-config
+            name: relayer-config-{{ $.Values.admin.tag }}
         - name: admin-key-volume
           secret:
-            secretName: pre-admin
+            secretName: pre-admin-{{ $.Values.admin.tag }}
         - name: contract-address
           persistentVolumeClaim:
-            claimName: pre-relayer
+            claimName: pre-relayer-{{ $.Values.admin.tag }}
       restartPolicy: "Never"
 {{ end }}

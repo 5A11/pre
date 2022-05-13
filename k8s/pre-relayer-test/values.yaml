@@ -5,7 +5,7 @@ admin:
   enabled: true
   name: admin
   image: "gcr.io/fetch-ai-images/colearn-pre-relayer"
-  tag: "cff7b66"
+  tag: "52b9bd7"
   port: 80
   replicas: 1
   contract: "amazon/aws-cli:latest"
@@ -42,7 +42,7 @@ ipfs:
 proxy:
   enabled: true
   image: "gcr.io/fetch-ai-images/colearn-pre-relayer"
-  tag: "cff7b66"
+  tag: "52b9bd7"
   port: 9090
   replicas: 2
 

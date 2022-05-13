@@ -273,6 +273,31 @@ def run(
             click.echo("Proxy successfully unregistered")
 
 
+@cli.command(name="check-liveness")
+@click.pass_context
+def check_liveness(ctx):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
+
+    # Check keys
+    encryption_private_key = app_config.get_crypto_key()
+    assert encryption_private_key, "encryption_private_key not available"
+
+    ledger_crypto = app_config.get_ledger_crypto()
+    assert ledger_crypto, "ledger_crypto not available"
+
+    crypto = app_config.get_crypto_instance()
+    assert crypto, "crypto not available"
+
+    # Check contract
+    query_contract = app_config.get_query_contract()
+    assert query_contract, "Contract not available"
+
+    contract_state = query_contract.get_contract_state()
+    assert contract_state, "Failed to query contract state"
+
+    click.echo("Proxy is alive")
+
+
 if __name__ == "__main__":
     try:
         cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter

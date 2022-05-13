@@ -184,6 +184,24 @@ def withdraw_contract(
     click.echo(f"Contract of balance was withdrawn to {recipient_address}")
 
 
+@cli.command(name="check-liveness")
+@click.pass_context
+def check_liveness(ctx):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
+
+    # Check ledger
+    ledger = app_config.get_ledger_instance()
+    assert ledger, "ledger not available"
+
+    ledger.check_availability()
+
+    # Check keys
+    ledger_crypto = app_config.get_ledger_crypto()
+    assert ledger_crypto, "ledger_crypto not available"
+
+    click.echo("Admin is alive")
+
+
 if __name__ == "__main__":
     cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
         prog_name=PROG_NAME

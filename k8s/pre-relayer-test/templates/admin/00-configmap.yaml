@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: relayer-config
+  name: relayer-config-{{ $.Values.admin.tag }}
   namespace: {{ $.Values.namespace }}
   labels:
     {{- include "pre-relayer-test.labels" . | nindent 4 }}

@@ -11,18 +11,18 @@ metadata:
     prometheus.io/port: '9090'
     prometheus.io/path: '/metrics'
   labels:
-    app: pre-relayer
+    app: pre-relayer-proxy-{{ . }}
     {{- $helmlabels }}
   namespace: {{ $.Values.namespace }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: pre-relayer
+      app: pre-relayer-proxy-{{ . }}
   template:
     metadata:
       labels:
-        app: pre-relayer
+        app: pre-relayer-proxy-{{ . }}
     spec:
       containers:
         - name: proxy

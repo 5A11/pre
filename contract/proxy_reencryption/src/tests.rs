@@ -2274,7 +2274,7 @@ fn test_proxy_unregister_with_requests() {
 
     // Check state of delegations
 
-    // ProxyDelegation 1 - Removed because of proxy 2
+    // ProxyDelegation 1 - Stays
     // delgator1, delegatee1, proxy1 - Unaffected
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
@@ -2282,9 +2282,9 @@ fn test_proxy_unregister_with_requests() {
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy1_pubkey,
     )
-    .is_none());
-    assert!(store_get_delegation(deps.as_mut().storage, &0).is_none());
-    assert!(!store_is_proxy_delegation(
+    .is_some());
+    assert!(store_get_delegation(deps.as_mut().storage, &0).is_some());
+    assert!(store_is_proxy_delegation(
         deps.as_mut().storage,
         &proxy1_pubkey,
         &0,
@@ -2305,16 +2305,16 @@ fn test_proxy_unregister_with_requests() {
         &1,
     ));
 
-    // delgator1, delegatee1, proxy3 - Removed because of proxy 2
+    // delgator1, delegatee1, proxy3 - stays
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy3_pubkey,
     )
-    .is_none());
-    assert!(store_get_delegation(deps.as_mut().storage, &2).is_none());
-    assert!(!store_is_proxy_delegation(
+    .is_some());
+    assert!(store_get_delegation(deps.as_mut().storage, &2).is_some());
+    assert!(store_is_proxy_delegation(
         deps.as_mut().storage,
         &proxy3_pubkey,
         &2,
@@ -2549,7 +2549,7 @@ fn test_proxy_unregister_with_requests() {
             &DELEGATEE1_PUBKEY.to_string(),
             &request_reward_3_proxies,
         ),
-        "ProxyDelegation doesn't exist.",
+        "Reencryption already requested",
     ));
 }
 
@@ -2895,7 +2895,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
 
     // Check state of delegations
 
-    // ProxyDelegation 1 - Removed because of proxy 2
+    // ProxyDelegation 1 - Proxy 2 left, but delegation still exists
     // delgator1, delegatee1, proxy1 - Unaffected
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
@@ -2903,9 +2903,9 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy1_pubkey,
     )
-    .is_none());
-    assert!(store_get_delegation(deps.as_mut().storage, &0).is_none());
-    assert!(!store_is_proxy_delegation(
+    .is_some());
+    assert!(store_get_delegation(deps.as_mut().storage, &0).is_some());
+    assert!(store_is_proxy_delegation(
         deps.as_mut().storage,
         &proxy1_pubkey,
         &0,
@@ -2926,16 +2926,16 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &1,
     ));
 
-    // delgator1, delegatee1, proxy3 - Removed because of proxy 2
+    // delgator1, delegatee1, proxy3 - still exist
     assert!(store_get_proxy_delegation_id(
         deps.as_mut().storage,
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy3_pubkey,
     )
-    .is_none());
-    assert!(store_get_delegation(deps.as_mut().storage, &2).is_none());
-    assert!(!store_is_proxy_delegation(
+    .is_some());
+    assert!(store_get_delegation(deps.as_mut().storage, &2).is_some());
+    assert!(store_is_proxy_delegation(
         deps.as_mut().storage,
         &proxy3_pubkey,
         &2,
@@ -4560,7 +4560,7 @@ fn test_terminate_contract() {
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
         ),
-        "Contract was terminated."
+        "Contract was terminated.",
     ));
 
     assert!(is_err(
@@ -4571,7 +4571,7 @@ fn test_terminate_contract() {
             &proxy3_pubkey,
             &proxy_stake,
         ),
-        "Contract was terminated."
+        "Contract was terminated.",
     ));
 
     // Proxies still can finish their jobs
@@ -4597,7 +4597,7 @@ fn test_terminate_contract() {
             deps.as_mut(),
             &creator,
             DEFAULT_BLOCK_HEIGHT + timeout_height,
-            &recipient
+            &recipient,
         ),
         "Nothing to withdraw",
     ));
@@ -4634,7 +4634,7 @@ fn test_terminate_contract() {
             amount: [
                 Coin {
                     denom: "something".to_string(),
-                    amount: Uint128::new(123)
+                    amount: Uint128::new(123),
                 },
                 // proxy stake got subtracted
             ]
@@ -4927,4 +4927,151 @@ fn test_skip_task() {
         ),
         "Task was already completed.",
     ));
+}
+
+#[test]
+fn test_remove_proxies_from_delegation() {
+    let mut deps = mock_dependencies();
+
+    // Addresses
+    let creator = Addr::unchecked("creator".to_string());
+    let proxy1 = Addr::unchecked("proxy_1".to_string());
+    let proxy2 = Addr::unchecked("proxy_2".to_string());
+    let proxy3 = Addr::unchecked("proxy_3".to_string());
+
+    let delegator1 = Addr::unchecked("delegator1".to_string());
+
+    // Pubkeys
+    let proxy1_pubkey: String = String::from("proxy_pubkey1");
+    let proxy2_pubkey: String = String::from("proxy_pubkey2");
+    let proxy3_pubkey: String = String::from("proxy_pubkey3");
+
+    let delegation_string = String::from("DELESTRING");
+
+    // Staking
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
+    let minimum_proxy_stake_amount: u128 = 200;
+    let per_proxy_task_reward_amount: u128 = 40;
+    let per_task_slash_stake_amount: u128 = 98;
+
+    let proxy_stake = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(minimum_proxy_stake_amount),
+    }];
+
+    // Timetous
+    let timeout_height: u64 = 100;
+
+    /*************** Initialise *************/
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        0,
+        &Some(2),
+        &None,
+        &None,
+        &stake_denom,
+        &Some(Uint128::new(minimum_proxy_stake_amount)),
+        &Some(Uint128::new(per_proxy_task_reward_amount)),
+        &Some(Uint128::new(per_task_slash_stake_amount)),
+        &Some(timeout_height),
+        &Some(false),
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy1,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy1_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy2,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy2_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy3,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy3_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    let proxy_delegations: Vec<ProxyDelegationString> = vec![
+        ProxyDelegationString {
+            proxy_pubkey: proxy1_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy2_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy3_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+    ];
+
+    // Add delegation
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
+        &proxy_delegations,
+    )
+    .is_ok());
+
+    assert_eq!(
+        get_delegation_state(
+            deps.as_mut().storage,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string()
+        ),
+        DelegationState::Active
+    );
+
+    // Delegation still exists when proxy 1 leaves
+    assert!(unregister_proxy(deps.as_mut(), &proxy1, DEFAULT_BLOCK_HEIGHT).is_ok());
+    assert_eq!(
+        get_delegation_state(
+            deps.as_mut().storage,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string()
+        ),
+        DelegationState::Active
+    );
+
+    // Delegation gets deleted when number of proxies is less than minimum
+    assert!(unregister_proxy(deps.as_mut(), &proxy2, DEFAULT_BLOCK_HEIGHT).is_ok());
+
+    assert_eq!(
+        get_delegation_state(
+            deps.as_mut().storage,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string()
+        ),
+        DelegationState::NonExisting
+    );
+
+    assert!(unregister_proxy(deps.as_mut(), &proxy3, DEFAULT_BLOCK_HEIGHT).is_ok());
+
+    assert_eq!(
+        get_delegation_state(
+            deps.as_mut().storage,
+            &DELEGATOR1_PUBKEY.to_string(),
+            &DELEGATEE1_PUBKEY.to_string()
+        ),
+        DelegationState::NonExisting
+    );
 }

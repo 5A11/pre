@@ -20,10 +20,10 @@ use crate::state::{
 
 use crate::delegations::{
     get_delegation_state, get_n_available_proxies_from_delegation,
-    get_n_minimum_proxies_for_refund, remove_proxy_delegations, store_add_per_proxy_delegation,
-    store_get_all_proxies_from_delegation, store_get_delegation, store_get_proxy_delegation_id,
-    store_is_proxy_delegation_empty, store_set_delegation, store_set_delegation_id,
-    ProxyDelegation,
+    get_n_minimum_proxies_for_refund, remove_proxy_from_delegations,
+    store_add_per_proxy_delegation, store_get_all_proxies_from_delegation, store_get_delegation,
+    store_get_proxy_delegation_id, store_is_proxy_delegation_empty, store_set_delegation,
+    store_set_delegation_id, ProxyDelegation,
 };
 use crate::reencryption_requests::{
     abandon_all_proxy_tasks, abandon_proxy_task, check_and_resolve_all_timedout_tasks,
@@ -193,7 +193,7 @@ fn try_remove_proxy(
         // In leaving state this was already done
         if proxy.state != ProxyState::Leaving {
             store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-            remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+            remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
         }
 
         abandon_all_proxy_tasks(deps.storage, &proxy_pubkey, &mut response)?;
@@ -247,7 +247,7 @@ fn try_terminate_contract(
         let mut proxy_entry = store_get_proxy_entry(deps.storage, &proxy_address).unwrap();
 
         store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-        remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+        remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
 
         proxy_entry.state = ProxyState::Leaving;
         store_set_proxy_entry(deps.storage, &proxy_address, &proxy_entry);
@@ -451,7 +451,7 @@ fn try_unregister_proxy(
 
     if proxy.state != ProxyState::Leaving {
         store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-        remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+        remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
     }
 
     // This can resolve to proxy being slashed
@@ -507,7 +507,7 @@ fn try_deactivate_proxy(
             let proxy_pubkey = proxy.proxy_pubkey.clone().unwrap();
 
             store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-            remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+            remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
 
             proxy.state = ProxyState::Leaving;
             store_set_proxy_entry(deps.storage, &info.sender, &proxy);

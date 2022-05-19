@@ -510,6 +510,10 @@ class DelegationAlreadyAdded(ContractExecutionError):
     """Delegation already added."""
 
 
+class ReencryptionNotPermitted(ContractExecutionError):
+    """Reencryption not permitted."""
+
+
 class NotEnoughStakeToWithdraw(ContractExecutionError):
     """Not enough stake to withdraw."""
 

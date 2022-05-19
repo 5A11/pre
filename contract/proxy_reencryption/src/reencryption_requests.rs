@@ -35,7 +35,7 @@ pub struct ProxyTask {
     // Timeouts
     pub timeout_height: u64,
     // Reward will be returned to this address when request cannot be completed
-    pub delegator_addr: Addr,
+    pub refund_addr: Addr,
 
     // When task was finished and proxy got rewarded or it was abandoned/timed-out and delegator got refunded
     pub resolved: bool,
@@ -339,9 +339,9 @@ pub fn abandon_proxy_task(
             store_set_proxy_task(storage, &task_id, &task);
 
             // Refund the delegator - even when is completed
-            update_retrieved_delegator_stake_map(
+            update_refunds_map(
                 delegator_retrieve_funds_amount,
-                &task.delegator_addr,
+                &task.refund_addr,
                 staking_config.per_proxy_task_reward_amount.u128(),
             );
         }
@@ -399,9 +399,9 @@ pub fn timeout_proxy_task(
     }
 
     // Refund the delegator - even when is completed
-    update_retrieved_delegator_stake_map(
+    update_refunds_map(
         delegator_retrieve_funds_amount,
-        &re_task.delegator_addr,
+        &re_task.refund_addr,
         staking_config.per_proxy_task_reward_amount.u128(),
     );
 
@@ -497,20 +497,17 @@ pub fn get_all_fragments(
     fragments
 }
 
-pub fn update_retrieved_delegator_stake_map(
-    delegator_retrieve_funds_amount: &mut HashMap<Addr, u128>,
-    delegator_addr: &Addr,
+pub fn update_refunds_map(
+    refund_amounts: &mut HashMap<Addr, u128>,
+    refund_addr: &Addr,
     additional_stake_amount: u128,
 ) {
-    match delegator_retrieve_funds_amount.get(delegator_addr).cloned() {
+    match refund_amounts.get(refund_addr).cloned() {
         None => {
-            delegator_retrieve_funds_amount.insert(delegator_addr.clone(), additional_stake_amount);
+            refund_amounts.insert(refund_addr.clone(), additional_stake_amount);
         }
         Some(stake_amount) => {
-            delegator_retrieve_funds_amount.insert(
-                delegator_addr.clone(),
-                stake_amount + additional_stake_amount,
-            );
+            refund_amounts.insert(refund_addr.clone(), stake_amount + additional_stake_amount);
         }
     }
 }

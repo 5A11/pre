@@ -849,7 +849,7 @@ fn test_add_delegation_and_request_reencryption() {
     let proxy2 = Addr::unchecked("proxy2".to_string());
 
     let delegator1 = Addr::unchecked("delegator1".to_string());
-    let delegator2 = Addr::unchecked("delegator2".to_string());
+    let delegatee1 = Addr::unchecked("delegatee1".to_string());
 
     // Pubkeys
     let proxy1_pubkey: String = String::from("proxy1_pubkey");
@@ -975,19 +975,6 @@ fn test_add_delegation_and_request_reencryption() {
         "Delegation already exists.",
     ));
 
-    // Reencryption cannot be requested by delegator2
-    assert!(is_err(
-        request_reencryption(
-            deps.as_mut(),
-            &delegator2,
-            DEFAULT_BLOCK_HEIGHT,
-            &data_id,
-            &DELEGATEE1_PUBKEY.to_string(),
-            &request_reward,
-        ),
-        "Delegator delegator1 already registered with this pubkey.",
-    ));
-
     // Insufficient stake amount
     assert!(is_err(
         request_reencryption(
@@ -1001,7 +988,21 @@ fn test_add_delegation_and_request_reencryption() {
         "Requires at least 100 atestfet.",
     ));
 
+    // Only delegator can request re-encryption
+    assert!(is_err(
+        request_reencryption(
+            deps.as_mut(),
+            &delegatee1,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id,
+            &DELEGATEE1_PUBKEY.to_string(),
+            &higher_request_reward,
+        ),
+        "Reencryption is not permitted"
+    ));
+
     // Reencryption can be requested only after add_delegation
+    // Delegatee can request reencryption
     let res = request_reencryption(
         deps.as_mut(),
         &delegator1,

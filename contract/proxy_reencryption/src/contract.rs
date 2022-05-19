@@ -40,6 +40,7 @@ use cosmwasm_std::{
 use std::collections::HashMap;
 
 use crate::common::add_bank_msg;
+use crate::reencryption_permissions::get_permission;
 
 //use umbral_pre::{Capsule, CapsuleFrag, DeserializableFromArray, PublicKey};
 
@@ -557,7 +558,6 @@ fn try_provide_reencrypted_fragment(
 
     // Task must exist - panic otherwise
     let mut proxy_task = store_get_proxy_task(deps.storage, &task_id).unwrap();
-
     if env.block.height >= proxy_task.timeout_height {
         return generic_err!("Request timed out.");
     }
@@ -920,13 +920,16 @@ fn try_request_reencryption(
 
     ensure_not_terminated(&state)?;
 
-    // Only data owner can request reencryption
     let data_entry: DataEntry = match store_get_data_entry(deps.storage, data_id) {
         None => generic_err!("Data entry doesn't exist."),
         Some(data_entry) => Ok(data_entry),
     }?;
 
-    ensure_delegator(deps.storage, &data_entry.delegator_pubkey, &info.sender)?;
+    let delegator_addr =
+        match store_get_delegator_address(deps.storage, &data_entry.delegator_pubkey) {
+            Some(delegator_addr) => Ok(delegator_addr),
+            None => generic_err!("Invalid delegator pubkey."),
+        }?;
 
     // Get selected proxies for current delegation
     let proxy_pubkeys = store_get_all_proxies_from_delegation(
@@ -937,6 +940,13 @@ fn try_request_reencryption(
 
     if proxy_pubkeys.is_empty() {
         return generic_err!("ProxyDelegation doesn't exist.");
+    }
+
+    // Check if encryption was permitted - get_permission always returns true for now
+    if info.sender != delegator_addr
+        && !get_permission(deps.storage, &delegator_addr, delegatee_pubkey, data_id)
+    {
+        return generic_err!("Reencryption is not permitted.");
     }
 
     // Get number of proxies with enough stake
@@ -978,7 +988,7 @@ fn try_request_reencryption(
         resolved: false,
         abandoned: false,
         timeout_height: env.block.height + timeouts_config.timeout_height,
-        delegator_addr: info.sender.clone(), // Per proxy stake amount
+        refund_addr: info.sender.clone(),
     };
 
     let mut proxy_stake = Vec::new();

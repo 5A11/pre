@@ -12,7 +12,6 @@ from pre.contract.base_contract import (
     ContractTerminated,
     DataAlreadyExist,
     DataEntryDoesNotExist,
-    DelegationAlreadyAdded,
     DelegationAlreadyExist,
     NotAdminError,
     NotEnoughProxies,
@@ -24,6 +23,7 @@ from pre.contract.base_contract import (
     QueryDataEntryDoesNotExist,
     ReencryptedCapsuleFragAlreadyProvided,
     ReencryptionAlreadyRequested,
+    ReencryptionNotPermitted,
     UnknownProxy,
     UnkownReencryptionRequest,
 )
@@ -379,7 +379,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 stake_amount=delegation_state_response.total_request_reward_amount,
             )
 
-        with pytest.raises(DelegationAlreadyAdded):
+        with pytest.raises(ReencryptionNotPermitted):
             self.delegator_contract.request_reencryption(
                 delegator_private_key=self.validator,
                 delegator_pubkey_bytes=self.delegator_pub_key,

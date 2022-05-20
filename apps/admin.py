@@ -50,6 +50,7 @@ def cli(ctx, app_config: AppConf):
 @click.option("--admin-address", type=str, required=False)
 @click.option("--threshold", type=int, required=False, default=1)
 @click.option("--proxies", type=str, required=False)
+@click.option("--stake_denom", type=str, required=False, default="atestfet")
 @click.option(
     "--output-file",
     type=str,

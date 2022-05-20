@@ -41,6 +41,7 @@ from pre.storage.ipfs_storage import IpfsStorage
 from tests.constants import (
     DEFAULT_DENOMINATION,
     DEFAULT_FETCH_CHAIN_ID,
+    DEFAULT_STAKE_DENOMINATION,
     DEFAULT_TESTS_FUNDS_AMOUNT,
     FETCHD_LOCAL_URL,
     FUNDED_FETCHAI_PRIVATE_KEY_1,
@@ -51,6 +52,7 @@ from tests.utils import local_ledger_and_storage
 
 LOCAL_LEDGER_CONFIG = dict(
     denom=DEFAULT_DENOMINATION,
+    stake_denom=DEFAULT_STAKE_DENOMINATION,
     chain_id=DEFAULT_FETCH_CHAIN_ID,
     prefix=PREFIX,
     node_address=FETCHD_LOCAL_URL,
@@ -62,7 +64,7 @@ class BaseContractTestCase(TestCase):
     FAKE_CONTRACT_ADDR = "fetch18vd9fpwxzck93qlwghaj6arh4p7c5n890l3amr"
     THRESHOLD = 1
     NUM_PROXIES = 10
-    STAKE_DENOM = "atestfet"
+    STAKE_DENOM = "atestlearn"
 
     @classmethod
     def setUpClass(self):
@@ -78,15 +80,27 @@ class BaseContractTestCase(TestCase):
         self.validator = self.ledger.load_crypto_from_str(FUNDED_FETCHAI_PRIVATE_KEY_1)
         self.ledger_crypto = self.ledger.make_new_crypto()
         self.some_crypto = self.ledger.make_new_crypto()
-        self.ledger._send_funds(
+        self.ledger.send_funds(
             self.validator,
             self.ledger_crypto.get_address(),
             amount=DEFAULT_TESTS_FUNDS_AMOUNT,
         )
-        self.ledger._send_funds(
+        self.ledger.send_funds(
+            self.validator,
+            self.ledger_crypto.get_address(),
+            amount=DEFAULT_TESTS_FUNDS_AMOUNT,
+            denom=DEFAULT_STAKE_DENOMINATION,
+        )
+        self.ledger.send_funds(
             self.validator,
             self.some_crypto.get_address(),
             amount=DEFAULT_TESTS_FUNDS_AMOUNT,
+        )
+        self.ledger.send_funds(
+            self.validator,
+            self.some_crypto.get_address(),
+            amount=DEFAULT_TESTS_FUNDS_AMOUNT,
+            denom=DEFAULT_STAKE_DENOMINATION,
         )
         self.contract_addr = self._setup_a_contract()
         self.proxy_addr = self.ledger_crypto.get_address()

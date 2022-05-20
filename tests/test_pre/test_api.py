@@ -184,7 +184,7 @@ def test_proxy_api():
     )
 
     contract.get_staking_config.return_value = StakingConfig(
-        stake_denom="atestfet",
+        stake_denom="atestlearn",
         minimum_proxy_stake_amount="1000",
         per_proxy_task_reward_amount="100",
     )
@@ -200,7 +200,7 @@ def test_proxy_api():
     delegation_string = b"delegation string"
     proxy_api = ProxyAPI(encryption_private_key, ledger_crypto, contract, crypto)
     capsule = b"capsule"
-    minimum_registration_stake = Coin(denom="atestfet", amount=str(1000))
+    minimum_registration_stake = Coin(denom="atestlearn", amount=str(1000))
 
     proxy_api.register()
     contract.proxy_register.assert_called_once_with(

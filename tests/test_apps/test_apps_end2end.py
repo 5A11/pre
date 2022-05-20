@@ -118,7 +118,7 @@ class TestApps(TestCase):
             funded_ledger_crypto = ledger.load_crypto_from_str(
                 FUNDED_FETCHAI_PRIVATE_KEY_1
             )
-            ledger._send_funds(funded_ledger_crypto, address, amount)
+            ledger.send_funds(funded_ledger_crypto, address, amount)
         except BroadcastException as e:
             raise Exception(dir(e), (e.__cause__.args))
 

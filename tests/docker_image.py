@@ -155,16 +155,15 @@ class FetchLedgerDockerImage(DockerImage):
             f'export CHAIN_ID={self._config["chain_id"]}',
             f'export MONIKER={self._config["moniker"]}',
             f'export DENOM={self._config["denom"]}',
+            f'export STAKE_DENOM={self._config["stake_denom"]}',
             # Add key
             '( echo "$VALIDATOR_MNEMONIC"; echo "$PASSWORD"; echo "$PASSWORD"; ) |fetchd keys add $VALIDATOR_KEY_NAME --recover',
             # Configure node
             "fetchd init --chain-id=$CHAIN_ID $MONIKER",
-            'echo "$PASSWORD" |fetchd add-genesis-account $(fetchd keys show $VALIDATOR_KEY_NAME -a) 100000000000000000000000$DENOM',
+            'echo "$PASSWORD" |fetchd add-genesis-account $(fetchd keys show $VALIDATOR_KEY_NAME -a) 100000000000000000000000$DENOM,10000000000000000000000$STAKE_DENOM',
             'echo "$PASSWORD" |fetchd gentx $VALIDATOR_KEY_NAME 10000000000000000000000$DENOM --chain-id $CHAIN_ID',
             "fetchd collect-gentxs",
-            # Enable rest-api
             'sed -i "s/stake/atestfet/" ~/.fetchd/config/genesis.json',
-            'sed -i "s/swagger = false/swagger = true/" ~/.fetchd/config/app.toml',
             'sed -i "s/swagger = false/swagger = true/" ~/.fetchd/config/app.toml',
             'sed -i "s/3s/1s/" ~/.fetchd/config/config.toml',
             'sed -i "s/5s/1s/" ~/.fetchd/config/config.toml',

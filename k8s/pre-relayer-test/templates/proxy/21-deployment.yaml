@@ -1,6 +1,6 @@
 {{- if .Values.proxy.enabled }}
 {{ $helmlabels := include "pre-relayer-test.labels" . | nindent 4 }}
-{{ $tag := .Values.admin.tag }}
+{{ $tag := .Values.proxy.tag }}
 {{ $count := .Values.proxy.replicas | int }}
 {{ range until $count }}
 apiVersion: apps/v1
@@ -28,11 +28,14 @@ spec:
       containers:
         - name: proxy
           image: {{ $.Values.proxy.image }}:{{ $.Values.proxy.tag }}
+          imagePullPolicy: Always
           resources:
             {{- toYaml $.Values.proxy.resources | nindent 12 }}
           ports:
             - containerPort: {{ $.Values.proxy.port  }}
           env:
+            - name: TAG
+              value: {{ $.Values.proxy.tag }}
             - name: LEDGER_CONFIG
               value: "/configs/ledger_config.yaml"
           volumeMounts:
@@ -50,7 +53,7 @@ spec:
       volumes:
         - name: config-volume
           configMap:
-            name: relayer-config
+            name: relayer-config-{{ $tag }}
       restartPolicy: "Always"
 ---
 {{ end }}

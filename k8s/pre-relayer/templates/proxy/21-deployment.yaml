@@ -11,18 +11,18 @@ metadata:
     prometheus.io/port: '9090'
     prometheus.io/path: '/metrics'
   labels:
-    app: pre-relayer
+    app: pre-relayer-proxy-{{ . }}
     {{- $helmlabels }}
   namespace: {{ $.Values.namespace }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: pre-relayer
+      app: pre-relayer-proxy-{{ . }}
   template:
     metadata:
       labels:
-        app: pre-relayer
+        app: pre-relayer-proxy-{{ . }}
     spec:
       containers:
         - name: proxy
@@ -39,15 +39,23 @@ spec:
             - name: PROXY_ENCRYPTION
               value: "/keys/proxy_encryption{{ . }}.key"
           volumeMounts:
-          - name: config-volume
-            mountPath: /configs/ledger_config.yaml
-            subPath: ledger_config.yaml
-          - name: proxy-key-volume
-            mountPath: /keys/proxy_ledger-{{ . }}.key
-            subPath: proxy_ledger-{{ . }}
-          - name: proxy-key-volume
-            mountPath: /keys/proxy_encryption{{ . }}.key
-            subPath: proxy_encryption-{{ . }}
+            - name: config-volume
+              mountPath: /configs/ledger_config.yaml
+              subPath: ledger_config.yaml
+            - name: proxy-key-volume
+              mountPath: /keys/proxy_ledger-{{ . }}.key
+              subPath: proxy_ledger-{{ . }}
+            - name: proxy-key-volume
+              mountPath: /keys/proxy_encryption{{ . }}.key
+              subPath: proxy_encryption-{{ . }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - ./scripts/liveness.sh
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 10
           command: ["/bin/sh"]
           args:
             - -c

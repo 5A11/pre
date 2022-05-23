@@ -13,8 +13,24 @@ PROG_NAME = "admin"
 
 
 @dataclass
+class LedgerNetworkConfig:
+    node_address: str
+    chain_id: str
+    prefix: str
+    denom: str
+
+    @classmethod
+    def from_app_config(cls, app_conf: AppConf) -> "LedgerNetworkConfig":
+        lconf = app_conf.ledger_config
+        return cls(
+            lconf["node_address"], lconf["chain_id"], lconf["prefix"], lconf["denom"]
+        )
+
+
+@dataclass
 class DeployedContract:
     contract_address: str
+    network: LedgerNetworkConfig
 
 
 @click.group(name=PROG_NAME)
@@ -34,6 +50,7 @@ def cli(ctx, app_config: AppConf):
 @click.option("--admin-address", type=str, required=False)
 @click.option("--threshold", type=int, required=False, default=1)
 @click.option("--proxies", type=str, required=False)
+@click.option("--stake_denom", type=str, required=False, default="atestfet")
 @click.option(
     "--output-file",
     type=str,
@@ -89,8 +106,10 @@ def instantiate_contract(
     )
 
     if output_file is not None:
-        contract = DeployedContract(contract_addr)
-        Path(output_file).write_text(json.dumps(asdict(contract)))
+        contract = DeployedContract(
+            contract_addr, LedgerNetworkConfig.from_app_config(app_config)
+        )
+        Path(output_file).write_text(json.dumps(asdict(contract), indent=4))
 
     click.echo()
     click.echo(f"Contract was set succesfully. Contract address is {contract_addr}")
@@ -164,6 +183,24 @@ def withdraw_contract(
     api = AdminAPI(ledger_crypto=ledger_crypto, contract=contract)
     api.withdraw_contract(recipient_address)
     click.echo(f"Contract of balance was withdrawn to {recipient_address}")
+
+
+@cli.command(name="check-liveness")
+@click.pass_context
+def check_liveness(ctx):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
+
+    # Check ledger
+    ledger = app_config.get_ledger_instance()
+    assert ledger, "ledger not available"
+
+    ledger.check_availability()
+
+    # Check keys
+    ledger_crypto = app_config.get_ledger_crypto()
+    assert ledger_crypto, "ledger_crypto not available"
+
+    click.echo("Admin is alive")
 
 
 if __name__ == "__main__":

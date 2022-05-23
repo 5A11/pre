@@ -20,10 +20,10 @@ use crate::state::{
 
 use crate::delegations::{
     get_delegation_state, get_n_available_proxies_from_delegation,
-    get_n_minimum_proxies_for_refund, remove_proxy_delegations, store_add_per_proxy_delegation,
-    store_get_all_proxies_from_delegation, store_get_delegation, store_get_proxy_delegation_id,
-    store_is_proxy_delegation_empty, store_set_delegation, store_set_delegation_id,
-    ProxyDelegation,
+    get_n_minimum_proxies_for_refund, remove_proxy_from_delegations,
+    store_add_per_proxy_delegation, store_get_all_proxies_from_delegation, store_get_delegation,
+    store_get_proxy_delegation_id, store_is_proxy_delegation_empty, store_set_delegation,
+    store_set_delegation_id, ProxyDelegation,
 };
 use crate::reencryption_requests::{
     abandon_all_proxy_tasks, abandon_proxy_task, check_and_resolve_all_timedout_tasks,
@@ -40,6 +40,7 @@ use cosmwasm_std::{
 use std::collections::HashMap;
 
 use crate::common::add_bank_msg;
+use crate::reencryption_permissions::get_permission;
 
 //use umbral_pre::{Capsule, CapsuleFrag, DeserializableFromArray, PublicKey};
 
@@ -193,7 +194,7 @@ fn try_remove_proxy(
         // In leaving state this was already done
         if proxy.state != ProxyState::Leaving {
             store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-            remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+            remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
         }
 
         abandon_all_proxy_tasks(deps.storage, &proxy_pubkey, &mut response)?;
@@ -247,7 +248,7 @@ fn try_terminate_contract(
         let mut proxy_entry = store_get_proxy_entry(deps.storage, &proxy_address).unwrap();
 
         store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-        remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+        remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
 
         proxy_entry.state = ProxyState::Leaving;
         store_set_proxy_entry(deps.storage, &proxy_address, &proxy_entry);
@@ -451,7 +452,7 @@ fn try_unregister_proxy(
 
     if proxy.state != ProxyState::Leaving {
         store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-        remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+        remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
     }
 
     // This can resolve to proxy being slashed
@@ -507,7 +508,7 @@ fn try_deactivate_proxy(
             let proxy_pubkey = proxy.proxy_pubkey.clone().unwrap();
 
             store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-            remove_proxy_delegations(deps.storage, &proxy_pubkey)?;
+            remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
 
             proxy.state = ProxyState::Leaving;
             store_set_proxy_entry(deps.storage, &info.sender, &proxy);
@@ -920,13 +921,16 @@ fn try_request_reencryption(
 
     ensure_not_terminated(&state)?;
 
-    // Only data owner can request reencryption
     let data_entry: DataEntry = match store_get_data_entry(deps.storage, data_id) {
         None => generic_err!("Data entry doesn't exist."),
         Some(data_entry) => Ok(data_entry),
     }?;
 
-    ensure_delegator(deps.storage, &data_entry.delegator_pubkey, &info.sender)?;
+    let delegator_addr =
+        match store_get_delegator_address(deps.storage, &data_entry.delegator_pubkey) {
+            Some(delegator_addr) => Ok(delegator_addr),
+            None => generic_err!("Invalid delegator pubkey."),
+        }?;
 
     // Get selected proxies for current delegation
     let proxy_pubkeys = store_get_all_proxies_from_delegation(
@@ -937,6 +941,13 @@ fn try_request_reencryption(
 
     if proxy_pubkeys.is_empty() {
         return generic_err!("ProxyDelegation doesn't exist.");
+    }
+
+    // Check if encryption was permitted - get_permission always returns true for now
+    if info.sender != delegator_addr
+        && !get_permission(deps.storage, &delegator_addr, delegatee_pubkey, data_id)
+    {
+        return generic_err!("Reencryption is not permitted.");
     }
 
     // Get number of proxies with enough stake
@@ -978,7 +989,7 @@ fn try_request_reencryption(
         resolved: false,
         abandoned: false,
         timeout_height: env.block.height + timeouts_config.timeout_height,
-        delegator_addr: info.sender.clone(), // Per proxy stake amount
+        refund_addr: info.sender.clone(),
     };
 
     let mut proxy_stake = Vec::new();

@@ -107,6 +107,79 @@ def withdraw_stake(ctx, stake_amount: Optional[int] = None):
     click.echo("Stake was withdrawn")
 
 
+def process_tasks(
+    proxy_api: ProxyAPI,
+    metrics: ProxyMetrics,
+    auto_withdrawal: bool,
+    run_once_and_exit: bool,
+):
+    logged = False
+    while True:
+        # get the next task from contract
+        try:
+            with metrics.time_query_tasks.time():
+                if not logged:
+                    click.echo("Querying reencryption tasks from contract...")
+                    logged = True
+                task = None
+                tasks = proxy_api.get_reencryption_requests()
+                if len(tasks) > 0:
+                    task = tasks[0]
+            metrics.report_pending_tasks_count(len(tasks))
+        except ContractQueryError as e:
+            click.echo(f"Warning: failed to query contract: {str(e)}")
+            metrics.report_contract_query_failure()
+            task = None
+
+        # process next task, if any
+        task_processing_failed = False
+        if task is not None:
+            logged = False
+            click.echo(f"Got a reencryption task: {task}")
+            try:
+                with metrics.time_process_task.time():
+                    proxy_api.process_reencryption_request(task)
+                click.echo(f"Reencryption task processed: {task}")
+                metrics.report_task_succeeded()
+            except (DecryptionError, ContractExecutionError) as e:
+                click.echo(
+                    f"Error: failed to process reencryption request {task.hash_id} : {str(e)}"
+                )
+                if isinstance(e, DecryptionError):
+                    metrics.report_umbral_reencryption_failure()
+                    task_processing_failed = True
+                elif isinstance(e, ContractExecutionError):
+                    metrics.report_contract_execution_failure()
+                metrics.report_task_failed()
+        else:  # pragma: nocover
+            time.sleep(DEFAULT_SLEEP_TIME)
+
+        # withdraw stake if requested
+        if auto_withdrawal:
+            try:
+                status = proxy_api._contract.get_proxy_status()
+                if status is not None and int(status.withdrawable_stake_amount) > 0:
+                    proxy_api.withdraw_stake()
+                    click.echo("Stake withdrawn.")
+            except (ContractQueryError, ContractExecutionError) as e:
+                click.echo(f"Error: failed to withdraw stake: {str(e)}")
+                if isinstance(e, ContractQueryError):
+                    metrics.report_contract_query_failure()
+                elif isinstance(e, ContractExecutionError):
+                    metrics.report_contract_execution_failure()
+
+        # if task failed due decryption error, skip it
+        if task is not None and task_processing_failed:
+            try:
+                proxy_api.skip_task(task)
+            except ContractExecutionError as e:
+                click.echo(f"Error: failed to skip task {task}, {e}")
+                metrics.report_contract_execution_failure()
+
+        if run_once_and_exit:  # pragma: nocover
+            break
+
+
 @cli.command(name="run")
 @click.pass_context
 @click.option(
@@ -136,7 +209,7 @@ def withdraw_stake(ctx, stake_amount: Optional[int] = None):
     "--auto-withdrawal",
     is_flag=True,
     required=False,
-    default=True,
+    default=False,
     help="Enable/disable automatic stake withdrawing",
 )
 def run(
@@ -154,17 +227,18 @@ def run(
         contract=app_config.get_proxy_contract(),
         crypto=app_config.get_crypto_instance(),
     )
+    address = app_config.get_ledger_crypto().get_address()
 
-    metrics = ProxyMetrics(disable_metrics)
+    metrics = ProxyMetrics(address[-5:], disable_metrics)
     if not disable_metrics:
         click.echo(f"Starting metrics server on {metrics_port}")
         start_http_server(metrics_port)
 
-    click.echo(f"Proxy address {app_config.get_ledger_crypto().get_address()}")
+    click.echo(f"Proxy address {address}")
     click.echo(f"Proxy pubkey  {encode_bytes(proxy_api._pub_key_as_bytes())}")
 
     if app_config.fund_if_needed():
-        click.echo(f"{app_config.get_ledger_crypto().get_address()} was funded")
+        click.echo(f"{address} was funded")
 
     try:
         if not proxy_api.registered():
@@ -181,58 +255,8 @@ def run(
         metrics.report_contract_query_failure()
         raise
 
-    logged = False
     try:
-        while True:
-            try:
-                with metrics.time_query_tasks.time():
-                    if not logged:
-                        click.echo("Querying reencryption tasks from contract...")
-                        logged = True
-                    task = None
-                    tasks = proxy_api.get_reencryption_requests()
-                    if len(tasks) > 0:
-                        task = tasks[0]
-            except ContractQueryError as e:
-                click.echo(f"Warning: failed to query contract: {str(e)}")
-                metrics.report_contract_query_failure()
-                task = None
-
-            task_processing_failed = False
-            if task is not None:
-                logged = False
-                metrics.report_pending_tasks_count(len(tasks))
-                click.echo(f"Got a reencryption task: {task}")
-                try:
-                    with metrics.time_process_task.time():
-                        proxy_api.process_reencryption_request(task)
-                    click.echo(f"Reencryption task processed: {task}")
-                    metrics.report_task_succeeded()
-                    if auto_withdrawal:
-                        proxy_api.withdraw_stake()
-                        click.echo("Stake withdrawn.")
-                except (DecryptionError, ContractExecutionError) as e:
-                    click.echo(
-                        f"Error: failed to process reencryption request {task.hash_id} : {str(e)}"
-                    )
-                    if isinstance(e, DecryptionError):
-                        metrics.report_umbral_reencryption_failure()
-                    elif isinstance(e, ContractExecutionError):
-                        metrics.report_contract_execution_failure()
-                        task_processing_failed = True
-                    metrics.report_task_failed()
-            else:  # pragma: nocover
-                time.sleep(DEFAULT_SLEEP_TIME)
-
-            if task is not None and task_processing_failed:
-                try:
-                    proxy_api.skip_task(task)
-                except ContractExecutionError as e:
-                    click.echo(f"Error: failed to skip task {task}, {e}")
-                    metrics.report_contract_execution_failure()
-
-            if run_once_and_exit:  # pragma: nocover
-                break
+        process_tasks(proxy_api, metrics, auto_withdrawal, run_once_and_exit)
     finally:
         try:
             click.echo(
@@ -249,7 +273,35 @@ def run(
             click.echo("Proxy successfully unregistered")
 
 
+@cli.command(name="check-liveness")
+@click.pass_context
+def check_liveness(ctx):
+    app_config: AppConf = ctx.obj[AppConf.ctx_key]
+
+    # Check keys
+    encryption_private_key = app_config.get_crypto_key()
+    assert encryption_private_key, "encryption_private_key not available"
+
+    ledger_crypto = app_config.get_ledger_crypto()
+    assert ledger_crypto, "ledger_crypto not available"
+
+    crypto = app_config.get_crypto_instance()
+    assert crypto, "crypto not available"
+
+    # Check contract
+    query_contract = app_config.get_query_contract()
+    assert query_contract, "Contract not available"
+
+    contract_state = query_contract.get_contract_state()
+    assert contract_state, "Failed to query contract state"
+
+    click.echo("Proxy is alive")
+
+
 if __name__ == "__main__":
-    cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
-        prog_name=PROG_NAME
-    )  # pragma: no cover
+    try:
+        cli(  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+            prog_name=PROG_NAME
+        )  # pragma: no cover
+    except click.exceptions.Abort:
+        click.echo(f"{PROG_NAME} Stopped.")

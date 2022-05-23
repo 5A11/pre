@@ -44,13 +44,13 @@ def test_api():
         proxies_ledger_crypto = [ledger.make_new_crypto() for _ in range(N_PROXIES)]
 
         # transfer funds to proxy and delegator
-        ledger._send_funds(
+        ledger.send_funds(
             admin_ledger_crypto,
             delegator_ledger_crypto.get_address(),
             DEFAULT_FUNDS_AMOUNT,
         )
         for i in range(N_PROXIES):
-            ledger._send_funds(
+            ledger.send_funds(
                 admin_ledger_crypto,
                 proxies_ledger_crypto[i].get_address(),
                 DEFAULT_FUNDS_AMOUNT,

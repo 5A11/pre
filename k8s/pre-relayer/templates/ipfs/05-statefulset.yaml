@@ -36,6 +36,12 @@ spec:
         - mountPath: /data/ipfs
           name: ipfs-pre-storage
           subPath: ipfs-data
+        livenessProbe:
+          tcpSocket:
+            port: {{ .Values.ipfs.dns.port }}
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 15
   volumeClaimTemplates:
   - apiVersion: v1
     kind: PersistentVolumeClaim

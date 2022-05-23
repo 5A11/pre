@@ -622,7 +622,7 @@ class CosmosLedger(AbstractLedger):
                     continue
         # todo: add result of execution?
 
-    def _send_funds(
+    def send_funds(
         self,
         from_crypto: CosmosCrypto,
         to_address: str,
@@ -720,7 +720,7 @@ class CosmosLedger(AbstractLedger):
                         _logger.info(
                             f"Refilling balance of {str(address)} from validator {str(self.validator_crypto.get_address())}"
                         )
-                        res = self._send_funds(
+                        res = self.send_funds(
                             self.validator_crypto,
                             address,
                             min_amount_required - balance,

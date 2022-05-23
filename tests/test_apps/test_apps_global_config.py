@@ -133,7 +133,7 @@ class TestApps(TestCase):
     def fund(self, address, amount=DEFAULT_FUNDS_AMOUNT):
         ledger = CosmosLedger(**self.ledger_config)
         funded_ledger_crypto = ledger.load_crypto_from_str(FUNDED_FETCHAI_PRIVATE_KEY_1)
-        ledger._send_funds(funded_ledger_crypto, address, amount)
+        ledger.send_funds(funded_ledger_crypto, address, amount)
 
     def test_apps(self):
         self.make_encryption_key(self.admin_encryption_key)

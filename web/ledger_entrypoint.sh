@@ -5,9 +5,10 @@ export PASSWORD="12345678"
 export CHAIN_ID=dorado-1
 export MONIKER=test-node
 export DENOM=atestfet
+export $STAKE_DENOM=atestlearn
 ( echo "$VALIDATOR_MNEMONIC"; echo "$PASSWORD"; echo "$PASSWORD"; ) |fetchd keys add $VALIDATOR_KEY_NAME --recover
 fetchd init --chain-id=$CHAIN_ID $MONIKER
-echo "$PASSWORD" |fetchd add-genesis-account $(fetchd keys show $VALIDATOR_KEY_NAME -a) 100000000000000000000000$DENOM
+echo "$PASSWORD" |fetchd add-genesis-account $(fetchd keys show $VALIDATOR_KEY_NAME -a) 100000000000000000000000$DENOM,10000000000000000000000$STAKE_DENOM
 echo "$PASSWORD" |fetchd gentx $VALIDATOR_KEY_NAME 10000000000000000000000$DENOM --chain-id $CHAIN_ID
 fetchd collect-gentxs
 sed -i "s/stake/atestfet/" ~/.fetchd/config/genesis.json

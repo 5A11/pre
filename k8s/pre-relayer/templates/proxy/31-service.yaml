@@ -1,16 +1,21 @@
 {{- if .Values.proxy.enabled }}
+{{ $helmlabels := include "pre-relayer.labels" . | nindent 4 }}
+{{ $count := .Values.proxy.replicas | int }}
+{{ range until $count }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: proxy-svc
+  name: proxy-svc-{{ . }}
   namespace: {{ $.Values.namespace }}
   labels:
-    {{- include "pre-relayer.labels" . | nindent 4 }}
+    {{- $helmlabels }}
 spec:
   selector:
-    app: pre-relayer
+    app: pre-relayer-proxy-{{ . }}
   ports:
     - protocol: TCP
       port: {{ $.Values.proxy.port  }}
       targetPort: {{ $.Values.proxy.port  }}
+---
+{{ end }}
 {{ end }}

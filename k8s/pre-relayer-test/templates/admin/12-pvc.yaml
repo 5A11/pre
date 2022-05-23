@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: pre-relayer
+  name: pre-relayer-{{ $.Values.admin.tag }}
   namespace: {{ .Values.namespace }}
   labels:
     {{- include "pre-relayer-test.labels" . | nindent 4 }}

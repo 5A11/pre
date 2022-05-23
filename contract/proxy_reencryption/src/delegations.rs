@@ -245,34 +245,56 @@ pub fn get_delegation_state(
     }
 }
 
-pub fn remove_proxy_delegations(storage: &mut dyn Storage, proxy_pubkey: &str) -> StdResult<()> {
+pub fn remove_proxy_from_delegations(
+    storage: &mut dyn Storage,
+    proxy_pubkey: &str,
+) -> StdResult<()> {
+    let staking_config = store_get_staking_config(storage)?;
+    let state = store_get_state(storage)?;
+
     // Delete all proxy delegations -- Make proxy inactive / stop requests factory
     for delegation_id in store_get_all_proxy_delegations(storage, proxy_pubkey) {
         let delegation = store_get_delegation(storage, &delegation_id).unwrap();
 
+        // Remove itself from delegation
+        store_remove_delegation(storage, &delegation_id);
+        store_remove_proxy_delegation_id(
+            storage,
+            &delegation.delegator_pubkey,
+            &delegation.delegatee_pubkey,
+            proxy_pubkey,
+        );
+        store_remove_per_proxy_delegation(storage, proxy_pubkey, &delegation_id);
+
+        // Check if delegation has enough proxies
         let all_delegation_proxies = store_get_all_proxies_from_delegation(
             storage,
             &delegation.delegator_pubkey,
             &delegation.delegatee_pubkey,
         );
-        // Delete entire delegation = delete each proxy delegation in delegation
-        for i_proxy_pubkey in all_delegation_proxies {
-            let i_delegation_id = store_get_proxy_delegation_id(
-                storage,
-                &delegation.delegator_pubkey,
-                &delegation.delegatee_pubkey,
-                &i_proxy_pubkey,
-            )
-            .unwrap();
 
-            store_remove_delegation(storage, &i_delegation_id);
-            store_remove_proxy_delegation_id(
-                storage,
-                &delegation.delegator_pubkey,
-                &delegation.delegatee_pubkey,
-                &i_proxy_pubkey,
-            );
-            store_remove_per_proxy_delegation(storage, &i_proxy_pubkey, &i_delegation_id);
+        let n_minimum_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
+
+        // Delete entire delegation = delete each proxy delegation in delegation if there is less than minimum proxies
+        if all_delegation_proxies.len() < n_minimum_proxies as usize {
+            for i_proxy_pubkey in all_delegation_proxies {
+                let i_delegation_id = store_get_proxy_delegation_id(
+                    storage,
+                    &delegation.delegator_pubkey,
+                    &delegation.delegatee_pubkey,
+                    &i_proxy_pubkey,
+                )
+                .unwrap();
+
+                store_remove_delegation(storage, &i_delegation_id);
+                store_remove_proxy_delegation_id(
+                    storage,
+                    &delegation.delegator_pubkey,
+                    &delegation.delegatee_pubkey,
+                    &i_proxy_pubkey,
+                );
+                store_remove_per_proxy_delegation(storage, &i_proxy_pubkey, &i_delegation_id);
+            }
         }
     }
     Ok(())

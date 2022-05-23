@@ -48,6 +48,7 @@ from pre.contract.base_contract import (
     QueryDataEntryDoesNotExist,
     ReencryptedCapsuleFragAlreadyProvided,
     ReencryptionAlreadyRequested,
+    ReencryptionNotPermitted,
     UnknownProxy,
     UnkownReencryptionRequest,
 )
@@ -140,6 +141,8 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise ContractNotTerminated(raw_log, error_code, res)
         if "Nothing to withdraw" in raw_log:
             raise NotEnoughStakeToWithdraw(raw_log, error_code, res)
+        if "Reencryption is not permitted" in raw_log:
+            raise ReencryptionNotPermitted(raw_log, error_code, res)
 
         raise ContractExecutionError(
             f"Contract execution failed: {raw_log}", error_code, res

@@ -97,6 +97,11 @@ pub fn store_set_data_entry(storage: &mut dyn Storage, data_id: &str, data_entry
     store.set(data_id.as_bytes(), &to_vec(data_entry).unwrap());
 }
 
+pub fn store_remove_data_entry(storage: &mut dyn Storage, data_id: &str) {
+    let mut store = PrefixedStorage::new(storage, DATA_ENTRIES_KEY);
+    store.remove(data_id.as_bytes());
+}
+
 pub fn store_get_data_entry(storage: &dyn Storage, data_id: &str) -> Option<DataEntry> {
     let store = ReadonlyPrefixedStorage::new(storage, DATA_ENTRIES_KEY);
 

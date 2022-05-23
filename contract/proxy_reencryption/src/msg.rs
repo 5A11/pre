@@ -103,6 +103,10 @@ pub enum ExecuteMsg {
         capsule: String, // symmetric key encoded with data owner public key (only data owner can decode this)
         tags: Option<Vec<Tag>>,
     },
+    // Remove data, reencryption request and fragments
+    RemoveData {
+        data_id: String,
+    },
     AddDelegation {
         delegator_pubkey: String,
         delegatee_pubkey: String,
@@ -217,4 +221,5 @@ pub struct ProxyStakeResponse {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsgJSONResponse {
     RequestReencryption { proxies: Vec<ProxyStakeResponse> },
+    RemoveData { proxies: Vec<ProxyStakeResponse> },
 }

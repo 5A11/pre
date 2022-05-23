@@ -21,6 +21,9 @@ static DELEGATEE_PROXY_TASKS_STORE_KEY: &[u8] = b"DelegateeProxyTasks";
 // Map proxy_pubkey: String -> proxy_task_id: u64 -> is_task: bool
 static PROXY_TASKS_QUEUE_STORE_KEY: &[u8] = b"ProxyTasksQueue";
 
+// Map data_id: String -> proxy_task_id: u64 -> is_task: bool
+static DATA_ID_TASKS_STORE_KEY: &[u8] = b"DataIDProxyTasks";
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyTask {
     // To find neighbouring tasks
@@ -183,6 +186,37 @@ pub fn store_remove_delegatee_proxy_task(
     );
 
     store.remove(proxy_pubkey.as_bytes());
+}
+
+// DATA_ID_TASKS_STORE_KEY
+pub fn store_add_data_id_task(storage: &mut dyn Storage, data_id: &str, task_id: &u64) {
+    let mut store =
+        PrefixedStorage::multilevel(storage, &[DATA_ID_TASKS_STORE_KEY, data_id.as_bytes()]);
+
+    store.set(&task_id.to_le_bytes(), &[1]);
+}
+
+pub fn store_remove_data_id_task(storage: &mut dyn Storage, data_id: &str, task_id: &u64) {
+    let mut store =
+        PrefixedStorage::multilevel(storage, &[DATA_ID_TASKS_STORE_KEY, data_id.as_bytes()]);
+
+    store.remove(&task_id.to_le_bytes());
+}
+
+pub fn store_get_data_id_tasks(storage: &dyn Storage, data_id: &str) -> Vec<u64> {
+    let store = ReadonlyPrefixedStorage::multilevel(
+        storage,
+        &[DATA_ID_TASKS_STORE_KEY, data_id.as_bytes()],
+    );
+
+    let mut deserialized_keys: Vec<u64> = Vec::new();
+
+    for pair in store.range(None, None, Order::Ascending) {
+        // Deserialize keys with inverse operation to to_vec
+        deserialized_keys.push(u64::from_le_bytes(pair.0.try_into().unwrap()));
+    }
+
+    deserialized_keys
 }
 
 // PROXY_TASKS_QUEUE_STORE_KEY

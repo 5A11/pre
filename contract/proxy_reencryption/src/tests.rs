@@ -60,9 +60,9 @@ fn mock_env_height(signer: &Addr, height: u64, coins: &Vec<Coin>) -> (Env, Messa
     let mut env = mock_env();
 
     env.block.height = height;
-    let info = mock_info(signer.as_str(), &coins);
+    let info = mock_info(signer.as_str(), coins);
 
-    return (env, info);
+    (env, info)
 }
 
 fn is_err(result: StdResult<Response>, must_contain: &str) -> bool {
@@ -91,18 +91,18 @@ fn init_contract(
     proxy_whitelisting: &Option<bool>,
 ) -> StdResult<Response> {
     let init_msg = InstantiateMsg {
-        threshold: threshold.clone(),
+        threshold: *threshold,
         admin: admin.clone(),
         proxies: proxies.clone(),
         stake_denom: stake_denom.clone(),
-        minimum_proxy_stake_amount: minimum_proxy_stake_amount.clone(),
-        per_proxy_task_reward_amount: per_proxy_task_reward_amount.clone(),
-        per_task_slash_stake_amount: per_task_slash_stake_amount.clone(),
-        timeout_height: timeout_height.clone(),
-        proxy_whitelisting: proxy_whitelisting.clone(),
+        minimum_proxy_stake_amount: *minimum_proxy_stake_amount,
+        per_proxy_task_reward_amount: *per_proxy_task_reward_amount,
+        per_task_slash_stake_amount: *per_task_slash_stake_amount,
+        timeout_height: *timeout_height,
+        proxy_whitelisting: *proxy_whitelisting,
     };
-    let env = mock_env_height(&creator, block_height, &vec![]);
-    return instantiate(deps, env.0, env.1, init_msg);
+    let env = mock_env_height(creator, block_height, &vec![]);
+    instantiate(deps, env.0, env.1, init_msg)
 }
 
 fn add_proxy(
@@ -111,21 +111,21 @@ fn add_proxy(
     block_height: u64,
     proxy_addr: &Addr,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::AddProxy {
         proxy_addr: proxy_addr.clone(),
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn terminate_contract(deps: DepsMut, creator: &Addr, block_height: u64) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::TerminateContract {};
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn withdraw_contract(
@@ -134,13 +134,13 @@ fn withdraw_contract(
     block_height: u64,
     recipient_addr: &Addr,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::WithdrawContract {
         recipient_addr: recipient_addr.clone(),
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn remove_proxy(
@@ -149,13 +149,13 @@ fn remove_proxy(
     block_height: u64,
     proxy_addr: &Addr,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::RemoveProxy {
         proxy_addr: proxy_addr.clone(),
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn register_proxy(
@@ -165,29 +165,29 @@ fn register_proxy(
     proxy_pubkey: &String,
     coins: &Vec<Coin>,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &coins);
+    let env = mock_env_height(creator, block_height, coins);
 
     let msg = ExecuteMsg::RegisterProxy {
         proxy_pubkey: proxy_pubkey.clone(),
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn unregister_proxy(deps: DepsMut, creator: &Addr, block_height: u64) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::UnregisterProxy {};
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn deactivate_proxy(deps: DepsMut, creator: &Addr, block_height: u64) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::DeactivateProxy {};
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn withdraw_stake(
@@ -196,13 +196,13 @@ fn withdraw_stake(
     block_height: u64,
     stake_amount: &Option<Uint128>,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::WithdrawStake {
-        stake_amount: stake_amount.clone(),
+        stake_amount: *stake_amount,
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn add_stake(
@@ -211,11 +211,11 @@ fn add_stake(
     block_height: u64,
     coins: &Vec<Coin>,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &coins);
+    let env = mock_env_height(creator, block_height, coins);
 
     let msg = ExecuteMsg::AddStake {};
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn provide_reencrypted_fragment(
@@ -226,7 +226,7 @@ fn provide_reencrypted_fragment(
     delegatee_pubkey: &String,
     fragment: &String,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::ProvideReencryptedFragment {
         data_id: data_id.clone(),
@@ -234,7 +234,7 @@ fn provide_reencrypted_fragment(
         fragment: fragment.clone(),
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn skip_reencryption_task(
@@ -244,14 +244,14 @@ fn skip_reencryption_task(
     data_id: &String,
     delegatee_pubkey: &String,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::SkipReencryptionTask {
         data_id: data_id.clone(),
         delegatee_pubkey: delegatee_pubkey.clone(),
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn add_data(
@@ -262,7 +262,7 @@ fn add_data(
     delegator_pubkey: &String,
     capsule: &String,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::AddData {
         data_id: data_id.clone(),
@@ -271,7 +271,22 @@ fn add_data(
         tags: None,
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
+}
+
+fn remove_data(
+    deps: DepsMut,
+    creator: &Addr,
+    block_height: u64,
+    data_id: &String,
+) -> StdResult<Response> {
+    let env = mock_env_height(creator, block_height, &vec![]);
+
+    let msg = ExecuteMsg::RemoveData {
+        data_id: data_id.clone(),
+    };
+
+    execute(deps, env.0, env.1, msg)
 }
 
 fn add_delegation(
@@ -282,7 +297,7 @@ fn add_delegation(
     delegatee_pubkey: &String,
     proxy_delegations: &[ProxyDelegationString],
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &vec![]);
+    let env = mock_env_height(creator, block_height, &vec![]);
 
     let msg = ExecuteMsg::AddDelegation {
         delegator_pubkey: delegator_pubkey.clone(),
@@ -290,7 +305,7 @@ fn add_delegation(
         proxy_delegations: proxy_delegations.to_vec(),
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 fn request_reencryption(
@@ -301,14 +316,14 @@ fn request_reencryption(
     delegatee_pubkey: &String,
     coins: &Vec<Coin>,
 ) -> StdResult<Response> {
-    let env = mock_env_height(&creator, block_height, &coins);
+    let env = mock_env_height(creator, block_height, coins);
 
     let msg = ExecuteMsg::RequestReencryption {
         data_id: data_id.clone(),
         delegatee_pubkey: delegatee_pubkey.clone(),
     };
 
-    return execute(deps, env.0, env.1, msg);
+    execute(deps, env.0, env.1, msg)
 }
 
 #[test]
@@ -317,7 +332,7 @@ fn test_new_contract_default_values() {
     let creator = Addr::unchecked("creator".to_string());
     let proxy = Addr::unchecked("proxy".to_string());
 
-    let proxies: Vec<Addr> = vec![creator.clone(), proxy.clone()];
+    let proxies: Vec<Addr> = vec![creator.clone(), proxy];
 
     assert!(init_contract(
         deps.as_mut(),
@@ -325,7 +340,7 @@ fn test_new_contract_default_values() {
         DEFAULT_BLOCK_HEIGHT,
         &None,
         &None,
-        &Some(proxies.clone()),
+        &Some(proxies),
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
@@ -379,7 +394,7 @@ fn test_new_contract_custom_values() {
         DEFAULT_BLOCK_HEIGHT,
         &Some(123),
         &Some(proxy.clone()),
-        &Some(proxies.clone()),
+        &Some(proxies),
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
@@ -513,7 +528,7 @@ fn test_register_unregister_proxy_whitelisting() {
         DEFAULT_BLOCK_HEIGHT,
         &None,
         &None,
-        &Some(proxies.clone()),
+        &Some(proxies),
         &stake_denom,
         &None,
         &None,
@@ -619,7 +634,7 @@ fn test_register_unregister_proxy_whitelisting() {
     // Number of available pubkeys remains the same
     let available_proxy_pubkeys = store_get_all_active_proxy_pubkeys(&deps.storage);
     assert_eq!(available_proxy_pubkeys.len(), 1);
-    assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
+    assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey]);
 
     // Only proxy can remove pubkeys
     assert!(is_err(
@@ -840,6 +855,77 @@ fn test_add_data() {
 }
 
 #[test]
+fn test_remove_data() {
+    let mut deps = mock_dependencies();
+
+    // Addresses
+    let creator = Addr::unchecked("creator".to_string());
+    let delegator1 = Addr::unchecked("delegator1".to_string());
+    let delegator2 = Addr::unchecked("delegator2".to_string());
+
+    // Pubkeys
+    let data_id1 = String::from("DATA1");
+
+    let capsule = String::from("capsule");
+
+    let data_entry = DataEntry {
+        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
+        capsule: capsule.clone(),
+    };
+
+    /*************** Initialise *************/
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        DEFAULT_BLOCK_HEIGHT,
+        &None,
+        &None,
+        &None,
+        &DEFAULT_STAKE_DENOM.to_string(),
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+    )
+    .is_ok());
+
+    /*************** Add data and delegations by delegator *************/
+    // Add data by delegator
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &data_entry.delegator_pubkey,
+        &capsule,
+    )
+    .is_ok());
+
+    assert_eq!(
+        &store_get_data_entry(deps.as_mut().storage, &data_id1).unwrap(),
+        &data_entry
+    );
+    assert_eq!(
+        store_get_delegator_address(deps.as_mut().storage, &DELEGATOR1_PUBKEY.to_string()).unwrap(),
+        delegator1
+    );
+
+    assert!(is_err(
+        remove_data(deps.as_mut(), &delegator2, DEFAULT_BLOCK_HEIGHT, &data_id1,),
+        format!(
+            "Delegator {} already registered with this pubkey.",
+            delegator1
+        )
+        .as_str()
+    ));
+
+    assert!(remove_data(deps.as_mut(), &delegator1, DEFAULT_BLOCK_HEIGHT, &data_id1,).is_ok());
+
+    assert_eq!(store_get_data_entry(deps.as_mut().storage, &data_id1), None,);
+}
+
+#[test]
 fn test_add_delegation_and_request_reencryption() {
     let mut deps = mock_dependencies();
 
@@ -935,7 +1021,7 @@ fn test_add_delegation_and_request_reencryption() {
 
     let proxy_delegations: Vec<ProxyDelegationString> = vec![ProxyDelegationString {
         proxy_pubkey: proxy1_pubkey.clone(),
-        delegation_string: proxy1_delegation_string.clone(),
+        delegation_string: proxy1_delegation_string,
     }];
 
     // Reencryption can't be requested yet
@@ -1055,6 +1141,189 @@ fn test_add_delegation_and_request_reencryption() {
 }
 
 #[test]
+fn test_remove_data_when_reencryption_requested() {
+    let mut deps = mock_dependencies();
+
+    // Addresses
+    let creator = Addr::unchecked("creator".to_string());
+    let proxy1 = Addr::unchecked("proxy1".to_string());
+    let proxy2 = Addr::unchecked("proxy2".to_string());
+
+    let delegator1 = Addr::unchecked("delegator1".to_string());
+
+    // Pubkeys
+    let proxy1_pubkey: String = String::from("proxy1_pubkey");
+    let proxy2_pubkey: String = String::from("proxy2_pubkey");
+
+    let data_id1 = String::from("DATA1");
+
+    let capsule = String::from("capsule");
+
+    let data_entry = DataEntry {
+        delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
+        capsule: capsule.clone(),
+    };
+
+    let higher_request_reward = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(50 + DEFAULT_TASK_REWARD_AMOUNT * 2),
+    }];
+
+    /*************** Initialise *************/
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        DEFAULT_BLOCK_HEIGHT,
+        &None,
+        &None,
+        &None,
+        &DEFAULT_STAKE_DENOM.to_string(),
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+    )
+    .is_ok());
+
+    /*************** Register proxies *************/
+    let proxy_stake = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT),
+    }];
+    // Proxies register -> submits pubkeys
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy1,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy1_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy2,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy2_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    /*************** Add data and delegations by delegator *************/
+    // Add data by delegator
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &data_entry.delegator_pubkey,
+        &capsule,
+    )
+    .is_ok());
+
+    assert_eq!(
+        &store_get_data_entry(deps.as_mut().storage, &data_id1).unwrap(),
+        &data_entry
+    );
+    assert_eq!(
+        store_get_delegator_address(deps.as_mut().storage, &DELEGATOR1_PUBKEY.to_string()).unwrap(),
+        delegator1
+    );
+
+    // Add delegation for proxy
+    let proxy1_delegation_string = String::from("DS_P1");
+
+    let proxy_delegations: Vec<ProxyDelegationString> = vec![
+        ProxyDelegationString {
+            proxy_pubkey: proxy1_pubkey.clone(),
+            delegation_string: proxy1_delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy2_pubkey.clone(),
+            delegation_string: proxy1_delegation_string,
+        },
+    ];
+
+    // Add delegation
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
+        &proxy_delegations,
+    )
+    .is_ok());
+
+    // Reencryption can be requested only after add_delegation
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &higher_request_reward,
+    )
+    .is_ok());
+
+    // Provide fragment
+    let proxy_fragment = String::from(FRAGMENT_P1_DR1_DE1);
+    assert!(provide_reencrypted_fragment(
+        deps.as_mut(),
+        &proxy2,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &proxy_fragment,
+    )
+    .is_ok());
+
+    assert_eq!(
+        store_get_delegatee_proxy_task(
+            deps.as_mut().storage,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string(),
+            &proxy1_pubkey,
+        ),
+        Some(0u64)
+    );
+
+    assert_eq!(
+        store_get_delegatee_proxy_task(
+            deps.as_mut().storage,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string(),
+            &proxy2_pubkey,
+        ),
+        Some(1u64)
+    );
+
+    assert!(remove_data(deps.as_mut(), &delegator1, DEFAULT_BLOCK_HEIGHT, &data_id1,).is_ok());
+
+    assert_eq!(store_get_data_entry(deps.as_mut().storage, &data_id1), None,);
+
+    assert_eq!(
+        store_get_delegatee_proxy_task(
+            deps.as_mut().storage,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string(),
+            &proxy1_pubkey,
+        ),
+        None
+    );
+
+    assert_eq!(
+        store_get_delegatee_proxy_task(
+            deps.as_mut().storage,
+            &data_id1,
+            &DELEGATEE1_PUBKEY.to_string(),
+            &proxy2_pubkey,
+        ),
+        None
+    );
+}
+
+#[test]
 fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
     let mut deps = mock_dependencies();
 
@@ -1087,7 +1356,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         DEFAULT_BLOCK_HEIGHT,
         &None,
         &None,
-        &Some(vec![proxy1.clone(), proxy2.clone()]),
+        &Some(vec![proxy1.clone(), proxy2]),
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
@@ -1112,8 +1381,8 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
     let proxy1_delegation_string = String::from("DS_P1");
 
     let proxy_delegations: Vec<ProxyDelegationString> = vec![ProxyDelegationString {
-        proxy_pubkey: proxy1_pubkey.clone(),
-        delegation_string: proxy1_delegation_string.clone(),
+        proxy_pubkey: proxy1_pubkey,
+        delegation_string: proxy1_delegation_string,
     }];
 
     // Add delegation
@@ -1182,7 +1451,7 @@ fn test_add_delegation_edge_cases() {
         DEFAULT_BLOCK_HEIGHT,
         &None,
         &None,
-        &Some(vec![proxy1.clone(), proxy2.clone()]),
+        &Some(vec![proxy1.clone(), proxy2]),
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
@@ -1205,8 +1474,8 @@ fn test_add_delegation_edge_cases() {
 
     // Try adding delegation for proxy 2 which is not registered
     let proxy_delegations: Vec<ProxyDelegationString> = vec![ProxyDelegationString {
-        proxy_pubkey: proxy2_pubkey.clone(),
-        delegation_string: proxy2_delegation_string.clone(),
+        proxy_pubkey: proxy2_pubkey,
+        delegation_string: proxy2_delegation_string,
     }];
 
     assert!(is_err(
@@ -1223,11 +1492,11 @@ fn test_add_delegation_edge_cases() {
 
     // Cannot add same pubkey twice
     let proxy_1_delegation = ProxyDelegationString {
-        proxy_pubkey: proxy1_pubkey.clone(),
-        delegation_string: proxy1_delegation_string.clone(),
+        proxy_pubkey: proxy1_pubkey,
+        delegation_string: proxy1_delegation_string,
     };
     let proxy_delegations: Vec<ProxyDelegationString> =
-        vec![proxy_1_delegation.clone(), proxy_1_delegation.clone()];
+        vec![proxy_1_delegation.clone(), proxy_1_delegation];
 
     assert!(is_err(
         add_delegation(
@@ -1249,7 +1518,7 @@ fn test_add_delegation_edge_cases() {
             DEFAULT_BLOCK_HEIGHT,
             &DELEGATOR2_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
-            &vec![],
+            &[],
         ),
         "Required at least 1 proxies.",
     ));
@@ -1333,7 +1602,7 @@ fn test_provide_reencrypted_fragment() {
     let proxy_delegation_string = String::from("DS_P1");
     let proxy_delegations: Vec<ProxyDelegationString> = vec![ProxyDelegationString {
         proxy_pubkey: proxy_pubkey.clone(),
-        delegation_string: proxy_delegation_string.clone(),
+        delegation_string: proxy_delegation_string,
     }];
 
     assert!(add_delegation(
@@ -1476,7 +1745,7 @@ fn test_contract_lifecycle() {
         DEFAULT_BLOCK_HEIGHT,
         &Some(2),
         &None,
-        &Some(proxies.clone()),
+        &Some(proxies),
         &stake_denom,
         &None,
         &None,
@@ -1528,7 +1797,7 @@ fn test_contract_lifecycle() {
         },
         ProxyDelegationString {
             proxy_pubkey: proxy2_pubkey.clone(),
-            delegation_string: proxy2_delegation_string.clone(),
+            delegation_string: proxy2_delegation_string,
         },
     ];
 
@@ -1742,10 +2011,10 @@ fn test_contract_lifecycle() {
         proxy1_task2,
         &ProxyTaskResponse {
             data_id: data_id.clone(),
-            capsule: data_entry.capsule.clone(),
+            capsule: data_entry.capsule,
             delegatee_pubkey: DELEGATEE2_PUBKEY.to_string(),
             delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
-            delegation_string: proxy1_delegation_string.clone(),
+            delegation_string: proxy1_delegation_string,
         }
     );
 
@@ -1959,7 +2228,7 @@ fn test_proxy_unregister_with_requests() {
         DEFAULT_BLOCK_HEIGHT,
         &Some(2),
         &None,
-        &Some(proxies.clone()),
+        &Some(proxies),
         &stake_denom,
         &None,
         &None,
@@ -2114,7 +2383,7 @@ fn test_proxy_unregister_with_requests() {
     let delegation3 = ProxyDelegation {
         delegator_pubkey: DELEGATOR2_PUBKEY.to_string(),
         delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
-        delegation_string: delegation_string.clone(),
+        delegation_string: delegation_string,
     };
 
     // delegator2 with delegator2_pubkey and proxy4 for delegatee1
@@ -2611,7 +2880,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         DEFAULT_BLOCK_HEIGHT,
         &Some(2),
         &None,
-        &Some(proxies.clone()),
+        &Some(proxies),
         &stake_denom,
         &None,
         &None,
@@ -2766,7 +3035,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     let delegation3 = ProxyDelegation {
         delegator_pubkey: DELEGATOR2_PUBKEY.to_string(),
         delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
-        delegation_string: delegation_string.clone(),
+        delegation_string: delegation_string,
     };
 
     // delegator2 with delegator2_pubkey and proxy4 for delegatee1
@@ -3212,7 +3481,7 @@ fn test_proxy_stake_withdrawal() {
         DEFAULT_BLOCK_HEIGHT,
         &None,
         &None,
-        &Some(proxies.clone()),
+        &Some(proxies),
         &stake_denom,
         &None,
         &None,
@@ -3370,7 +3639,7 @@ fn test_proxy_add_stake() {
         DEFAULT_BLOCK_HEIGHT,
         &None,
         &None,
-        &Some(proxies.clone()),
+        &Some(proxies),
         &stake_denom,
         &None,
         &None,
@@ -3487,7 +3756,7 @@ fn test_proxy_insufficient_funds_task_skip() {
         DEFAULT_BLOCK_HEIGHT,
         &Some(2),
         &None,
-        &Some(proxies.clone()),
+        &Some(proxies),
         &stake_denom,
         &Some(Uint128::new(minimum_proxy_stake_amount)),
         &Some(Uint128::new(per_proxy_task_reward_amount)),
@@ -3565,7 +3834,7 @@ fn test_proxy_insufficient_funds_task_skip() {
         },
         ProxyDelegationString {
             proxy_pubkey: proxy3_pubkey.clone(),
-            delegation_string: delegation_string.clone(),
+            delegation_string: delegation_string,
         },
     ];
 
@@ -3947,7 +4216,7 @@ fn test_timeouts() {
         0,
         &Some(2),
         &None,
-        &Some(proxies.clone()),
+        &Some(proxies),
         &stake_denom,
         &Some(Uint128::new(minimum_proxy_stake_amount)),
         &Some(Uint128::new(per_proxy_task_reward_amount)),
@@ -4066,7 +4335,7 @@ fn test_timeouts() {
         },
         ProxyDelegationString {
             proxy_pubkey: proxy3_pubkey.clone(),
-            delegation_string: delegation_string.clone(),
+            delegation_string: delegation_string,
         },
     ];
 
@@ -4465,12 +4734,12 @@ fn test_terminate_contract() {
 
     let proxy_delegations: Vec<ProxyDelegationString> = vec![
         ProxyDelegationString {
-            proxy_pubkey: proxy1_pubkey.clone(),
+            proxy_pubkey: proxy1_pubkey,
             delegation_string: delegation_string.clone(),
         },
         ProxyDelegationString {
-            proxy_pubkey: proxy2_pubkey.clone(),
-            delegation_string: delegation_string.clone(),
+            proxy_pubkey: proxy2_pubkey,
+            delegation_string: delegation_string,
         },
     ];
 
@@ -4610,13 +4879,13 @@ fn test_terminate_contract() {
             amount: Uint128::new(123),
         },
         Coin {
-            denom: stake_denom.clone(),
+            denom: stake_denom,
             // amount is equal to remaining proxy stake amount
             amount: Uint128::new(2 * minimum_proxy_stake_amount - 254),
         },
     ];
     deps.querier
-        .update_balance(mock_env().contract.address, contract_balance.clone());
+        .update_balance(mock_env().contract.address, contract_balance);
 
     // Withdrawing is now possible
     let res = withdraw_contract(
@@ -4762,7 +5031,7 @@ fn test_skip_task() {
         },
         ProxyDelegationString {
             proxy_pubkey: proxy3_pubkey.clone(),
-            delegation_string: delegation_string.clone(),
+            delegation_string: delegation_string,
         },
     ];
 
@@ -5009,16 +5278,16 @@ fn test_remove_proxies_from_delegation() {
 
     let proxy_delegations: Vec<ProxyDelegationString> = vec![
         ProxyDelegationString {
-            proxy_pubkey: proxy1_pubkey.clone(),
+            proxy_pubkey: proxy1_pubkey,
             delegation_string: delegation_string.clone(),
         },
         ProxyDelegationString {
-            proxy_pubkey: proxy2_pubkey.clone(),
+            proxy_pubkey: proxy2_pubkey,
             delegation_string: delegation_string.clone(),
         },
         ProxyDelegationString {
-            proxy_pubkey: proxy3_pubkey.clone(),
-            delegation_string: delegation_string.clone(),
+            proxy_pubkey: proxy3_pubkey,
+            delegation_string: delegation_string,
         },
     ];
 

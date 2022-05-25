@@ -1,9 +1,9 @@
 use crate::msg::{
     ExecuteMsg, ExecuteMsgJSONResponse, GetAvailableProxiesResponse, GetContractStateResponse,
-    GetDataIDResponse, GetDelegationStatusResponse, GetFragmentsResponse, GetProxyStatusResponse,
-    GetProxyTasksResponse, GetStakingConfigResponse, InstantiateMsg, InstantiateMsgResponse,
-    ProxyAvailabilityResponse, ProxyDelegationString, ProxyStakeResponse, ProxyStatusResponse,
-    ProxyTaskResponse, QueryMsg,
+    GetDataIDResponse, GetDelegationStatusResponse, GetFragmentsResponse,
+    GetMaximumThresholdPercentageResponse, GetProxyStatusResponse, GetProxyTasksResponse,
+    GetStakingConfigResponse, InstantiateMsg, InstantiateMsgResponse, ProxyAvailabilityResponse,
+    ProxyDelegationString, ProxyStakeResponse, ProxyStatusResponse, ProxyTaskResponse, QueryMsg,
 };
 use crate::proxies::{
     get_maximum_withdrawable_stake_amount, store_get_all_active_proxy_pubkeys,
@@ -19,11 +19,11 @@ use crate::state::{
 };
 
 use crate::delegations::{
-    get_delegation_state, get_n_available_proxies_from_delegation,
-    get_n_minimum_proxies_for_refund, remove_proxy_from_delegations,
-    store_add_per_proxy_delegation, store_get_all_proxies_from_delegation, store_get_delegation,
-    store_get_proxy_delegation_id, store_is_proxy_delegation_empty, store_set_delegation,
-    store_set_delegation_id, ProxyDelegation,
+    get_delegation_id, get_delegation_info, get_delegation_state, get_maximum_security_percentage,
+    get_n_available_proxies_from_delegation, get_n_minimum_proxies_for_reencryption,
+    remove_proxy_from_delegations, set_delegation_info, store_add_per_proxy_delegation,
+    store_get_all_proxies_from_delegation, store_get_delegation, store_get_proxy_delegation_id,
+    store_set_delegation, store_set_delegation_id, DelegationInfo, ProxyDelegation,
 };
 use crate::reencryption_requests::{
     abandon_all_proxy_tasks, abandon_proxy_task, check_and_resolve_all_timedout_tasks,
@@ -51,9 +51,10 @@ macro_rules! generic_err {
     };
 }
 
-pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 1000;
+pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 100000;
+pub const DEFAULT_SLASH_REWARD_COEF: f64 = 0.9;
 pub const DEFAULT_TASK_REWARD_AMOUNT: u128 = 100;
-pub const DEFAULT_PER_TASK_SLASH_STAKE_AMOUNT: u128 = 100;
+pub const DEFAULT_PER_TASK_SLASH_STAKE_AMOUNT: u128 = DEFAULT_TASK_REWARD_AMOUNT * 10; // TODO(LR) use DEFAULT COEF
 pub const DEFAULT_TIMEOUT_HEIGHT: u64 = 50;
 
 pub const FRAGMENT_VERIFICATION_ERROR: &str = "Fragment verification failed: ";
@@ -67,16 +68,11 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let state = State {
         admin: msg.admin.unwrap_or(info.sender),
-        threshold: msg.threshold.unwrap_or(1),
         next_proxy_task_id: 0,
         next_delegation_id: 0,
         proxy_whitelisting: msg.proxy_whitelisting.unwrap_or(false),
         terminated: false,
     };
-
-    if state.threshold == 0 {
-        return generic_err!("Threshold cannot be 0");
-    }
 
     let staking_config = StakingConfig {
         stake_denom: msg.stake_denom,
@@ -113,7 +109,7 @@ pub fn instantiate(
     };
 
     let json_response = InstantiateMsgResponse {
-        threshold: state.threshold,
+        threshold: 0, // TODO(LR, AB) delete me
         admin: state.admin,
         proxy_whitelisting: state.proxy_whitelisting,
         proxies: msg.proxies,
@@ -911,11 +907,11 @@ fn try_remove_data(
 fn try_add_delegation(
     mut response: Response,
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
     proxy_delegations: &[ProxyDelegationString],
+    threshold_percentage: u8,
 ) -> StdResult<Response> {
     ensure_delegator(deps.storage, delegator_pubkey, &info.sender)?;
 
@@ -924,15 +920,38 @@ fn try_add_delegation(
 
     ensure_not_terminated(&state)?;
 
-    if !store_is_proxy_delegation_empty(deps.storage, delegator_pubkey, delegatee_pubkey) {
+    if let Some(delegation_id) = get_delegation_id(deps.storage, delegator_pubkey, delegatee_pubkey)
+    {
+        return generic_err!(format!(
+            "Delegation already exists with id {} .",
+            delegation_id
+        ));
+    }
+
+    let maximum_threshold =
+        get_maximum_security_percentage(&staking_config, Some(proxy_delegations.len() as u32))?;
+
+    if threshold_percentage > maximum_threshold {
+        return generic_err!(format!(
+            "Maximum possible threshold for this delegation is {}.",
+            maximum_threshold
+        ));
+    }
+
+    if get_delegation_info(deps.storage, &state.next_delegation_id).is_some() {
         return generic_err!("Delegation already exists.");
     }
 
-    let n_minimum_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
-
-    if proxy_delegations.len() < n_minimum_proxies as usize {
-        return generic_err!(format!("Required at least {} proxies.", n_minimum_proxies));
+    let mut minimum_proxies_for_reencryption =
+        threshold_percentage as u32 * proxy_delegations.len() as u32 / 100;
+    if threshold_percentage as u32 * proxy_delegations.len() as u32 % 100 != 0 {
+        minimum_proxies_for_reencryption += 1;
     }
+
+    let delegation_info = DelegationInfo {
+        minimum_proxies_for_reencryption,
+    };
+    set_delegation_info(deps.storage, &state.next_delegation_id, &delegation_info);
 
     for proxy_delegation in proxy_delegations {
         if store_get_proxy_address(deps.storage, &proxy_delegation.proxy_pubkey).is_none() {
@@ -994,6 +1013,10 @@ fn try_add_delegation(
     response
         .attributes
         .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
+    response.attributes.push(Attribute::new(
+        "threshold_percentage",
+        threshold_percentage.to_string(),
+    ));
 
     Ok(response)
 }
@@ -1050,7 +1073,9 @@ fn try_request_reencryption(
         &staking_config.per_task_slash_stake_amount.u128(),
     );
 
-    let n_minimum_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
+    let delegation_id =
+        get_delegation_id(deps.storage, &data_entry.delegator_pubkey, delegatee_pubkey).unwrap();
+    let n_minimum_proxies = get_n_minimum_proxies_for_reencryption(deps.storage, &delegation_id);
 
     // Not enough request can be created
     if n_available_proxies < n_minimum_proxies {
@@ -1298,14 +1323,15 @@ pub fn execute(
             delegator_pubkey,
             delegatee_pubkey,
             proxy_delegations,
+            threshold_percentage,
         } => try_add_delegation(
             response,
             deps,
-            env,
             info,
             &delegator_pubkey,
             &delegatee_pubkey,
             &proxy_delegations,
+            threshold_percentage,
         ),
         ExecuteMsg::RequestReencryption {
             data_id,
@@ -1333,6 +1359,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 Some(data) => Ok(data),
             }?;
 
+            let delegation_id = get_delegation_id(
+                deps.storage,
+                &data_entry.delegator_pubkey,
+                &delegatee_pubkey,
+            )
+            .unwrap();
+
             Ok(to_binary(&GetFragmentsResponse {
                 reencryption_request_state: get_reencryption_request_state(
                     deps.storage,
@@ -1343,7 +1376,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 ),
                 capsule: data_entry.capsule,
                 fragments: get_all_fragments(deps.storage, &data_id, &delegatee_pubkey),
-                threshold: state.threshold,
+                threshold: get_n_minimum_proxies_for_reencryption(deps.storage, &delegation_id),
             })?)
         }
         QueryMsg::GetContractState {} => {
@@ -1351,7 +1384,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
             Ok(to_binary(&GetContractStateResponse {
                 admin: state.admin,
-                threshold: state.threshold,
                 terminated: state.terminated,
             })?)
         }
@@ -1417,6 +1449,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             }
 
             Ok(to_binary(&GetProxyStatusResponse { proxy_status })?)
+        }
+
+        QueryMsg::GetMaximumThresholdPercentage { num_proxies } => {
+            let sc = store_get_staking_config(deps.storage)?;
+            let threshold = get_maximum_security_percentage(&sc, Some(num_proxies))?;
+            Ok(to_binary(&GetMaximumThresholdPercentageResponse {
+                threshold,
+                num_proxies,
+                per_proxy_slash_amount: sc.per_task_slash_stake_amount,
+                per_proxy_reward_amount: sc.per_proxy_task_reward_amount,
+            })?)
         }
     }
 }

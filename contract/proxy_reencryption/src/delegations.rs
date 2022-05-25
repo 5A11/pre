@@ -1,10 +1,10 @@
 use crate::proxies::{store_get_proxy_address, store_get_proxy_entry};
-use crate::state::{store_get_staking_config, store_get_state, StakingConfig, State};
-use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage};
+use crate::state::{store_get_staking_config, StakingConfig};
+use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage, Uint128};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 // To get all proxies from 1 delegation
 // Map delegator_pubkey: String -> delegatee_pubkey: String -> proxy_pubkey: String -> delegation_id: u64
@@ -16,6 +16,15 @@ static PER_PROXY_DELEGATIONS_STORE_KEY: &[u8] = b"PerProxyDelegationsStore";
 
 // Map delegation_id: u64 -> delegation: ProxyDelegation
 static PROXY_DELEGATIONS_STORE_KEY: &[u8] = b"ProxyDelegationsStore";
+
+// Map delegation_id: u64 -> delegation: DelegationInfo
+static DELEGATION_INFO_STORE_KEY: &[u8] = b"ProxyDelegationsStore";
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct DelegationInfo {
+    // we can extend this struct for custom access control policy implementation
+    pub minimum_proxies_for_reencryption: u32,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyDelegation {
@@ -114,11 +123,11 @@ pub fn store_get_all_proxies_from_delegation(
     deserialized_keys
 }
 
-pub fn store_is_proxy_delegation_empty(
+pub fn get_delegation_id(
     storage: &dyn Storage,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
-) -> bool {
+) -> Option<u64> {
     let store = ReadonlyPrefixedStorage::multilevel(
         storage,
         &[
@@ -128,12 +137,11 @@ pub fn store_is_proxy_delegation_empty(
         ],
     );
 
-    let is_empty: bool = store
+    let delegation_id = store
         .range(None, None, Order::Ascending)
-        .peekable()
-        .peek()
-        .is_none();
-    is_empty
+        .next()
+        .map(|pair| u64::from_le_bytes(pair.1.try_into().unwrap()));
+    delegation_id
 }
 
 // PROXY_DELEGATIONS_STORE_KEY
@@ -218,6 +226,25 @@ pub fn store_get_all_proxy_delegations(storage: &dyn Storage, proxy_pubkey: &str
     deserialized_keys
 }
 
+// DELEGATION_INFO_STORE_KEY
+pub fn set_delegation_info(
+    storage: &mut dyn Storage,
+    delegation_id: &u64,
+    delegation: &DelegationInfo,
+) {
+    let mut store = PrefixedStorage::new(storage, DELEGATION_INFO_STORE_KEY);
+
+    store.set(&delegation_id.to_le_bytes(), &to_vec(delegation).unwrap());
+}
+
+pub fn get_delegation_info(storage: &dyn Storage, delegation_id: &u64) -> Option<DelegationInfo> {
+    let store = ReadonlyPrefixedStorage::new(storage, DELEGATION_INFO_STORE_KEY);
+
+    store
+        .get(&delegation_id.to_le_bytes())
+        .map(|data| from_slice(&data).unwrap())
+}
+
 // High level methods
 
 pub fn get_delegation_state(
@@ -225,17 +252,16 @@ pub fn get_delegation_state(
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
 ) -> DelegationState {
-    let state = store_get_state(storage).unwrap();
     let staking_config = store_get_staking_config(storage).unwrap();
 
-    if !store_is_proxy_delegation_empty(storage, delegator_pubkey, delegatee_pubkey) {
+    if let Some(delegation_id) = get_delegation_id(storage, delegator_pubkey, delegatee_pubkey) {
         let n_available_proxies = get_n_available_proxies_from_delegation(
             storage,
             delegator_pubkey,
             delegatee_pubkey,
             &staking_config.per_task_slash_stake_amount.u128(),
         );
-        if n_available_proxies < get_n_minimum_proxies_for_refund(&state, &staking_config) {
+        if n_available_proxies < get_n_minimum_proxies_for_reencryption(storage, &delegation_id) {
             DelegationState::ProxiesAreBusy
         } else {
             DelegationState::Active
@@ -249,9 +275,6 @@ pub fn remove_proxy_from_delegations(
     storage: &mut dyn Storage,
     proxy_pubkey: &str,
 ) -> StdResult<()> {
-    let staking_config = store_get_staking_config(storage)?;
-    let state = store_get_state(storage)?;
-
     // Delete all proxy delegations -- Make proxy inactive / stop requests factory
     for delegation_id in store_get_all_proxy_delegations(storage, proxy_pubkey) {
         let delegation = store_get_delegation(storage, &delegation_id).unwrap();
@@ -273,7 +296,7 @@ pub fn remove_proxy_from_delegations(
             &delegation.delegatee_pubkey,
         );
 
-        let n_minimum_proxies = get_n_minimum_proxies_for_refund(&state, &staking_config);
+        let n_minimum_proxies = get_n_minimum_proxies_for_reencryption(storage, &delegation_id);
 
         // Delete entire delegation = delete each proxy delegation in delegation if there is less than minimum proxies
         if all_delegation_proxies.len() < n_minimum_proxies as usize {
@@ -324,16 +347,17 @@ pub fn get_n_available_proxies_from_delegation(
     n_available_proxies
 }
 
+/*
 pub fn get_n_minimum_proxies_for_refund(state: &State, staking_config: &StakingConfig) -> u32 {
     // n_minimum_proxies = (threshold-1) + ceil((reward_amount*(threshold-1))/slash_amount)
 
     // Prevent zero division
     if staking_config.per_task_slash_stake_amount.u128() == 0 {
-        return state.threshold;
+        return state.threshold_percentage;
     }
 
     // Maximum number of proxies that can finish job when re-encryption can still fail
-    let fail_threshold: u32 = state.threshold - 1;
+    let fail_threshold: u32 = state.threshold_percentage - 1;
 
     // Worst case scenario of refunding
     let maximum_amount_to_refund: u128 =
@@ -350,5 +374,35 @@ pub fn get_n_minimum_proxies_for_refund(state: &State, staking_config: &StakingC
     }
 
     // Limit minimum to threshold
-    std::cmp::max(fail_threshold + n_extra_proxies as u32, state.threshold)
+    std::cmp::max(fail_threshold + n_extra_proxies as u32, state.threshold_percentage)
+}
+*/
+
+pub fn get_n_minimum_proxies_for_reencryption(storage: &dyn Storage, delegation_id: &u64) -> u32 {
+    get_delegation_info(storage, delegation_id)
+        .unwrap()
+        .minimum_proxies_for_reencryption
+}
+
+pub fn get_maximum_security_percentage(
+    staking_config: &StakingConfig,
+    proxies_num_maybe: Option<u32>,
+) -> StdResult<u8> {
+    // maximum_security_factor = [slash_amount / (slash_amount + reward_amount)] + [1 / proxies_num]
+    // maximum_security_percentage = maximum_security_factor * 100
+
+    let u100 = Uint128::from(100u8);
+    let slash_amount = &staking_config.per_task_slash_stake_amount;
+    let reward_amount = &staking_config.per_proxy_task_reward_amount;
+    let mut percentage = slash_amount
+        .checked_mul(u100)?
+        .checked_div(slash_amount.checked_add(*reward_amount)?)?;
+
+    if let Some(proxies_num) = proxies_num_maybe {
+        percentage = percentage.checked_add(u100.checked_div(Uint128::from(proxies_num))?)?;
+    }
+
+    percentage = std::cmp::min(percentage, u100);
+
+    Ok(u8::try_from(percentage.u128()).unwrap())
 }

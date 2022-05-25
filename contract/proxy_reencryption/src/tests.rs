@@ -11,10 +11,10 @@ use crate::contract::{
 
 //use crate::contract::verify_fragment;
 use crate::delegations::{
-    get_delegation_state, get_n_available_proxies_from_delegation,
-    get_n_minimum_proxies_for_refund, store_add_per_proxy_delegation, store_get_delegation,
-    store_get_proxy_delegation_id, store_is_proxy_delegation, store_set_delegation,
-    store_set_delegation_id, DelegationState, ProxyDelegation,
+    get_delegation_state, get_n_available_proxies_from_delegation, set_delegation_info,
+    store_add_per_proxy_delegation, store_get_delegation, store_get_proxy_delegation_id,
+    store_is_proxy_delegation, store_set_delegation, store_set_delegation_id, DelegationInfo,
+    DelegationState, ProxyDelegation,
 };
 use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegationString, ProxyTaskResponse};
 use crate::proxies::{
@@ -28,7 +28,7 @@ use crate::reencryption_requests::{
 };
 use crate::state::{
     store_get_data_entry, store_get_delegator_address, store_get_state, store_get_timeouts_config,
-    DataEntry, StakingConfig, State,
+    DataEntry, State,
 };
 
 // Test constants
@@ -55,6 +55,7 @@ const FRAGMENT_P2_DR1_DE2: &str = "AjLk43WgIexBQf0ABO3E6hd2BVZ1HCBrJQ0c8uRgclpgA
 //const FRAGMENT_P2_DR2_DE2: &str = "A7cqB41cE3itmN+sjCfhOkoCNIADq6QnlD0UyR8+hfeSA9rbkfY2weSSR8uahlWN7wXYejcN3SLuFNJqo60b4AbeWw8qARl55NWUyy/c/WWgYQGX3n6MEmA8Cy4hV2ginYoDrVSv5azExD+hZ7PMWE6JAkArWG452RjvQ9x9Quyl/YMCVKNFtLT3ZdukPOpedQvo0U5+KQm1m60keBXdHORdCwsDndeZL8061hMG8u8dVYhJwKDZBkQ5DW2fGisAxB/v5ysDe2qkKVZKdUPpoRrHFa5oGeZF+wFcu+fD8s2QNDW7QuMCzUkvs7F6N86KfY4HHQSfAk3bixe6WXyaRVTn7GhXqIECW5hY3VSviIqA5UgF9NZOKlqpw1GHQQpEtSefQWVa6op4BjYVbzKMWaAlwxAQYhv/0bmi9FmS4MkMnJ/vbBUtGyXEEpj3Bx5P7oXjzVIL2kJN7ZRFiNhnYDE2Igf3naU=";
 
 const DEFAULT_BLOCK_HEIGHT: u64 = 100;
+const DEFAULT_THRESHOLD_PERCENTAGE: u8 = 1; // 1% ~= 1 proxy, if num proxies <= 100
 
 fn mock_env_height(signer: &Addr, height: u64, coins: &Vec<Coin>) -> (Env, MessageInfo) {
     let mut env = mock_env();
@@ -80,7 +81,6 @@ fn init_contract(
     deps: DepsMut,
     creator: &Addr,
     block_height: u64,
-    threshold: &Option<u32>,
     admin: &Option<Addr>,
     proxies: &Option<Vec<Addr>>,
     stake_denom: &String,
@@ -91,7 +91,6 @@ fn init_contract(
     proxy_whitelisting: &Option<bool>,
 ) -> StdResult<Response> {
     let init_msg = InstantiateMsg {
-        threshold: *threshold,
         admin: admin.clone(),
         proxies: proxies.clone(),
         stake_denom: stake_denom.clone(),
@@ -296,6 +295,7 @@ fn add_delegation(
     delegator_pubkey: &String,
     delegatee_pubkey: &String,
     proxy_delegations: &[ProxyDelegationString],
+    threshold_percentage: u8,
 ) -> StdResult<Response> {
     let env = mock_env_height(creator, block_height, &vec![]);
 
@@ -303,6 +303,7 @@ fn add_delegation(
         delegator_pubkey: delegator_pubkey.clone(),
         delegatee_pubkey: delegatee_pubkey.clone(),
         proxy_delegations: proxy_delegations.to_vec(),
+        threshold_percentage,
     };
 
     execute(deps, env.0, env.1, msg)
@@ -339,7 +340,6 @@ fn test_new_contract_default_values() {
         &creator,
         DEFAULT_BLOCK_HEIGHT,
         &None,
-        &None,
         &Some(proxies),
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
@@ -356,7 +356,6 @@ fn test_new_contract_default_values() {
     assert_eq!(available_proxies.len(), 0);
 
     assert_eq!(&state.admin, &creator);
-    assert_eq!(&state.threshold, &1u32);
     assert_eq!(&state.next_proxy_task_id, &0u64);
     assert_eq!(&state.next_delegation_id, &0u64);
 }
@@ -369,30 +368,10 @@ fn test_new_contract_custom_values() {
 
     let proxies: Vec<Addr> = vec![creator.clone(), proxy.clone()];
 
-    // Threshold cannot be zero
-    assert!(is_err(
-        init_contract(
-            deps.as_mut(),
-            &creator,
-            DEFAULT_BLOCK_HEIGHT,
-            &Some(0),
-            &Some(proxy.clone()),
-            &Some(proxies.clone()),
-            &DEFAULT_STAKE_DENOM.to_string(),
-            &None,
-            &None,
-            &None,
-            &None,
-            &None,
-        ),
-        "cannot be 0",
-    ));
-
     assert!(init_contract(
         deps.as_mut(),
         &creator,
         DEFAULT_BLOCK_HEIGHT,
-        &Some(123),
         &Some(proxy.clone()),
         &Some(proxies),
         &DEFAULT_STAKE_DENOM.to_string(),
@@ -410,7 +389,6 @@ fn test_new_contract_custom_values() {
     assert_eq!(available_proxies.len(), 0);
 
     assert_eq!(&state.admin, &proxy);
-    assert_eq!(&state.threshold, &123);
     assert_eq!(&state.next_proxy_task_id, &0u64);
     assert_eq!(&state.next_delegation_id, &0u64);
 }
@@ -433,7 +411,6 @@ fn test_add_remove_proxy() {
         deps.as_mut(),
         &creator,
         DEFAULT_BLOCK_HEIGHT,
-        &None,
         &Some(admin.clone()),
         &None,
         &stake_denom,
@@ -526,7 +503,6 @@ fn test_register_unregister_proxy_whitelisting() {
         deps.as_mut(),
         &creator,
         DEFAULT_BLOCK_HEIGHT,
-        &None,
         &None,
         &Some(proxies),
         &stake_denom,
@@ -689,7 +665,6 @@ fn test_register_unregister_proxy_no_whitelisting() {
         DEFAULT_BLOCK_HEIGHT,
         &None,
         &None,
-        &None,
         &stake_denom,
         &None,
         &None,
@@ -796,7 +771,6 @@ fn test_add_data() {
         DEFAULT_BLOCK_HEIGHT,
         &None,
         &None,
-        &None,
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
@@ -878,7 +852,6 @@ fn test_remove_data() {
         deps.as_mut(),
         &creator,
         DEFAULT_BLOCK_HEIGHT,
-        &None,
         &None,
         &None,
         &DEFAULT_STAKE_DENOM.to_string(),
@@ -974,7 +947,6 @@ fn test_add_delegation_and_request_reencryption() {
         &creator,
         DEFAULT_BLOCK_HEIGHT,
         &None,
-        &None,
         &Some(vec![proxy1.clone(), proxy2.clone()]),
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
@@ -1045,6 +1017,7 @@ fn test_add_delegation_and_request_reencryption() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        DEFAULT_THRESHOLD_PERCENTAGE,
     )
     .is_ok());
 
@@ -1057,6 +1030,7 @@ fn test_add_delegation_and_request_reencryption() {
             &DELEGATOR1_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
+            DEFAULT_THRESHOLD_PERCENTAGE,
         ),
         "Delegation already exists.",
     ));
@@ -1176,7 +1150,6 @@ fn test_remove_data_when_reencryption_requested() {
         DEFAULT_BLOCK_HEIGHT,
         &None,
         &None,
-        &None,
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
         &None,
@@ -1252,6 +1225,7 @@ fn test_remove_data_when_reencryption_requested() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        DEFAULT_THRESHOLD_PERCENTAGE,
     )
     .is_ok());
 
@@ -1355,7 +1329,6 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         &creator,
         DEFAULT_BLOCK_HEIGHT,
         &None,
-        &None,
         &Some(vec![proxy1.clone(), proxy2]),
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
@@ -1393,6 +1366,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        DEFAULT_THRESHOLD_PERCENTAGE,
     )
     .is_ok());
 
@@ -1450,7 +1424,6 @@ fn test_add_delegation_edge_cases() {
         &creator,
         DEFAULT_BLOCK_HEIGHT,
         &None,
-        &None,
         &Some(vec![proxy1.clone(), proxy2]),
         &DEFAULT_STAKE_DENOM.to_string(),
         &None,
@@ -1486,6 +1459,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATOR1_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
+            DEFAULT_THRESHOLD_PERCENTAGE,
         ),
         "Unknown proxy with pubkey proxy2_pubkey",
     ));
@@ -1506,6 +1480,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATOR1_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
+            DEFAULT_THRESHOLD_PERCENTAGE,
         ),
         "Delegation string was already provided for proxy proxy1_pubkey",
     ));
@@ -1519,6 +1494,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATOR2_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &[],
+            DEFAULT_THRESHOLD_PERCENTAGE,
         ),
         "Required at least 1 proxies.",
     ));
@@ -1563,7 +1539,6 @@ fn test_provide_reencrypted_fragment() {
         deps.as_mut(),
         &creator,
         DEFAULT_BLOCK_HEIGHT,
-        &None,
         &None,
         &Some(vec![proxy.clone()]),
         &DEFAULT_STAKE_DENOM.to_string(),
@@ -1612,6 +1587,7 @@ fn test_provide_reencrypted_fragment() {
         &delegator_pubkey,
         &delegatee_pubkey,
         &proxy_delegations,
+        DEFAULT_THRESHOLD_PERCENTAGE,
     )
     .is_ok());
 
@@ -1743,7 +1719,6 @@ fn test_contract_lifecycle() {
         deps.as_mut(),
         &creator,
         DEFAULT_BLOCK_HEIGHT,
-        &Some(2),
         &None,
         &Some(proxies),
         &stake_denom,
@@ -1817,6 +1792,7 @@ fn test_contract_lifecycle() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        100,
     )
     .is_ok());
 
@@ -1836,6 +1812,7 @@ fn test_contract_lifecycle() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE2_PUBKEY.to_string(),
         &proxy_delegations,
+        100,
     )
     .is_ok());
 
@@ -2153,6 +2130,7 @@ fn test_contract_lifecycle() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        100,
     )
     .is_ok());
 
@@ -2226,7 +2204,6 @@ fn test_proxy_unregister_with_requests() {
         deps.as_mut(),
         &creator,
         DEFAULT_BLOCK_HEIGHT,
-        &Some(2),
         &None,
         &Some(proxies),
         &stake_denom,
@@ -2313,6 +2290,10 @@ fn test_proxy_unregister_with_requests() {
 
     // Add delegations manually
 
+    let delegation_info = DelegationInfo {
+        minimum_proxies_for_reencryption: 2,
+    };
+
     let delegation1 = ProxyDelegation {
         delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
         delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
@@ -2330,6 +2311,8 @@ fn test_proxy_unregister_with_requests() {
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy1_pubkey, &0);
 
+    set_delegation_info(deps.as_mut().storage, &0, &delegation_info);
+
     // delegator1 with delegator1_pubkey and proxy2 for delegatee1
     store_set_delegation(deps.as_mut().storage, &1, &delegation1);
     store_set_delegation_id(
@@ -2341,6 +2324,8 @@ fn test_proxy_unregister_with_requests() {
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy2_pubkey, &1);
 
+    set_delegation_info(deps.as_mut().storage, &1, &delegation_info);
+
     // delegator1 with delegator1_pubkey and proxy3 for delegatee1
     store_set_delegation(deps.as_mut().storage, &2, &delegation1);
     store_set_delegation_id(
@@ -2351,6 +2336,8 @@ fn test_proxy_unregister_with_requests() {
         &2,
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy3_pubkey, &2);
+
+    set_delegation_info(deps.as_mut().storage, &2, &delegation_info);
 
     let delegation2 = ProxyDelegation {
         delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
@@ -2369,6 +2356,8 @@ fn test_proxy_unregister_with_requests() {
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy1_pubkey, &3);
 
+    set_delegation_info(deps.as_mut().storage, &3, &delegation_info);
+
     // delegator1 with delegator1_pubkey and proxy2 for delegatee2
     store_set_delegation(deps.as_mut().storage, &4, &delegation2);
     store_set_delegation_id(
@@ -2379,6 +2368,8 @@ fn test_proxy_unregister_with_requests() {
         &4,
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy2_pubkey, &4);
+
+    set_delegation_info(deps.as_mut().storage, &4, &delegation_info);
 
     let delegation3 = ProxyDelegation {
         delegator_pubkey: DELEGATOR2_PUBKEY.to_string(),
@@ -2397,6 +2388,8 @@ fn test_proxy_unregister_with_requests() {
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy4_pubkey, &5);
 
+    set_delegation_info(deps.as_mut().storage, &5, &delegation_info);
+
     // delegator2 with delegator2_pubkey and proxy5 for delegatee1
     store_set_delegation(deps.as_mut().storage, &6, &delegation3);
     store_set_delegation_id(
@@ -2407,6 +2400,8 @@ fn test_proxy_unregister_with_requests() {
         &6,
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy5_pubkey, &6);
+
+    set_delegation_info(deps.as_mut().storage, &6, &delegation_info);
 
     // Check proxies stake amount
     let proxy = store_get_proxy_entry(deps.as_mut().storage, &proxy1).unwrap();
@@ -2878,7 +2873,6 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         deps.as_mut(),
         &creator,
         DEFAULT_BLOCK_HEIGHT,
-        &Some(2),
         &None,
         &Some(proxies),
         &stake_denom,
@@ -2965,6 +2959,10 @@ fn test_proxy_deactivate_and_remove_with_requests() {
 
     // Add delegations manually
 
+    let delegation_info = DelegationInfo {
+        minimum_proxies_for_reencryption: 2,
+    };
+
     let delegation1 = ProxyDelegation {
         delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
         delegatee_pubkey: DELEGATEE1_PUBKEY.to_string(),
@@ -2982,6 +2980,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy1_pubkey, &0);
 
+    set_delegation_info(deps.as_mut().storage, &0, &delegation_info);
+
     // delegator1 with delegator1_pubkey and proxy2 for delegatee1
     store_set_delegation(deps.as_mut().storage, &1, &delegation1);
     store_set_delegation_id(
@@ -2993,6 +2993,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy2_pubkey, &1);
 
+    set_delegation_info(deps.as_mut().storage, &1, &delegation_info);
+
     // delegator1 with delegator1_pubkey and proxy3 for delegatee1
     store_set_delegation(deps.as_mut().storage, &2, &delegation1);
     store_set_delegation_id(
@@ -3003,6 +3005,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &2,
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy3_pubkey, &2);
+
+    set_delegation_info(deps.as_mut().storage, &2, &delegation_info);
 
     let delegation2 = ProxyDelegation {
         delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
@@ -3021,6 +3025,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy1_pubkey, &3);
 
+    set_delegation_info(deps.as_mut().storage, &3, &delegation_info);
+
     // delegator1 with delegator1_pubkey and proxy2 for delegatee2
     store_set_delegation(deps.as_mut().storage, &4, &delegation2);
     store_set_delegation_id(
@@ -3031,6 +3037,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &4,
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy2_pubkey, &4);
+
+    set_delegation_info(deps.as_mut().storage, &4, &delegation_info);
 
     let delegation3 = ProxyDelegation {
         delegator_pubkey: DELEGATOR2_PUBKEY.to_string(),
@@ -3049,6 +3057,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy4_pubkey, &5);
 
+    set_delegation_info(deps.as_mut().storage, &5, &delegation_info);
+
     // delegator2 with delegator2_pubkey and proxy5 for delegatee1
     store_set_delegation(deps.as_mut().storage, &6, &delegation3);
     store_set_delegation_id(
@@ -3059,6 +3069,8 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &6,
     );
     store_add_per_proxy_delegation(deps.as_mut().storage, &proxy5_pubkey, &6);
+
+    set_delegation_info(deps.as_mut().storage, &6, &delegation_info);
 
     // Request re-encryptions
 
@@ -3480,7 +3492,6 @@ fn test_proxy_stake_withdrawal() {
         &creator,
         DEFAULT_BLOCK_HEIGHT,
         &None,
-        &None,
         &Some(proxies),
         &stake_denom,
         &None,
@@ -3638,7 +3649,6 @@ fn test_proxy_add_stake() {
         &creator,
         DEFAULT_BLOCK_HEIGHT,
         &None,
-        &None,
         &Some(proxies),
         &stake_denom,
         &None,
@@ -3754,7 +3764,6 @@ fn test_proxy_insufficient_funds_task_skip() {
         deps.as_mut(),
         &creator,
         DEFAULT_BLOCK_HEIGHT,
-        &Some(2),
         &None,
         &Some(proxies),
         &stake_denom,
@@ -3845,6 +3854,7 @@ fn test_proxy_insufficient_funds_task_skip() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        50,
     )
     .is_ok());
 
@@ -4042,11 +4052,11 @@ fn test_proxy_insufficient_funds_task_skip() {
     );
 }
 
+/* TODO(LR) re-enable
 #[test]
 fn test_get_n_minimum_proxies_for_refund() {
     let mut state = State {
         admin: Addr::unchecked("admin"),
-        threshold: 123,
         next_proxy_task_id: 0,
         next_delegation_id: 0,
         proxy_whitelisting: false,
@@ -4062,7 +4072,7 @@ fn test_get_n_minimum_proxies_for_refund() {
     // zero division case
     staking_config.per_proxy_task_reward_amount = Uint128::new(100);
     staking_config.per_task_slash_stake_amount = Uint128::new(0);
-    state.threshold = 123;
+    state.threshold_percentage = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         123
@@ -4070,12 +4080,12 @@ fn test_get_n_minimum_proxies_for_refund() {
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(100);
     staking_config.per_task_slash_stake_amount = Uint128::new(100);
-    state.threshold = 3;
+    state.threshold_percentage = 3;
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 4);
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(100);
     staking_config.per_task_slash_stake_amount = Uint128::new(100);
-    state.threshold = 123;
+    state.threshold_percentage = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         244
@@ -4083,7 +4093,7 @@ fn test_get_n_minimum_proxies_for_refund() {
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(100);
     staking_config.per_task_slash_stake_amount = Uint128::new(50);
-    state.threshold = 123;
+    state.threshold_percentage = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         366
@@ -4091,7 +4101,7 @@ fn test_get_n_minimum_proxies_for_refund() {
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(50);
     staking_config.per_task_slash_stake_amount = Uint128::new(100);
-    state.threshold = 123;
+    state.threshold_percentage = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         183
@@ -4099,7 +4109,7 @@ fn test_get_n_minimum_proxies_for_refund() {
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(1);
     staking_config.per_task_slash_stake_amount = Uint128::new(121);
-    state.threshold = 123;
+    state.threshold_percentage = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         124
@@ -4107,7 +4117,7 @@ fn test_get_n_minimum_proxies_for_refund() {
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(1);
     staking_config.per_task_slash_stake_amount = Uint128::new(122);
-    state.threshold = 123;
+    state.threshold_percentage = 123;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         123
@@ -4115,7 +4125,7 @@ fn test_get_n_minimum_proxies_for_refund() {
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(1);
     staking_config.per_task_slash_stake_amount = Uint128::new(1000);
-    state.threshold = 10;
+    state.threshold_percentage = 10;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         10
@@ -4123,7 +4133,7 @@ fn test_get_n_minimum_proxies_for_refund() {
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(1000);
     staking_config.per_task_slash_stake_amount = Uint128::new(1);
-    state.threshold = 10;
+    state.threshold_percentage = 10;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         9009
@@ -4132,7 +4142,7 @@ fn test_get_n_minimum_proxies_for_refund() {
     // Large numbers check
     staking_config.per_proxy_task_reward_amount = Uint128::new(100000000000000000000);
     staking_config.per_task_slash_stake_amount = Uint128::new(1000000000000);
-    state.threshold = 10;
+    state.threshold_percentage = 10;
     assert_eq!(
         get_n_minimum_proxies_for_refund(&state, &staking_config),
         900000009
@@ -4140,14 +4150,15 @@ fn test_get_n_minimum_proxies_for_refund() {
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(100);
     staking_config.per_task_slash_stake_amount = Uint128::new(100);
-    state.threshold = 1;
+    state.threshold_percentage = 1;
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 1);
 
     staking_config.per_proxy_task_reward_amount = Uint128::new(100);
     staking_config.per_task_slash_stake_amount = Uint128::new(100);
-    state.threshold = 2;
+    state.threshold_percentage = 2;
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 2);
 }
+*/
 
 /*
 #[test]
@@ -4214,7 +4225,6 @@ fn test_timeouts() {
         deps.as_mut(),
         &creator,
         0,
-        &Some(2),
         &None,
         &Some(proxies),
         &stake_denom,
@@ -4300,6 +4310,7 @@ fn test_timeouts() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &delegation1,
+        50,
     )
     .is_ok());
 
@@ -4321,6 +4332,7 @@ fn test_timeouts() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE2_PUBKEY.to_string(),
         &delegation2,
+        50,
     )
     .is_ok());
 
@@ -4346,6 +4358,7 @@ fn test_timeouts() {
         &DELEGATOR2_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &delegation3,
+        50,
     )
     .is_ok());
 
@@ -4689,7 +4702,6 @@ fn test_terminate_contract() {
         deps.as_mut(),
         &creator,
         0,
-        &Some(1),
         &None,
         &None,
         &stake_denom,
@@ -4751,6 +4763,7 @@ fn test_terminate_contract() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        DEFAULT_THRESHOLD_PERCENTAGE,
     )
     .is_ok());
     assert!(add_delegation(
@@ -4760,6 +4773,7 @@ fn test_terminate_contract() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE2_PUBKEY.to_string(),
         &proxy_delegations,
+        DEFAULT_THRESHOLD_PERCENTAGE,
     )
     .is_ok());
 
@@ -4829,6 +4843,7 @@ fn test_terminate_contract() {
             &DELEGATOR2_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
+            DEFAULT_THRESHOLD_PERCENTAGE,
         ),
         "Contract was terminated.",
     ));
@@ -4959,7 +4974,6 @@ fn test_skip_task() {
         deps.as_mut(),
         &creator,
         0,
-        &Some(2),
         &None,
         &None,
         &stake_denom,
@@ -5043,6 +5057,7 @@ fn test_skip_task() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        50,
     )
     .is_ok());
     assert!(add_delegation(
@@ -5052,6 +5067,7 @@ fn test_skip_task() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE2_PUBKEY.to_string(),
         &proxy_delegations,
+        50,
     )
     .is_ok());
 
@@ -5237,7 +5253,6 @@ fn test_remove_proxies_from_delegation() {
         deps.as_mut(),
         &creator,
         0,
-        &Some(2),
         &None,
         &None,
         &stake_denom,
@@ -5299,6 +5314,7 @@ fn test_remove_proxies_from_delegation() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        50,
     )
     .is_ok());
 

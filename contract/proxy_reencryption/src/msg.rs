@@ -37,7 +37,6 @@ pub struct ProxyStatusResponse {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
-    pub threshold: Option<u32>,
     pub admin: Option<Addr>,
 
     pub proxy_whitelisting: Option<bool>,
@@ -111,6 +110,7 @@ pub enum ExecuteMsg {
         delegator_pubkey: String,
         delegatee_pubkey: String,
         proxy_delegations: Vec<ProxyDelegationString>,
+        threshold_percentage: u8,
     },
     RequestReencryption {
         data_id: String,
@@ -142,6 +142,9 @@ pub enum QueryMsg {
     GetProxyStatus {
         proxy_pubkey: String,
     },
+    GetMaximumThresholdPercentage {
+        num_proxies: u32,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -165,7 +168,6 @@ pub struct GetFragmentsResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetContractStateResponse {
     pub admin: Addr,
-    pub threshold: u32,
     pub terminated: bool,
 }
 
@@ -192,9 +194,17 @@ pub struct GetProxyStatusResponse {
     pub proxy_status: Option<ProxyStatusResponse>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct GetMaximumThresholdPercentageResponse {
+    pub threshold: u8,
+    pub num_proxies: u32,
+    pub per_proxy_slash_amount: Uint128,
+    pub per_proxy_reward_amount: Uint128,
+}
+
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsgResponse {
-    pub threshold: u32,
+    pub threshold: u32, // TODO(LR, AB) delete me
     pub admin: Addr,
 
     pub proxy_whitelisting: bool,

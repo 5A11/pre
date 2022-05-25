@@ -1,6 +1,7 @@
 use crate::common::add_bank_msg;
+use crate::delegations::{get_delegation_id, get_n_minimum_proxies_for_reencryption};
 use crate::state::{
-    store_get_staking_config, store_get_state, store_get_timeouts_config,
+    store_get_data_entry, store_get_staking_config, store_get_state, store_get_timeouts_config,
     store_set_timeouts_config, StakingConfig, State, TimeoutsConfig,
 };
 use cosmwasm_std::{from_slice, to_vec, Addr, Order, Response, StdResult, Storage};
@@ -280,7 +281,7 @@ pub fn store_get_all_proxy_tasks_in_queue(storage: &dyn Storage, proxy_pubkey: &
 
 pub fn get_reencryption_request_state(
     storage: &dyn Storage,
-    state: &State,
+    _state: &State,
     data_id: &str,
     delegatee_pubkey: &str,
     block_height: &u64,
@@ -306,7 +307,13 @@ pub fn get_reencryption_request_state(
         }
     }
 
-    if n_provided_fragments >= state.threshold {
+    let delegator_pubkey = store_get_data_entry(storage, data_id)
+        .unwrap()
+        .delegator_pubkey;
+    let delegation_id = get_delegation_id(storage, &delegator_pubkey, delegatee_pubkey).unwrap();
+    let threshold = get_n_minimum_proxies_for_reencryption(storage, &delegation_id);
+
+    if n_provided_fragments >= threshold {
         return ReencryptionRequestState::Granted;
     }
 
@@ -315,7 +322,7 @@ pub fn get_reencryption_request_state(
     }
 
     // Task cannot be completed any more
-    if (proxy_tasks.len() - n_incompletable_tasks as usize) < state.threshold as usize {
+    if (proxy_tasks.len() - n_incompletable_tasks as usize) < threshold as usize {
         return ReencryptionRequestState::Abandoned;
     }
 

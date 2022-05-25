@@ -5,5 +5,5 @@ docker-compose build
 
 TAG=$(git log -1 --format=%h)
 
-docker tag pre-relayer:latest gcr.io/fetch-ai-images/colearn-pre-relayer:$TAG
-docker push gcr.io/fetch-ai-images/colearn-pre-relayer:$TAG
+docker tag pre-relayer:latest gcr.io/fetch-ai-images/colearn-pre-relayer$SUFFIX:$TAG 
+docker push gcr.io/fetch-ai-images/colearn-pre-relayer$SUFFIX:$TAG

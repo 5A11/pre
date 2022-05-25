@@ -42,6 +42,18 @@ spec:
           initialDelaySeconds: 30
           timeoutSeconds: 5
           periodSeconds: 15
+      - name: ipfs-cleaner
+        image: ibmcom/cronjob
+        ports:
+        - containerPort: {{ .Values.ipfs.dns.port }}
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - >-
+              0 0 * * * rm -rf /data/ipfs/*
+        volumeMounts:
+        - name: ipfs-pre-storage
+          mountPath: /data/ipfs
   volumeClaimTemplates:
   - apiVersion: v1
     kind: PersistentVolumeClaim

@@ -1,6 +1,8 @@
 
 namespace: pre
 
+env: "staging"
+
 admin:
   enabled: true
   name: admin

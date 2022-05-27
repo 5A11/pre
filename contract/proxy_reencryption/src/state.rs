@@ -26,6 +26,7 @@ pub struct State {
 
     // Total number of re-encryption tasks
     pub next_proxy_task_id: u64,
+    pub next_proxy_delegation_id: u64,
     pub next_delegation_id: u64,
 
     pub terminated: bool,

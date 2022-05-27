@@ -1,7 +1,7 @@
 use crate::common::add_bank_msg;
-use crate::delegations::{get_delegation_id, get_n_minimum_proxies_for_reencryption};
+use crate::delegations::get_n_minimum_proxies_for_reencryption;
 use crate::state::{
-    store_get_data_entry, store_get_staking_config, store_get_state, store_get_timeouts_config,
+    store_get_staking_config, store_get_state, store_get_timeouts_config,
     store_set_timeouts_config, StakingConfig, State, TimeoutsConfig,
 };
 use cosmwasm_std::{from_slice, to_vec, Addr, Order, Response, StdResult, Storage};
@@ -35,6 +35,9 @@ pub struct ProxyTask {
     pub proxy_pubkey: String,
     pub fragment: Option<String>,
     pub delegation_string: String,
+
+    // Original delegation
+    pub delegation_id: u64,
 
     // Timeouts
     pub timeout_height: u64,
@@ -106,7 +109,7 @@ pub fn store_add_delegatee_proxy_task(
 }
 
 pub fn store_get_delegatee_proxy_task(
-    storage: &mut dyn Storage,
+    storage: &dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
     proxy_pubkey: &str,
@@ -285,18 +288,19 @@ pub fn get_reencryption_request_state(
     data_id: &str,
     delegatee_pubkey: &str,
     block_height: &u64,
-) -> ReencryptionRequestState {
+) -> StdResult<ReencryptionRequestState> {
     // Return state of re-encryption request by aggregating states of all individual tasks
 
     let proxy_tasks = store_get_all_delegatee_proxy_tasks(storage, data_id, delegatee_pubkey);
 
     if proxy_tasks.is_empty() {
-        return ReencryptionRequestState::Inaccessible;
+        return Ok(ReencryptionRequestState::Inaccessible);
     }
 
     let mut n_provided_fragments: u32 = 0;
     let mut n_incompletable_tasks: u32 = 0;
     let mut timeout_height: u64 = 0;
+    let mut delegation_id: u64 = 0;
     for &task_id in &proxy_tasks {
         let task: ProxyTask = store_get_proxy_task(storage, &task_id).unwrap();
         timeout_height = task.timeout_height;
@@ -305,28 +309,25 @@ pub fn get_reencryption_request_state(
         } else if task.abandoned {
             n_incompletable_tasks += 1;
         }
+        delegation_id = task.delegation_id;
     }
 
-    let delegator_pubkey = store_get_data_entry(storage, data_id)
-        .unwrap()
-        .delegator_pubkey;
-    let delegation_id = get_delegation_id(storage, &delegator_pubkey, delegatee_pubkey).unwrap();
-    let threshold = get_n_minimum_proxies_for_reencryption(storage, &delegation_id);
+    let threshold = get_n_minimum_proxies_for_reencryption(storage, &delegation_id)?;
 
     if n_provided_fragments >= threshold {
-        return ReencryptionRequestState::Granted;
+        return Ok(ReencryptionRequestState::Granted);
     }
 
     if block_height >= &timeout_height {
-        return ReencryptionRequestState::TimedOut;
+        return Ok(ReencryptionRequestState::TimedOut);
     }
 
     // Task cannot be completed any more
     if (proxy_tasks.len() - n_incompletable_tasks as usize) < threshold as usize {
-        return ReencryptionRequestState::Abandoned;
+        return Ok(ReencryptionRequestState::Abandoned);
     }
 
-    ReencryptionRequestState::Ready
+    Ok(ReencryptionRequestState::Ready)
 }
 
 pub fn abandon_proxy_task(
@@ -358,7 +359,7 @@ pub fn abandon_proxy_task(
         &re_task.data_id,
         &re_task.delegatee_pubkey,
         &0,
-    ) == ReencryptionRequestState::Abandoned
+    )? == ReencryptionRequestState::Abandoned
     {
         // Resolve all neighbour proxy tasks if request cannot be completed any more
 

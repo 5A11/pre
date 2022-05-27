@@ -21,9 +21,10 @@ use crate::state::{
 use crate::delegations::{
     get_delegation_id, get_delegation_info, get_delegation_state, get_maximum_security_percentage,
     get_n_available_proxies_from_delegation, get_n_minimum_proxies_for_reencryption,
-    remove_proxy_from_delegations, set_delegation_info, store_add_per_proxy_delegation,
-    store_get_all_proxies_from_delegation, store_get_delegation, store_get_proxy_delegation_id,
-    store_set_delegation, store_set_delegation_id, DelegationInfo, ProxyDelegation,
+    remove_proxy_from_delegations, set_delegation_id, set_delegation_info,
+    store_add_per_proxy_delegation, store_get_all_proxies_from_delegation,
+    store_get_proxy_delegation, store_get_proxy_delegation_id, store_set_proxy_delegation,
+    store_set_proxy_delegation_id, DelegationInfo, ProxyDelegation,
 };
 use crate::reencryption_requests::{
     abandon_all_proxy_tasks, abandon_proxy_task, check_and_resolve_all_timedout_tasks,
@@ -51,10 +52,11 @@ macro_rules! generic_err {
     };
 }
 
-pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 100000;
 pub const DEFAULT_SLASH_REWARD_COEF: f64 = 0.9;
 pub const DEFAULT_TASK_REWARD_AMOUNT: u128 = 100;
-pub const DEFAULT_PER_TASK_SLASH_STAKE_AMOUNT: u128 = DEFAULT_TASK_REWARD_AMOUNT * 10; // TODO(LR) use DEFAULT COEF
+pub const DEFAULT_PER_TASK_SLASH_STAKE_AMOUNT: u128 = 10 * DEFAULT_TASK_REWARD_AMOUNT; // TODO(LR) use DEFAULT COEF
+pub const DEFAULT_MINIMUM_PROXY_STAKE_AMOUNT: u128 = 10 * DEFAULT_PER_TASK_SLASH_STAKE_AMOUNT;
+
 pub const DEFAULT_TIMEOUT_HEIGHT: u64 = 50;
 
 pub const FRAGMENT_VERIFICATION_ERROR: &str = "Fragment verification failed: ";
@@ -69,6 +71,7 @@ pub fn instantiate(
     let state = State {
         admin: msg.admin.unwrap_or(info.sender),
         next_proxy_task_id: 0,
+        next_proxy_delegation_id: 0,
         next_delegation_id: 0,
         proxy_whitelisting: msg.proxy_whitelisting.unwrap_or(false),
         terminated: false,
@@ -938,8 +941,15 @@ fn try_add_delegation(
         ));
     }
 
-    if get_delegation_info(deps.storage, &state.next_delegation_id).is_some() {
-        return generic_err!("Delegation already exists.");
+    let new_delegation_id = state.next_delegation_id;
+
+    if get_delegation_info(deps.storage, &new_delegation_id).is_some() {
+        return generic_err!(format!(
+            "Delegation already exists {} .",
+            get_delegation_info(deps.storage, &new_delegation_id)
+                .unwrap()
+                .minimum_proxies_for_reencryption
+        ));
     }
 
     let mut minimum_proxies_for_reencryption =
@@ -951,7 +961,6 @@ fn try_add_delegation(
     let delegation_info = DelegationInfo {
         minimum_proxies_for_reencryption,
     };
-    set_delegation_info(deps.storage, &state.next_delegation_id, &delegation_info);
 
     for proxy_delegation in proxy_delegations {
         if store_get_proxy_address(deps.storage, &proxy_delegation.proxy_pubkey).is_none() {
@@ -979,24 +988,34 @@ fn try_add_delegation(
             delegator_pubkey: delegator_pubkey.to_string(),
             delegatee_pubkey: delegatee_pubkey.to_string(),
             delegation_string: proxy_delegation.delegation_string.clone(),
+            //delegation_id: new_delegation_id,
         };
 
-        store_set_delegation(deps.storage, &state.next_delegation_id, &delegation);
-        store_set_delegation_id(
+        store_set_proxy_delegation(deps.storage, &state.next_proxy_delegation_id, &delegation);
+        store_set_proxy_delegation_id(
             deps.storage,
             delegator_pubkey,
             delegatee_pubkey,
             &proxy_delegation.proxy_pubkey,
-            &state.next_delegation_id,
+            &state.next_proxy_delegation_id,
         );
         store_add_per_proxy_delegation(
             deps.storage,
             &proxy_delegation.proxy_pubkey,
-            &state.next_delegation_id,
+            &state.next_proxy_delegation_id,
         );
 
-        state.next_delegation_id += 1;
+        state.next_proxy_delegation_id += 1;
     }
+
+    state.next_delegation_id += 1;
+    set_delegation_info(deps.storage, &new_delegation_id, &delegation_info);
+    set_delegation_id(
+        deps.storage,
+        delegator_pubkey,
+        delegatee_pubkey,
+        &new_delegation_id,
+    );
 
     store_set_state(deps.storage, &state)?;
 
@@ -1075,7 +1094,7 @@ fn try_request_reencryption(
 
     let delegation_id =
         get_delegation_id(deps.storage, &data_entry.delegator_pubkey, delegatee_pubkey).unwrap();
-    let n_minimum_proxies = get_n_minimum_proxies_for_reencryption(deps.storage, &delegation_id);
+    let n_minimum_proxies = get_n_minimum_proxies_for_reencryption(deps.storage, &delegation_id)?;
 
     // Not enough request can be created
     if n_available_proxies < n_minimum_proxies {
@@ -1103,6 +1122,7 @@ fn try_request_reencryption(
         fragment: None,
         proxy_pubkey: "".to_string(),
         delegation_string: "".to_string(),
+        delegation_id,
         resolved: false,
         abandoned: false,
         timeout_height: env.block.height + timeouts_config.timeout_height,
@@ -1136,7 +1156,7 @@ fn try_request_reencryption(
             proxy_pubkey,
         )
         .unwrap();
-        let delegation = store_get_delegation(deps.storage, &delegation_id).unwrap();
+        let delegation = store_get_proxy_delegation(deps.storage, &delegation_id).unwrap();
 
         // Add reencryption task for each proxy
         new_proxy_task.proxy_pubkey = proxy_pubkey.clone();
@@ -1373,10 +1393,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     &data_id,
                     &delegatee_pubkey,
                     &env.block.height,
-                ),
+                )?,
                 capsule: data_entry.capsule,
                 fragments: get_all_fragments(deps.storage, &data_id, &delegatee_pubkey),
-                threshold: get_n_minimum_proxies_for_reencryption(deps.storage, &delegation_id),
+                threshold: get_n_minimum_proxies_for_reencryption(deps.storage, &delegation_id)?,
             })?)
         }
         QueryMsg::GetContractState {} => {
@@ -1422,7 +1442,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     deps.storage,
                     &delegator_pubkey,
                     &delegatee_pubkey,
-                ),
+                )?,
                 total_request_reward_amount: Coin {
                     denom: staking_config.stake_denom,
                     amount: Uint128::new(minimum_stake_amount),

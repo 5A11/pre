@@ -118,7 +118,7 @@ jobs:
       # Reteriving the pushed contract
       - name: Get Staging Contract
         run: >
-          export CONT_ADDR=$( curl https://pre-relayer.s3.us-west-2.amazonaws.com/contract/contract-test-${{ env.SHORTSHA }}.json | jq -r .contract_address) ; 
+          export CONT_ADDR=$( curl https://pre-relayer.s3.us-west-2.amazonaws.com/contract/contract-test-${{ env.SHORTSHA }}.json | jq -r .contract_address) && 
           echo "CONT_ADDR=${CONT_ADDR}" >> $GITHUB_ENV
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}

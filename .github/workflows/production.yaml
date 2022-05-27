@@ -33,8 +33,6 @@ jobs:
         run: |
           ./img-push.sh
         working-directory: ./k8s
-        env:
-          SUFFIX: "-prod" 
 
       # Install helm
       - name: Install Helm
@@ -96,6 +94,7 @@ jobs:
             --set proxy.enabled=false \
             --set ipfs.enabled=false \
             --set env="prod" \ 
+            --set namespace="pre-prod" \
             -n pre-prod
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
@@ -113,6 +112,7 @@ jobs:
             --set proxy.tag=${{ env.SHORTSHA }}  \
             --set ipfs.enabled=false \
             --set env="prod" \ 
+            --set namespace="pre-prod" \
             -n pre-prod
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}

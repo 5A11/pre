@@ -82,6 +82,7 @@ jobs:
         uses: dorny/paths-filter@v2
         id: filter
         with:
+          base: release/production
           filters: |
             contract:
               - 'contract/**'
@@ -93,7 +94,7 @@ jobs:
             --set admin.tag=${{ env.SHORTSHA }}  \
             --set proxy.enabled=false \
             --set ipfs.enabled=false \
-            --set env="prod" \ 
+            --set env="prod" \
             --set namespace="pre-prod" \
             -n pre-prod
         env:
@@ -105,13 +106,13 @@ jobs:
         with:
           time: '120s'
 
-      - name: Deploy Proxy to Staging
+      - name: Deploy Proxy to Production
         run: |
           helm upgrade --install --wait --timeout 600s prod-proxy ./k8s/pre-relayer/ \
             --set admin.enabled=false \
             --set proxy.tag=${{ env.SHORTSHA }}  \
             --set ipfs.enabled=false \
-            --set env="prod" \ 
+            --set env="prod" \
             --set namespace="pre-prod" \
             -n pre-prod
         env:

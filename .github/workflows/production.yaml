@@ -82,7 +82,6 @@ jobs:
         uses: dorny/paths-filter@v2
         id: filter
         with:
-          base: release/production
           filters: |
             contract:
               - 'contract/**'

@@ -21,6 +21,7 @@ spec:
       httpsRedirect: false
   - hosts:
     - {{ .Values.ipfs.dns.host }}
+    - {{ .Values.ipfs.dns.extrahost }}
     port:
       name: https
       number: 443

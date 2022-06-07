@@ -11,6 +11,7 @@ spec:
   - ipfs-pre-gw
   hosts:
   - {{ .Values.ipfs.dns.host }}
+  - {{ .Values.ipfs.dns.extrahost }}
   http:
   - route:
     - destination:

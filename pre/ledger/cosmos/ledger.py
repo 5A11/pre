@@ -543,7 +543,7 @@ class CosmosLedger(AbstractLedger):
         :param address: Address to be query
         :param denom: Denom of coins
 
-        :return: String representation of funds: i.e. 10000FET
+        :return: Integer representation of funds: i.e. 10000
         """
 
         if denom is None:
@@ -582,7 +582,6 @@ class CosmosLedger(AbstractLedger):
 
         for address in addresses:
             attempts_allowed = 10
-
             if amount:
                 min_amount_required = self.get_balance(address) + amount
             else:

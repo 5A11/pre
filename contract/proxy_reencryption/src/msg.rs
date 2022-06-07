@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyDelegationString {
-    pub proxy_pubkey: String,
+    pub proxy_addr: Addr,
     pub delegation_string: String,
 }
 
@@ -23,13 +23,14 @@ pub struct ProxyTaskResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyAvailabilityResponse {
+    pub proxy_addr: String,
     pub proxy_pubkey: String,
     pub stake_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyStatusResponse {
-    pub proxy_address: Addr,
+    pub proxy_addr: Addr,
     pub stake_amount: Uint128,
     pub withdrawable_stake_amount: Uint128,
     pub proxy_state: ProxyState,
@@ -133,14 +134,14 @@ pub enum QueryMsg {
     GetStakingConfig {},
 
     GetProxyTasks {
-        proxy_pubkey: String,
+        proxy_addr: Addr,
     },
     GetDelegationStatus {
         delegator_pubkey: String,
         delegatee_pubkey: String,
     },
     GetProxyStatus {
-        proxy_pubkey: String,
+        proxy_addr: Addr,
     },
 }
 

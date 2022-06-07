@@ -1,17 +1,17 @@
-use crate::proxies::{store_get_proxy_address, store_get_proxy_entry};
+use crate::proxies::{store_get_proxy_entry};
 use crate::state::{store_get_staking_config, store_get_state, StakingConfig, State};
-use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage};
+use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage, Addr};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
 // To get all proxies from 1 delegation
-// Map delegator_pubkey: String -> delegatee_pubkey: String -> proxy_pubkey: String -> delegation_id: u64
+// Map delegator_pubkey: String -> delegatee_pubkey: String -> proxy_addr: String -> delegation_id: u64
 static PROXY_DELEGATIONS_ID_STORE_KEY: &[u8] = b"ProxyDelegationIDStore";
 
 // To get all delegations for proxy
-// Map proxy_pubkey: String -> delegation_id: u64 -> is_delegation: bool
+// Map proxy_addr: String -> delegation_id: u64 -> is_delegation: bool
 static PER_PROXY_DELEGATIONS_STORE_KEY: &[u8] = b"PerProxyDelegationsStore";
 
 // Map delegation_id: u64 -> delegation: ProxyDelegation
@@ -37,7 +37,7 @@ pub fn store_set_delegation_id(
     storage: &mut dyn Storage,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     delegation_id: &u64,
 ) {
     let mut store = PrefixedStorage::multilevel(
@@ -49,14 +49,14 @@ pub fn store_set_delegation_id(
         ],
     );
 
-    store.set(proxy_pubkey.as_bytes(), &delegation_id.to_le_bytes());
+    store.set(proxy_addr.as_bytes(), &delegation_id.to_le_bytes());
 }
 
 pub fn store_remove_proxy_delegation_id(
     storage: &mut dyn Storage,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
 ) {
     let mut store = PrefixedStorage::multilevel(
         storage,
@@ -67,14 +67,14 @@ pub fn store_remove_proxy_delegation_id(
         ],
     );
 
-    store.remove(proxy_pubkey.as_bytes());
+    store.remove(proxy_addr.as_bytes());
 }
 
 pub fn store_get_proxy_delegation_id(
     storage: &dyn Storage,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
 ) -> Option<u64> {
     let store = ReadonlyPrefixedStorage::multilevel(
         storage,
@@ -86,7 +86,7 @@ pub fn store_get_proxy_delegation_id(
     );
 
     store
-        .get(proxy_pubkey.as_bytes())
+        .get(proxy_addr.as_bytes())
         .map(|data| u64::from_le_bytes(data.try_into().unwrap()))
 }
 
@@ -164,12 +164,12 @@ pub fn store_remove_delegation(storage: &mut dyn Storage, delegation_id: &u64) {
 // PER_PROXY_DELEGATIONS_STORE
 pub fn store_add_per_proxy_delegation(
     storage: &mut dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     delegation_id: &u64,
 ) {
     let mut store = PrefixedStorage::multilevel(
         storage,
-        &[PER_PROXY_DELEGATIONS_STORE_KEY, proxy_pubkey.as_bytes()],
+        &[PER_PROXY_DELEGATIONS_STORE_KEY, proxy_addr.as_bytes()],
     );
 
     // Any value in store means true - &[1]
@@ -178,12 +178,12 @@ pub fn store_add_per_proxy_delegation(
 
 pub fn store_remove_per_proxy_delegation(
     storage: &mut dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     delegation_id: &u64,
 ) {
     let mut store = PrefixedStorage::multilevel(
         storage,
-        &[PER_PROXY_DELEGATIONS_STORE_KEY, proxy_pubkey.as_bytes()],
+        &[PER_PROXY_DELEGATIONS_STORE_KEY, proxy_addr.as_bytes()],
     );
 
     store.remove(&delegation_id.to_le_bytes());
@@ -191,21 +191,21 @@ pub fn store_remove_per_proxy_delegation(
 
 pub fn store_is_proxy_delegation(
     storage: &dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     delegation_id: &u64,
 ) -> bool {
     let store = ReadonlyPrefixedStorage::multilevel(
         storage,
-        &[PER_PROXY_DELEGATIONS_STORE_KEY, proxy_pubkey.as_bytes()],
+        &[PER_PROXY_DELEGATIONS_STORE_KEY, proxy_addr.as_bytes()],
     );
 
     store.get(&delegation_id.to_le_bytes()).is_some()
 }
 
-pub fn store_get_all_proxy_delegations(storage: &dyn Storage, proxy_pubkey: &str) -> Vec<u64> {
+pub fn store_get_all_proxy_delegations(storage: &dyn Storage, proxy_addr: &Addr) -> Vec<u64> {
     let store = ReadonlyPrefixedStorage::multilevel(
         storage,
-        &[PER_PROXY_DELEGATIONS_STORE_KEY, proxy_pubkey.as_bytes()],
+        &[PER_PROXY_DELEGATIONS_STORE_KEY, proxy_addr.as_bytes()],
     );
 
     let mut deserialized_keys: Vec<u64> = Vec::new();
@@ -247,13 +247,13 @@ pub fn get_delegation_state(
 
 pub fn remove_proxy_from_delegations(
     storage: &mut dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
 ) -> StdResult<()> {
     let staking_config = store_get_staking_config(storage)?;
     let state = store_get_state(storage)?;
 
     // Delete all proxy delegations -- Make proxy inactive / stop requests factory
-    for delegation_id in store_get_all_proxy_delegations(storage, proxy_pubkey) {
+    for delegation_id in store_get_all_proxy_delegations(storage, proxy_addr) {
         let delegation = store_get_delegation(storage, &delegation_id).unwrap();
 
         // Remove itself from delegation
@@ -262,9 +262,9 @@ pub fn remove_proxy_from_delegations(
             storage,
             &delegation.delegator_pubkey,
             &delegation.delegatee_pubkey,
-            proxy_pubkey,
+            proxy_addr,
         );
-        store_remove_per_proxy_delegation(storage, proxy_pubkey, &delegation_id);
+        store_remove_per_proxy_delegation(storage, proxy_addr, &delegation_id);
 
         // Check if delegation has enough proxies
         let all_delegation_proxies = store_get_all_proxies_from_delegation(
@@ -277,12 +277,12 @@ pub fn remove_proxy_from_delegations(
 
         // Delete entire delegation = delete each proxy delegation in delegation if there is less than minimum proxies
         if all_delegation_proxies.len() < n_minimum_proxies as usize {
-            for i_proxy_pubkey in all_delegation_proxies {
+            for i_proxy_address in all_delegation_proxies {
                 let i_delegation_id = store_get_proxy_delegation_id(
                     storage,
                     &delegation.delegator_pubkey,
                     &delegation.delegatee_pubkey,
-                    &i_proxy_pubkey,
+                    &i_proxy_address,
                 )
                 .unwrap();
 
@@ -291,9 +291,9 @@ pub fn remove_proxy_from_delegations(
                     storage,
                     &delegation.delegator_pubkey,
                     &delegation.delegatee_pubkey,
-                    &i_proxy_pubkey,
+                    &i_proxy_address,
                 );
-                store_remove_per_proxy_delegation(storage, &i_proxy_pubkey, &i_delegation_id);
+                store_remove_per_proxy_delegation(storage, &i_proxy_address, &i_delegation_id);
             }
         }
     }
@@ -313,9 +313,8 @@ pub fn get_n_available_proxies_from_delegation(
         store_get_all_proxies_from_delegation(storage, delegator_pubkey, delegatee_pubkey);
 
     let mut n_available_proxies: u32 = 0;
-    for proxy_pubkey in delegation_proxies {
+    for proxy_addr in delegation_proxies {
         // Check if each proxy in delegation has enough stake
-        let proxy_addr = store_get_proxy_address(storage, &proxy_pubkey).unwrap();
         let proxy = store_get_proxy_entry(storage, &proxy_addr).unwrap();
         if &proxy.stake_amount.u128() >= proxy_slashed_amount {
             n_available_proxies += 1;

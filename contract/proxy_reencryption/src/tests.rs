@@ -18,7 +18,7 @@ use crate::delegations::{
 };
 use crate::msg::{ExecuteMsg, InstantiateMsg, ProxyDelegationString, ProxyTaskResponse};
 use crate::proxies::{
-    store_get_all_active_proxy_pubkeys, store_get_is_proxy_active, store_get_proxy_address,
+    store_get_all_active_proxy_addresses, store_get_is_proxy_active,
     store_get_proxy_entry, Proxy, ProxyState,
 };
 use crate::reencryption_requests::{
@@ -351,7 +351,7 @@ fn test_new_contract_default_values() {
     .is_ok());
 
     let state: State = store_get_state(&deps.storage).unwrap();
-    let available_proxies = store_get_all_active_proxy_pubkeys(&deps.storage);
+    let available_proxies = store_get_all_active_proxy_addresses(&deps.storage);
 
     assert_eq!(available_proxies.len(), 0);
 
@@ -405,7 +405,7 @@ fn test_new_contract_custom_values() {
     .is_ok());
 
     let state: State = store_get_state(&deps.storage).unwrap();
-    let available_proxies = store_get_all_active_proxy_pubkeys(&deps.storage);
+    let available_proxies = store_get_all_active_proxy_addresses(&deps.storage);
 
     assert_eq!(available_proxies.len(), 0);
 
@@ -538,7 +538,7 @@ fn test_register_unregister_proxy_whitelisting() {
     )
     .is_ok());
 
-    assert_eq!(store_get_all_active_proxy_pubkeys(&deps.storage).len(), 0);
+    assert_eq!(store_get_all_active_proxy_addresses(&deps.storage).len(), 0);
 
     // Check proxy state
     assert!(!store_get_is_proxy_active(
@@ -615,7 +615,7 @@ fn test_register_unregister_proxy_whitelisting() {
     assert_eq!(proxy.state, ProxyState::Registered);
     assert_eq!(proxy.proxy_pubkey.unwrap(), proxy_pubkey);
 
-    let available_proxy_pubkeys = store_get_all_active_proxy_pubkeys(&deps.storage);
+    let available_proxy_pubkeys = store_get_all_active_proxy_addresses(&deps.storage);
     assert_eq!(available_proxy_pubkeys.len(), 1);
     assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey.clone()]);
 
@@ -632,7 +632,7 @@ fn test_register_unregister_proxy_whitelisting() {
     ));
 
     // Number of available pubkeys remains the same
-    let available_proxy_pubkeys = store_get_all_active_proxy_pubkeys(&deps.storage);
+    let available_proxy_pubkeys = store_get_all_active_proxy_addresses(&deps.storage);
     assert_eq!(available_proxy_pubkeys.len(), 1);
     assert_eq!(&available_proxy_pubkeys, &[proxy_pubkey]);
 
@@ -663,7 +663,7 @@ fn test_register_unregister_proxy_whitelisting() {
     ));
 
     // All proxies unregistered
-    assert_eq!(store_get_all_active_proxy_pubkeys(&deps.storage).len(), 0);
+    assert_eq!(store_get_all_active_proxy_addresses(&deps.storage).len(), 0);
 }
 
 #[test]

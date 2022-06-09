@@ -1463,7 +1463,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
         ),
-        "Unknown proxy with pubkey proxy2_pubkey",
+        "Unregistered proxy with address proxy2",
     ));
 
     // Cannot add same pubkey twice
@@ -1483,7 +1483,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
         ),
-        "Delegation string was already provided for proxy proxy1_pubkey",
+        "Delegation string was already provided for proxy proxy1",
     ));
 
     // Cannot add delegation for less than minimum number of proxies
@@ -3093,7 +3093,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     );
     let proxy = store_get_proxy_entry(deps.as_mut().storage, &proxy2).unwrap();
     assert_eq!(proxy.state, ProxyState::Registered);
-    assert_eq!(proxy.proxy_pubkey.unwrap(), proxy2);
+    assert_eq!(proxy.proxy_pubkey.unwrap(), proxy2_pubkey);
 
     // Sender is not a proxy
     assert!(is_err(
@@ -3118,7 +3118,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     );
     let proxy = store_get_proxy_entry(deps.as_mut().storage, &proxy2).unwrap();
     assert_eq!(proxy.state, ProxyState::Leaving);
-    assert_eq!(proxy.proxy_pubkey.unwrap(), proxy2);
+    assert_eq!(proxy.proxy_pubkey.unwrap(), proxy2_pubkey);
 
     // Check state of delegations
 

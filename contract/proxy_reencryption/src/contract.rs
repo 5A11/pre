@@ -193,11 +193,11 @@ fn try_remove_proxy(
     if proxy.proxy_pubkey.is_some() {
         // In leaving state this was already done
         if proxy.state != ProxyState::Leaving {
-            store_set_is_proxy_active(deps.storage, &proxy_addr, false);
-            remove_proxy_from_delegations(deps.storage, &proxy_addr)?;
+            store_set_is_proxy_active(deps.storage, proxy_addr, false);
+            remove_proxy_from_delegations(deps.storage, proxy_addr)?;
         }
 
-        abandon_all_proxy_tasks(deps.storage, &proxy_addr, &mut response)?;
+        abandon_all_proxy_tasks(deps.storage, proxy_addr, &mut response)?;
     }
 
     // Update proxy entry to get correct stake amount after possible slashing
@@ -395,7 +395,7 @@ fn try_register_proxy(
         }
         // registration case
         None => {
-            proxy.proxy_pubkey = Some(proxy_pubkey.clone());
+            proxy.proxy_pubkey = Some(proxy_pubkey);
             funds_amount = ensure_stake(
                 &staking_config,
                 &info.funds,
@@ -909,6 +909,24 @@ fn try_add_delegation(
     }
 
     for proxy_delegation in proxy_delegations {
+        // Proxy must be registered
+        match store_get_proxy_entry(deps.storage, &proxy_delegation.proxy_addr) {
+            None => {
+                return generic_err!(format!(
+                    "Unknown proxy with address {}",
+                    &proxy_delegation.proxy_addr
+                ));
+            }
+            Some(proxy_entry) => {
+                if proxy_entry.proxy_pubkey.is_none() {
+                    return generic_err!(format!(
+                        "Unregistered proxy with address {}",
+                        &proxy_delegation.proxy_addr
+                    ));
+                }
+            }
+        }
+
         if store_get_proxy_delegation_id(
             deps.storage,
             delegator_pubkey,
@@ -1056,7 +1074,7 @@ fn try_request_reencryption(
     // Assign re-encrpytion tasks to all available proxies
     for proxy_addr in &proxy_addresses {
         // Check if proxy has enough stake
-        let mut proxy = store_get_proxy_entry(deps.storage, &proxy_addr).unwrap();
+        let mut proxy = store_get_proxy_entry(deps.storage, proxy_addr).unwrap();
 
         if proxy.stake_amount.u128() < staking_config.per_task_slash_stake_amount.u128() {
             // Proxy cannot be selected for insufficient amount
@@ -1067,7 +1085,7 @@ fn try_request_reencryption(
         proxy.stake_amount = proxy
             .stake_amount
             .checked_sub(staking_config.per_task_slash_stake_amount)?;
-        store_set_proxy_entry(deps.storage, &proxy_addr, &proxy);
+        store_set_proxy_entry(deps.storage, proxy_addr, &proxy);
 
         // Get delegation
         let delegation_id = store_get_proxy_delegation_id(
@@ -1080,7 +1098,7 @@ fn try_request_reencryption(
         let delegation = store_get_delegation(deps.storage, &delegation_id).unwrap();
 
         // Add reencryption task for each proxy
-        match store_get_proxy_entry(deps.storage, &proxy_addr) {
+        match store_get_proxy_entry(deps.storage, proxy_addr) {
             None => generic_err!("Proxy not registered"),
             Some(proxy_entry) => match proxy_entry.proxy_pubkey {
                 None => generic_err!("Proxy not registered"),

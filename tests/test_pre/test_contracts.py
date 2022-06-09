@@ -325,13 +325,6 @@ class TestDelegatorContract(BaseContractTestCase):
         self.admin_contract.add_proxy(
             self.ledger_crypto, proxy_addr=self.some_crypto.get_address()
         )
-        with pytest.raises(ProxyAlreadyRegistered):
-            self.proxy_contract.proxy_register(
-                self.some_crypto,
-                proxy_pubkey_bytes=self.proxy_pub_key,
-                stake_amount=minimum_registration_stake,
-            )
-
         assert self.delegator_contract.get_available_proxies()
 
         self.delegator_contract.add_delegations(

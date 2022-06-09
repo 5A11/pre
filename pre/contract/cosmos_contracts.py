@@ -85,8 +85,6 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
         except KeyError:  # pragma: nocover
             raw_log = ""
 
-        if "Pubkey already used" in raw_log:
-            raise ProxyAlreadyRegistered(raw_log, error_code, res)
         if "Sender is not a proxy" in raw_log:
             raise UnknownProxy(raw_log, error_code, res)
         if "Proxy already registered" in raw_log:

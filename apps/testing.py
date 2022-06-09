@@ -3,21 +3,22 @@ import json
 import multiprocessing
 import sys
 import time
-import yaml
-import requests
-
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Tuple
-from dataclasses import dataclass
 
-from pre.api.delegator import DelegatorAPI
+import requests
+import yaml
+
 from pre.api.delegatee import DelegateeAPI
+from pre.api.delegator import DelegatorAPI
 from pre.common import HashID
 from pre.contract.cosmos_contracts import ContractQueries, DelegatorContract
 from pre.crypto.umbral_crypto import UmbralCrypto, UmbralPrivateKey
 from pre.ledger.cosmos.crypto import CosmosCrypto
-from pre.ledger.cosmos.ledger import DEFAULT_FUNDS_AMOUNT, CosmosLedger
+from pre.ledger.cosmos.ledger import CosmosLedger, DEFAULT_FUNDS_AMOUNT
 from pre.storage.ipfs_storage import IpfsStorage
+
 
 FetchAddr = str
 

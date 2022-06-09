@@ -30,6 +30,7 @@ pub struct ProxyAvailabilityResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyStatusResponse {
+    // TODO return pubkey instead of addr
     pub proxy_addr: Addr,
     pub stake_amount: Uint128,
     pub withdrawable_stake_amount: Uint128,

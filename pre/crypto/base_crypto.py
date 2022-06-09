@@ -26,6 +26,7 @@ class AbstractCrypto(ABC):
         threshold: int,
         delegatee_pubkey_bytes: bytes,
         proxies_pubkeys_bytes: List[bytes],
+        proxies_addresses: List[str],
         delegator_private_key: PrivateKey,
     ) -> List[Delegation]:
         """
@@ -34,6 +35,7 @@ class AbstractCrypto(ABC):
         :param threshold: int
         :param delegatee_pubkey_bytes: reader public key in bytes
         :param proxies_pubkeys_bytes: List[bytes], list of proxies public keys in bytes
+        :param proxies_addresses: List[str], list of proxies addresses
         :param delegator_private_key:delegator encryption private key
 
         :return: List of Delegation

@@ -184,6 +184,7 @@ class ContractQueries(AbstractContractQueries):
 
         return [
             ProxyAvailability(
+                proxy_addr=proxy["proxy_addr"],
                 proxy_pubkey=b64decode(proxy["proxy_pubkey"]),
                 stake_amount=proxy["stake_amount"],
             )
@@ -238,7 +239,7 @@ class ContractQueries(AbstractContractQueries):
             ),
         )
 
-    def get_proxy_tasks(self, proxy_pubkey_bytes: bytes) -> List[ProxyTask]:
+    def get_proxy_tasks(self, proxy_address: str) -> List[ProxyTask]:
         """
         Get proxy tasks for proxy specified by proxy public key.
 
@@ -246,9 +247,7 @@ class ContractQueries(AbstractContractQueries):
 
         :return: List of ProxyTask
         """
-        state_msg: Dict = {
-            "get_proxy_tasks": {"proxy_pubkey": encode_bytes(proxy_pubkey_bytes)}
-        }
+        state_msg: Dict = {"get_proxy_tasks": {"proxy_addr": proxy_address}}
         json_res = self._send_query(state_msg)
 
         proxy_tasks: Dict = cast(Dict, json_res.get("proxy_tasks"))
@@ -329,17 +328,15 @@ class ContractQueries(AbstractContractQueries):
             ),
         )
 
-    def get_proxy_status(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyStatus]:
+    def get_proxy_status(self, proxy_address: str) -> Optional[ProxyStatus]:
         """
         Get proxy status.
 
-        :param proxy_pubkey_bytes: proxy public key as bytes
+        :param proxy_address: proxy address as str
 
         :return: None or ProxyStatus instance
         """
-        state_msg: Dict = {
-            "get_proxy_status": {"proxy_pubkey": encode_bytes(proxy_pubkey_bytes)}
-        }
+        state_msg: Dict = {"get_proxy_status": {"proxy_addr": proxy_address}}
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
 
         if json_res["proxy_status"]:
@@ -555,7 +552,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
                 "delegator_pubkey": encode_bytes(delegator_pubkey_bytes),
                 "proxy_delegations": [
                     {
-                        "proxy_pubkey": encode_bytes(i.proxy_pub_key),
+                        "proxy_addr": i.proxy_address,
                         "delegation_string": encode_bytes(i.delegation_string),
                     }
                     for i in delegations
@@ -689,16 +686,16 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
         )
         self._exception_from_res(error_code, res)
 
-    def get_proxy_tasks(self, proxy_pubkey_bytes: bytes) -> List[ProxyTask]:
+    def get_proxy_tasks(self, proxy_address: str) -> List[ProxyTask]:
         """
         Get next proxy task.
 
-        :param proxy_pubkey_bytes: Proxy public key as bytes
+        :param proxy_address: Proxy address as str
         :return: None or ProxyTask instance
         """
         return ContractQueries(
             ledger=self.ledger, contract_address=self.contract_address
-        ).get_proxy_tasks(proxy_pubkey_bytes)
+        ).get_proxy_tasks(proxy_address)
 
     def provide_reencrypted_fragment(
         self,
@@ -801,17 +798,17 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
             ledger=self.ledger, contract_address=self.contract_address
         ).get_staking_config()
 
-    def get_proxy_status(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyStatus]:
+    def get_proxy_status(self, proxy_address: str) -> Optional[ProxyStatus]:
         """
         Get proxy status.
 
-        :param proxy_pubkey_bytes: proxy public key as bytes
+        :param proxy_address: proxy address as str
 
         :return: None or ProxyStatus instance
         """
         return ContractQueries(
             ledger=self.ledger, contract_address=self.contract_address
-        ).get_proxy_status(proxy_pubkey_bytes)
+        ).get_proxy_status(proxy_address)
 
 
 class CosmosContract:  # pylint: disable=too-few-public-methods

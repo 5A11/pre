@@ -103,11 +103,13 @@ class DelegatorAPI:
 
         # Select up to n_max_proxies proxies with highest available stake
         proxy_pubkeys = [i.proxy_pubkey for i in proxies_list[0:n_max_proxies]]
+        proxy_addresses = [i.proxy_addr for i in proxies_list[0:n_max_proxies]]
 
         delegations = self._crypto.generate_delegations(
             threshold=threshold,
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
             proxies_pubkeys_bytes=proxy_pubkeys,
+            proxies_addresses=proxy_addresses,
             delegator_private_key=self._encryption_private_key,
         )
         self._contract.add_delegations(

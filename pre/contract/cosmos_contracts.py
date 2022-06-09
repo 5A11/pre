@@ -341,7 +341,7 @@ class ContractQueries(AbstractContractQueries):
 
         if json_res["proxy_status"]:
             return ProxyStatus(
-                proxy_address=json_res["proxy_status"]["proxy_address"],
+                proxy_address=json_res["proxy_status"]["proxy_addr"],
                 stake_amount=json_res["proxy_status"]["stake_amount"],
                 withdrawable_stake_amount=json_res["proxy_status"][
                     "withdrawable_stake_amount"

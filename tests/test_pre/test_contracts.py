@@ -332,9 +332,7 @@ class TestDelegatorContract(BaseContractTestCase):
             self.delegator_pub_key,
             self.delegatee_pub_key,
             delegations=[
-                Delegation(
-                    proxy_pub_key=self.proxy_pub_key, delegation_string=b"somedata"
-                )
+                Delegation(proxy_address=self.proxy_addr, delegation_string=b"somedata")
             ],
         )
 
@@ -345,7 +343,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 self.delegatee_pub_key,
                 delegations=[
                     Delegation(
-                        proxy_pub_key=self.proxy_pub_key, delegation_string=b"somedata"
+                        proxy_address=self.proxy_addr, delegation_string=b"somedata"
                     )
                 ],
             )

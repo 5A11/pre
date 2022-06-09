@@ -62,7 +62,7 @@ def test_delegator_api():
 
     contract.get_available_proxies.return_value = [
         ProxyAvailability(
-            proxy_address="proxy", proxy_pubkey=b"proxy_pub_key", stake_amount="123"
+            proxy_addr="proxy", proxy_pubkey=b"proxy_pub_key", stake_amount="123"
         )
     ] * threshold
     delegator_api.grant_access(
@@ -224,7 +224,7 @@ def test_proxy_api():
 
     contract.get_proxy_tasks.return_value = [proxy_task]
     assert proxy_api.get_reencryption_requests()[0] == proxy_task
-    contract.get_proxy_tasks.assert_called_once_with(encryption_private_key.public_key)
+    contract.get_proxy_tasks.assert_called_once_with(ledger_crypto.get_address())
 
     proxy_api.process_reencryption_request(proxy_task)
 

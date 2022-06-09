@@ -39,6 +39,7 @@ def test_encryption_delegation_reencryption_decryption_cycle():
         threshold,
         bytes(delegatee.public_key),
         [bytes(p.public_key) for p in proxies],
+        [str(addr) for addr in range(len(proxies))],
         delegator,
     )
 

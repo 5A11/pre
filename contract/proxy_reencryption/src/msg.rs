@@ -23,7 +23,7 @@ pub struct ProxyTaskResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ProxyAvailabilityResponse {
-    pub proxy_addr: String,
+    pub proxy_addr: Addr,
     pub proxy_pubkey: String,
     pub stake_amount: Uint128,
 }

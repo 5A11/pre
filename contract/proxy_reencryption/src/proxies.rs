@@ -50,7 +50,6 @@ pub fn store_get_proxy_entry(storage: &dyn Storage, proxy_addr: &Addr) -> Option
         .map(|data| from_slice(&data).unwrap())
 }
 
-
 pub fn store_get_all_proxies(storage: &dyn Storage) -> Vec<Addr> {
     let store = ReadonlyPrefixedStorage::new(storage, PROXIES_KEY);
 
@@ -63,7 +62,6 @@ pub fn store_get_all_proxies(storage: &dyn Storage) -> Vec<Addr> {
 
     deserialized_keys
 }
-
 
 // IS_PROXY_ACTIVE
 pub fn store_set_is_proxy_active(
@@ -93,7 +91,7 @@ pub fn store_get_all_active_proxy_addresses(storage: &dyn Storage) -> Vec<Addr> 
 
     for pair in store.range(None, None, Order::Ascending) {
         // Deserialize keys with inverse operation to &string.as_bytes()
-        deserialized_keys.push(Addr::from_bytes(&pair.0).unwrap());
+        deserialized_keys.push(Addr::unchecked(String::from_utf8(pair.0).unwrap()));
     }
 
     deserialized_keys

@@ -1,6 +1,6 @@
-use crate::proxies::{store_get_proxy_entry};
+use crate::proxies::store_get_proxy_entry;
 use crate::state::{store_get_staking_config, store_get_state, StakingConfig, State};
-use cosmwasm_std::{from_slice, to_vec, Order, StdResult, Storage, Addr};
+use cosmwasm_std::{from_slice, to_vec, Addr, Order, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use std::convert::TryInto;
 static PROXY_DELEGATIONS_ID_STORE_KEY: &[u8] = b"ProxyDelegationIDStore";
 
 // To get all delegations for proxy
-// Map proxy_addr: String -> delegation_id: u64 -> is_delegation: bool
+// Map proxy_addr: Addr -> delegation_id: u64 -> is_delegation: bool
 static PER_PROXY_DELEGATIONS_STORE_KEY: &[u8] = b"PerProxyDelegationsStore";
 
 // Map delegation_id: u64 -> delegation: ProxyDelegation
@@ -94,7 +94,7 @@ pub fn store_get_all_proxies_from_delegation(
     storage: &dyn Storage,
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
-) -> Vec<String> {
+) -> Vec<Addr> {
     let store = ReadonlyPrefixedStorage::multilevel(
         storage,
         &[
@@ -104,11 +104,11 @@ pub fn store_get_all_proxies_from_delegation(
         ],
     );
 
-    let mut deserialized_keys: Vec<String> = Vec::new();
+    let mut deserialized_keys: Vec<Addr> = Vec::new();
 
     for pair in store.range(None, None, Order::Ascending) {
         // Deserialize keys with inverse operation to string.as_bytes()
-        deserialized_keys.push(std::str::from_utf8(&pair.0).unwrap().to_string());
+        deserialized_keys.push(Addr::unchecked(String::from_utf8(pair.0).unwrap()));
     }
 
     deserialized_keys

@@ -207,7 +207,6 @@ pub fn store_get_data_id_tasks(storage: &dyn Storage, data_id: &str) -> Vec<u64>
     let store = ReadonlyPrefixedStorage::multilevel(
         storage,
         &[DATA_ID_TASKS_STORE_KEY, data_id.as_bytes()],
-
     );
 
     let mut deserialized_keys: Vec<u64> = Vec::new();

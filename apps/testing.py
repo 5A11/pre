@@ -5,7 +5,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, IO, Optional, Tuple, Union
 
 import requests
 import yaml
@@ -172,7 +172,7 @@ def new_delegatee(
     ledger: CosmosLedger,
     storage: IpfsStorage,
     enc_key_maybe: Optional[UmbralPrivateKey] = None,
-) -> DelegatorAPI:
+) -> DelegateeAPI:
     enc_key = enc_key_maybe if enc_key_maybe is not None else new_encryption_key()
     contract_api = ContractQueries(ledger, contract_address)
     return DelegateeAPI(enc_key, contract_api, storage, UmbralCrypto())
@@ -199,7 +199,7 @@ def grant_access(delegator: DelegatorAPI, delegatee: DelegateeAPI, data_id: Hash
     )
 
 
-def read_data(delegatee: DelegateeAPI, data_id: HashID) -> bytes:
+def read_data(delegatee: DelegateeAPI, data_id: HashID) -> Optional[Union[bytes, IO]]:
     waited_for = 0
     while not delegatee.is_data_ready(data_id)[0]:
         if waited_for > MAX_REENCRYPTION_WAIT_TIME:
@@ -207,10 +207,13 @@ def read_data(delegatee: DelegateeAPI, data_id: HashID) -> bytes:
                 f"[E] Data is not ready    : {bytes(delegatee._encryption_private_key.public_key).hex()} {data_id}",
                 file=sys.stderr,
             )
-            return
+            return None
         time.sleep(30)
         waited_for += 30
-    delegator_pubkey = delegatee._contract.get_data_entry(data_id).pubkey
+
+    data_entry = delegatee._contract.get_data_entry(data_id)
+    assert data_entry is not None
+    delegator_pubkey = data_entry.pubkey
     data = delegatee.read_data(data_id, delegator_pubkey)
     print(
         f"[I] Data read successfully: {bytes(delegatee._encryption_private_key.public_key).hex()} {data_id}"

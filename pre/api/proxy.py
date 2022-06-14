@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pre.common import Coin, PrivateKey, ProxyState, ProxyTask
+from pre.common import Coin, PrivateKey, ProxyState, ProxyStatus, ProxyTask
 from pre.contract.base_contract import AbstractProxyContract
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.ledger.base_ledger import AbstractLedgerCrypto
@@ -124,3 +124,12 @@ class ProxyAPI:
             delegatee_pubkey_bytes=delegatee_pubkey_bytes,
             fragment_bytes=encrypted_fragment,
         )
+
+    def get_proxy_status(
+        self,
+    ) -> Optional[ProxyStatus]:
+        """
+        Get proxy status.
+        :return: None or ProxyStatus instance
+        """
+        return self._contract.get_proxy_status(self._pub_key_as_bytes())

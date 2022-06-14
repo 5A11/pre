@@ -2,11 +2,11 @@ name: Contract PRE
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, version2 ]
     paths:
       - "contract/proxy_reencryption/**"
   pull_request:
-    branches: [ master ]
+    branches: [ master, version2 ]
     paths:
       - "contract/proxy_reencryption/**"
 

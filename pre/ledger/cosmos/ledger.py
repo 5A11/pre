@@ -543,7 +543,7 @@ class CosmosLedger(AbstractLedger):
         :param address: Address to be query
         :param denom: Denom of coins
 
-        :return: String representation of funds: i.e. 10000FET
+        :return: Integer representation of funds: i.e. 10000
         """
 
         if denom is None:
@@ -582,7 +582,6 @@ class CosmosLedger(AbstractLedger):
 
         for address in addresses:
             attempts_allowed = 10
-
             if amount:
                 min_amount_required = self.get_balance(address) + amount
             else:
@@ -1109,6 +1108,7 @@ class CosmosLedger(AbstractLedger):
                 f"ledger server is not available with address: {self.node_address}: {last_exception}"
             ) from last_exception
 
+        assert resp is not None
         return resp.param.value
 
     def query_max_gas_limit(self) -> int:

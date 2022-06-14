@@ -157,7 +157,7 @@ def process_tasks(
         # withdraw stake if requested
         if auto_withdrawal:
             try:
-                status = proxy_api._contract.get_proxy_status()
+                status = proxy_api.get_proxy_status()
                 if status is not None and int(status.withdrawable_stake_amount) > 0:
                     proxy_api.withdraw_stake()
                     click.echo("Stake withdrawn.")

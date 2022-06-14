@@ -57,14 +57,14 @@ spec:
           args:
             - -c
             - >-
-                echo "waiting 15s" &&
+                echo "waiting 30s" &&
                 sleep 30s &&
                 echo "copying contract" &&
                 cp /contract-address/latest.json /contract-address/contract-{{ .Values.admin.tag }}.json &&
                 source /keys/cred.rc && 
                 echo "uploading contract" &&
-                aws s3 cp /contract-address/latest.json s3://pre-relayer/contract/ &&
-                aws s3 cp /contract-address/contract-{{ .Values.admin.tag }}.json s3://pre-relayer/contract/ &&
+                aws s3 cp /contract-address/latest.json s3://pre-relayer/contract/{{ .Values.env }}/ &&
+                aws s3 cp /contract-address/contract-{{ .Values.admin.tag }}.json s3://pre-relayer/contract/{{ .Values.env }}/ &&
                 echo "contract uploaded" &&
                 exit 0
       volumes:

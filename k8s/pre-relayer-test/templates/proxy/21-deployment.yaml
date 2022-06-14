@@ -35,7 +35,7 @@ spec:
             - containerPort: {{ $.Values.proxy.port  }}
           env:
             - name: TAG
-              value: {{ $.Values.proxy.tag }}
+              value: "{{ $.Values.proxy.tag }}"
             - name: LEDGER_CONFIG
               value: "/configs/ledger_config.yaml"
           volumeMounts:

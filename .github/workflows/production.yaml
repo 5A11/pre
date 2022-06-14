@@ -1,0 +1,128 @@
+name: "[Production] Build, Publish and Deploy Contract-Proxy"
+
+on:
+  push:
+    branches:
+      - release/production
+
+jobs:
+  publish:
+    name: Build, Publish and Deploy
+    runs-on: ubuntu-latest
+
+    env:
+      EKS_CLUSTER_NAME: colearn-v3
+      AWS_REGION: us-west-2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      # Setup gcloud CLI
+      - uses: google-github-actions/setup-gcloud@v0
+        with:
+          service_account_key: ${{ secrets.GKE_SA_KEY_IMG }}
+          export_default_credentials: true
+
+      # Configure docker to use the gcloud command-line tool as a credential helper
+      - name: Configuring Docker to use gcloud Auth
+        run: |
+          gcloud auth configure-docker -q
+      # Push image to Google Container Registry
+      - name: Build and Push Images
+        run: |
+          ./img-push.sh
+        working-directory: ./k8s
+
+      # Install helm
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+      # Turnstyle avoids concurrent github actions trying to deploy at once
+      - name: Turnstyle
+        uses: softprops/turnstyle@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start Deployment
+        uses: bobheadxi/deployments@v0.4.3
+        id: deployment_production
+        with:
+          step: start
+          token: ${{ secrets.GITHUB_TOKEN }}
+          env: production
+
+      # Setup AWS CLI
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Setup Kubeconfig
+      - name: Setup kubeconfig
+        id: setup-kubeconfig
+        run: |
+          aws eks --region $AWS_REGION update-kubeconfig --name $EKS_CLUSTER_NAME
+      # Setting Short-Sha
+      - name: get shortsha
+        id: vars
+        run: |
+         echo ::set-output name=sha_short::$(git log -1 --format=%h)
+      - name: use env
+        run: |
+          echo $SHORTSHA
+        env:
+          SHORTSHA: ${{ steps.vars.outputs.sha_short }}
+
+      # Deploy the Docker image to the EKS cluster
+
+      - name: Deploy Admin to Production
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            contract:
+              - 'contract/**'
+              - 'apps/admin.py'
+      - if: steps.filter.outputs.contract == 'true'
+        run: |
+          helm upgrade --install --wait --timeout 360s prod-admin ./k8s/pre-relayer/ \
+            --set admin.name=admin-${{ env.SHORTSHA }} \
+            --set admin.tag=${{ env.SHORTSHA }}  \
+            --set proxy.enabled=false \
+            --set ipfs.enabled=false \
+            --set env="prod" \
+            --set namespace="pre-prod" \
+            -n pre-prod
+        env:
+          SHORTSHA: ${{ steps.vars.outputs.sha_short }}
+
+
+      - name: Sleep for 120 seconds
+        uses: jakejarvis/wait-action@master
+        with:
+          time: '120s'
+
+      - name: Deploy Proxy to Production
+        run: |
+          helm upgrade --install --wait --timeout 600s prod-proxy ./k8s/pre-relayer/ \
+            --set admin.enabled=false \
+            --set proxy.tag=${{ env.SHORTSHA }}  \
+            --set ipfs.enabled=false \
+            --set env="prod" \
+            --set namespace="pre-prod" \
+            -n pre-prod
+        env:
+          SHORTSHA: ${{ steps.vars.outputs.sha_short }}
+
+      # Publish Helm output to the PR
+      - name: Update Deployment Status
+        uses: bobheadxi/deployments@v0.4.3
+        if: always()
+        with:
+          step: finish
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: ${{ job.status }}
+          deployment_id: ${{ steps.deployment_production.outputs.deployment_id }}

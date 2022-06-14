@@ -13,9 +13,9 @@ use crate::proxies::{
 };
 use crate::state::{
     store_get_data_entry, store_get_delegator_address, store_get_staking_config, store_get_state,
-    store_get_timeouts_config, store_set_data_entry, store_set_delegator_address,
-    store_set_staking_config, store_set_state, store_set_timeouts_config, DataEntry, StakingConfig,
-    State, TimeoutsConfig,
+    store_get_timeouts_config, store_remove_data_entry, store_set_data_entry,
+    store_set_delegator_address, store_set_staking_config, store_set_state,
+    store_set_timeouts_config, DataEntry, StakingConfig, State, TimeoutsConfig,
 };
 
 use crate::delegations::{
@@ -27,10 +27,11 @@ use crate::delegations::{
 };
 use crate::reencryption_requests::{
     abandon_all_proxy_tasks, abandon_proxy_task, check_and_resolve_all_timedout_tasks,
-    get_all_fragments, get_reencryption_request_state, store_add_delegatee_proxy_task,
-    store_add_proxy_task_to_queue, store_get_all_proxy_tasks_in_queue,
-    store_get_delegatee_proxy_task, store_get_proxy_task,
-    store_is_list_of_delegatee_proxy_tasks_empty, store_remove_proxy_task_from_queue,
+    get_all_fragments, get_reencryption_request_state, store_add_data_id_task,
+    store_add_delegatee_proxy_task, store_add_proxy_task_to_queue,
+    store_get_all_proxy_tasks_in_queue, store_get_data_id_tasks, store_get_delegatee_proxy_task,
+    store_get_proxy_task, store_is_list_of_delegatee_proxy_tasks_empty, store_remove_data_id_task,
+    store_remove_delegatee_proxy_task, store_remove_proxy_task, store_remove_proxy_task_from_queue,
     store_set_proxy_task, ProxyTask,
 };
 use cosmwasm_std::{
@@ -558,7 +559,6 @@ fn try_provide_reencrypted_fragment(
 
     // Task must exist - panic otherwise
     let mut proxy_task = store_get_proxy_task(deps.storage, &task_id).unwrap();
-
     if env.block.height >= proxy_task.timeout_height {
         return generic_err!("Request timed out.");
     }
@@ -816,6 +816,98 @@ fn try_add_data(
     Ok(response)
 }
 
+fn try_remove_data(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    data_id: &str,
+) -> StdResult<Response> {
+    let state: State = store_get_state(deps.storage)?;
+
+    ensure_not_terminated(&state)?;
+
+    // Only data owner can remove data
+    let data_entry: DataEntry = match store_get_data_entry(deps.storage, data_id) {
+        None => generic_err!(format!("Entry with ID {} does not exist.", data_id)),
+        Some(data_entry) => Ok(data_entry),
+    }?;
+
+    ensure_delegator(deps.storage, &data_entry.delegator_pubkey, &info.sender)?;
+
+    let staking_config = store_get_staking_config(deps.storage)?;
+
+    let tasks = store_get_data_id_tasks(deps.storage, data_id);
+
+    let mut refund: u128 = 0;
+    let mut proxy_stake = Vec::new();
+
+    for task_id in tasks.iter() {
+        let proxy_task = store_get_proxy_task(deps.storage, task_id).unwrap();
+
+        // Remove task from proxy queue
+        store_remove_proxy_task_from_queue(deps.storage, &proxy_task.proxy_pubkey, task_id);
+
+        // Remove delegatee proxy task
+        store_remove_delegatee_proxy_task(
+            deps.storage,
+            data_id,
+            &proxy_task.delegatee_pubkey,
+            &proxy_task.proxy_pubkey,
+        );
+
+        // Remove proxy task
+        store_remove_proxy_task(deps.storage, task_id);
+        store_remove_data_id_task(deps.storage, data_id, task_id);
+
+        if proxy_task.fragment.is_none() {
+            refund += staking_config.per_proxy_task_reward_amount.u128();
+
+            let proxy_addr =
+                store_get_proxy_address(deps.storage, &proxy_task.proxy_pubkey).unwrap();
+            let mut proxy = store_get_proxy_entry(deps.storage, &proxy_addr).unwrap();
+
+            // Give back stake to proxy
+            proxy.stake_amount = proxy
+                .stake_amount
+                .checked_add(staking_config.per_task_slash_stake_amount)?;
+            store_set_proxy_entry(deps.storage, &proxy_addr, &proxy);
+
+            proxy_stake.push(ProxyStakeResponse {
+                proxy_addr: proxy_addr.clone(),
+                stake: proxy.stake_amount,
+            });
+        }
+    }
+
+    // Return stake from unfinished tasks to delegator
+    if refund > 0 {
+        add_bank_msg(
+            &mut response,
+            &info.sender,
+            refund,
+            &staking_config.stake_denom,
+        );
+    }
+
+    store_remove_data_entry(deps.storage, data_id);
+
+    let json_response = ExecuteMsgJSONResponse::RemoveData {
+        proxies: proxy_stake,
+    };
+    let serialized_json_response = match serde_json::to_string(&json_response) {
+        Ok(s) => Ok(s),
+        Err(_err) => generic_err!("failed to serialize json response"),
+    }?;
+
+    // Return response
+    response
+        .attributes
+        .push(Attribute::new("json", serialized_json_response));
+
+    Ok(response)
+}
+
 fn try_add_delegation(
     mut response: Response,
     deps: DepsMut,
@@ -1034,6 +1126,7 @@ fn try_request_reencryption(
             &task_id,
         );
         store_add_proxy_task_to_queue(deps.storage, proxy_pubkey, &task_id);
+        store_add_data_id_task(deps.storage, data_id, &task_id);
         state.next_proxy_task_id += 1;
 
         proxy_stake.push(ProxyStakeResponse {
@@ -1200,6 +1293,7 @@ pub fn execute(
             &delegator_pubkey,
             &capsule,
         ),
+        ExecuteMsg::RemoveData { data_id } => try_remove_data(response, deps, env, info, &data_id),
         ExecuteMsg::AddDelegation {
             delegator_pubkey,
             delegatee_pubkey,

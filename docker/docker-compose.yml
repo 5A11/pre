@@ -108,6 +108,37 @@ services:
     networks:
       - localnet
 
+  testing:
+    profiles: ["testing"]
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    image: pre:latest
+    volumes:
+      - ../test_data:/test_data
+      - ${PWD}/:/data/:rw
+    networks:
+      - localnet
+    entrypoint: >
+      python3 apps/testing.py
+        --ipfs-config /test_data/configs/ipfs_config_gcloud.yaml
+  
+  test_prod:
+    extends: testing
+    container_name: test_prod
+    entrypoint: >
+      python3 apps/testing.py
+        --ipfs-config /test_data/configs/ipfs_config_gcloud.yaml
+        --contract-url https://pre-relayer.s3.us-west-2.amazonaws.com/contract/prod/latest.json
+  
+  test_staging:
+    extends: testing
+    container_name: test_staging
+    entrypoint: >
+      python3 apps/testing.py
+        --ipfs-config /test_data/configs/ipfs_config_gcloud.yaml
+        --contract-url https://pre-relayer.s3.us-west-2.amazonaws.com/contract/staging/latest.json
+
   tests:
     profiles: ["tests"]
     build:

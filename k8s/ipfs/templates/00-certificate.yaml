@@ -2,8 +2,6 @@
 apiVersion: cert-manager.io/v1alpha3
 kind: Certificate
 metadata:
-  labels:
-    {{- include "pre-relayer.labels" . | nindent 4 }}
   namespace: istio-system
   name: {{ .Values.ipfs.dns.cert }}
 spec:

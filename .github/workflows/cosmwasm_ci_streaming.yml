@@ -2,11 +2,11 @@ name: Contract Streaming
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, version2 ]
     paths:
       - "contract/streaming/**"
   pull_request:
-    branches: [ master ]
+    branches: [ master, version2 ]
     paths:
       - "contract/streaming/**"
 

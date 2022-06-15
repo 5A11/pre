@@ -2,9 +2,7 @@
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
-  name: ipfs-pre-gw
-  labels:
-    {{- include "pre-relayer.labels" . | nindent 4 }}
+  name: ipfs-pre-gw-{{ .Values.env }}
   namespace: {{ .Values.namespace }}
 spec:
   selector:

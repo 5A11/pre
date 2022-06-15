@@ -1108,6 +1108,7 @@ class CosmosLedger(AbstractLedger):
                 f"ledger server is not available with address: {self.node_address}: {last_exception}"
             ) from last_exception
 
+        assert resp is not None
         return resp.param.value
 
     def query_max_gas_limit(self) -> int:

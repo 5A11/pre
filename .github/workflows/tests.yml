@@ -2,9 +2,9 @@ name: python
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, version2 ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, version2 ]
 
 jobs:
   tests:

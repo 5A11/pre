@@ -2,39 +2,31 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Values.ipfs.name }} 
-  labels:
-    {{- include "pre-relayer.labels" . | nindent 4 }}
+  name: {{ .Values.ipfs.name }}-{{ .Values.env }}
   namespace: {{ .Values.namespace }}
 spec:
-  serviceName: {{ .Values.ipfs.name }}-svc
+  serviceName: {{ .Values.ipfs.name }}-svc-{{ .Values.env }}
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Values.ipfs.name }} 
+      app: {{ .Values.ipfs.name }}-{{ .Values.env }}
   template:
     metadata:
       labels:
-        app: {{ .Values.ipfs.name }} 
+        app: {{ .Values.ipfs.name }}-{{ .Values.env }}
     spec:
       containers:
       - name: ipfs
-        image: ipfs/go-ipfs:v0.7.0
+        image: {{ .Values.ipfs.image }}
         ports:
         - containerPort: {{ .Values.ipfs.dns.port }}
           name: http
           protocol: TCP
-        command: ["/bin/sh"]
-        args:
-          - -c
-          - >-
-              ipfs config --json API.HTTPHeaders.Access-Control-Allow-Credentials "[\"true\"]" && 
-              ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin "[\"*\"]"
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
         volumeMounts:
-        - mountPath: /data/ipfs
-          name: ipfs-pre-storage
+        - mountPath: /data/ipfs/
+          name: ipfs-pre-storage-{{ .Values.env }}
           subPath: ipfs-data
         livenessProbe:
           tcpSocket:
@@ -50,17 +42,17 @@ spec:
         args:
           - -c
           - >-
-              echo "0 0 * * * rm -rf //data/ipfs/ipfs-data/blocks* && echo 'ipfs cleanup done'" > ./cleanup.sh && 
-              chmod +x cleanup.sh && crontab cleanup.sh &&
-              /usr/sbin/crond -f -l 8 
+              echo "0 0 * * * rm -rf //data/ipfs/ipfs-data/blocks/*/ //data/ipfs/ipfs-data/datastore/*  && 
+              echo 'ipfs cleanup done'" > ./cleanup.sh &&  chmod +x cleanup.sh && 
+              crontab cleanup.sh && /usr/sbin/crond -f -l 8
         volumeMounts:
-        - name: ipfs-pre-storage
+        - name: ipfs-pre-storage-{{ .Values.env }}
           mountPath: /data/ipfs/
   volumeClaimTemplates:
   - apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
-      name: ipfs-pre-storage
+      name: ipfs-pre-storage-{{ .Values.env }}
     spec:
       storageClassName: gp2
       volumeMode: Filesystem

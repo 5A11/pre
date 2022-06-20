@@ -36,6 +36,7 @@ from cosmpy.protos.cosmos.tx.v1beta1.service_pb2 import (
     BroadcastTxRequest,
     GetTxRequest,
     GetTxResponse,
+    SimulateRequest,
 )
 from cosmpy.protos.cosmos.tx.v1beta1.service_pb2_grpc import ServiceStub as TxGrpcClient
 from cosmpy.protos.cosmos.tx.v1beta1.tx_pb2 import (
@@ -86,7 +87,7 @@ CLIENT_CODE_MESSAGE_SUCCESSFUL = 0
 
 # maximum gas limit - tx will fail with higher limit
 DEFAULT_TX_MAXIMUM_GAS_LIMIT = 3000000
-DEFAULT_CONTRACT_TX_GAS = 600000
+DEFAULT_CONTRACT_TX_GAS = 900000
 DEFAULT_SEND_TX_GAS = 120000
 DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
 DEFAULT_FUNDS_AMOUNT = 9 * 10 ** 18
@@ -442,7 +443,7 @@ class CosmosLedger(AbstractLedger):
         sender_crypto: CosmosCrypto,
         contract_address: str,
         execute_msg: JSONLike,
-        gas_limit: Optional[int] = DEFAULT_CONTRACT_TX_GAS,
+        gas_limit: Optional[Union[int, str]] = "auto",
         amount: Optional[List[Coin]] = None,
         retries: Optional[int] = None,
     ) -> Tuple[JSONLike, int]:
@@ -458,29 +459,43 @@ class CosmosLedger(AbstractLedger):
 
         :return: Execute message response
         """
+
         res: Optional[GetTxResponse] = None
         last_exception: Optional[Exception] = None
 
         if retries is None:
             retries = self.n_total_msg_retries
 
+        msg = self.get_packed_exec_msg(
+            sender_address=sender_crypto.get_address(),
+            contract_address=contract_address,
+            msg=execute_msg,
+            funds=amount,
+        )
+
         for _ in range(retries):
             try:
-
-                msg = self.get_packed_exec_msg(
-                    sender_address=sender_crypto.get_address(),
-                    contract_address=contract_address,
-                    msg=execute_msg,
-                    funds=amount,
-                )
-
                 tx = self.generate_tx(
                     [msg],
                     [sender_crypto.get_address()],
                     [sender_crypto.get_pubkey_as_bytes()],
-                    gas_limit=gas_limit,
+                    gas_limit=DEFAULT_TX_MAXIMUM_GAS_LIMIT,
                 )
+
                 self.sign_tx(tx, sender_crypto)
+
+                if gas_limit == "auto":
+                    estimated_gas_limit = int(self.simulate_tx(tx) * 1.1)
+
+                    tx = self.generate_tx(
+                        [msg],
+                        [sender_crypto.get_address()],
+                        [sender_crypto.get_pubkey_as_bytes()],
+                        gas_limit=estimated_gas_limit,
+                    )
+
+                    self.sign_tx(tx, sender_crypto)
+
                 res = self.broadcast_tx(tx)
                 if res is not None:
                     break
@@ -928,6 +943,40 @@ class CosmosLedger(AbstractLedger):
 
         # Wait for transaction to settle
         return self._make_tx_request(txhash=broad_tx_resp.tx_response.txhash)
+
+    def simulate_tx(self, tx: Tx, retries: Optional[int] = None) -> GetTxResponse:
+        """
+        Broadcast transaction and get receipt
+
+        :param tx: Transaction
+
+        :raises BroadcastException: if broadcasting fails.
+
+        :return: GetTxResponse
+        """
+
+        broad_tx_req = SimulateRequest(tx=tx)
+
+        if retries is None:
+            retries = self.n_total_msg_retries
+
+        last_exception = None
+        broad_tx_resp = None
+        for _ in range(retries):
+            try:
+                broad_tx_resp = self.tx_client.Simulate(broad_tx_req)
+                break
+            except Exception as e:  # pylint: disable=W0703
+                last_exception = e
+                _logger.warning(f"Transaction broadcasting failed: {e}")
+                self._sleep(self.msg_retry_interval)
+
+        if broad_tx_resp is None:
+            raise BroadcastException(
+                f"Broadcasting tx failed after multiple attempts: {last_exception}"
+            )
+
+        return broad_tx_resp.gas_info.gas_used
 
     def _make_tx_request(self, txhash):
         tx_request = GetTxRequest(hash=txhash)

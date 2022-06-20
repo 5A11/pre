@@ -616,6 +616,7 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
             amount=[stake_amount.to_pb()],
         )
         self._exception_from_res(error_code, res)
+        return res
 
     def get_available_proxies(self) -> List[ProxyAvailability]:
         """

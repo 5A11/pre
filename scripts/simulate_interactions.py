@@ -4,16 +4,6 @@ from pre.common import Coin, Delegation
 from pre.contract.cosmos_contracts import AdminContract, DelegatorContract, ProxyContract
 from pre.ledger.cosmos.ledger import CosmosLedger
 
-contract_filename = "../contract/cw_proxy_reencryption.wasm"
-
-"""cosmos_endpoint = CosmosLedger(
-    chain_id="test",
-    prefix="fetch",
-    node_address="localhost:9090",
-    denom="atestfet",
-    validator_pk="bbaef7511f275dc15f47436d14d6d3c92d4d01befea073d23d0c2750a46f6cb3",
-)"""
-
 cosmos_endpoint = CosmosLedger(
     chain_id="dorado-1",
     prefix="fetch",
@@ -23,9 +13,6 @@ cosmos_endpoint = CosmosLedger(
     secure_channel=True
 
 )
-
-# For dorado use this instead of local_net one:
-# cosmos_endpoint = CosmosEndpoint(NodeConfigPreset.dorado)
 
 admin_crypto = cosmos_endpoint.load_crypto_from_file("../test_data/keys/admin_ledger.key")
 proxy1_crypto = cosmos_endpoint.load_crypto_from_file("../test_data/keys/proxy_1_ledger.key")
@@ -48,10 +35,6 @@ cosmos_endpoint.ensure_funds(
         delegator_crypto.get_address(),
     ]
 )
-
-# code_id, res = cosmos_endpoint.deploy_contract(admin_crypto, contract_filename)
-
-# print(code_id)
 
 contract_address = AdminContract.instantiate_contract(
     ledger=cosmos_endpoint,

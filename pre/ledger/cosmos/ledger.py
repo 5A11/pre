@@ -37,6 +37,7 @@ from cosmpy.protos.cosmos.tx.v1beta1.service_pb2 import (
     GetTxRequest,
     GetTxResponse,
     SimulateRequest,
+    SimulateResponse,
 )
 from cosmpy.protos.cosmos.tx.v1beta1.service_pb2_grpc import ServiceStub as TxGrpcClient
 from cosmpy.protos.cosmos.tx.v1beta1.tx_pb2 import (
@@ -327,7 +328,7 @@ class CosmosLedger(AbstractLedger):
         code_id: int,
         init_msg: JSONLike,
         label: str,
-        gas_limit: int = DEFAULT_CONTRACT_TX_GAS,
+        gas_limit: Union[int, str] = "auto",
     ) -> Tuple[str, JSONLike]:
         """
         Send init contract message
@@ -340,26 +341,45 @@ class CosmosLedger(AbstractLedger):
 
         :return: Contract address string, transaction response
         """
+
+        msg = self.get_packed_init_msg(
+            sender_address=sender_crypto.get_address(),
+            code_id=code_id,
+            init_msg=init_msg,
+            label=label,
+        )
+
         elapsed_time = 0
         res: Optional[GetTxResponse] = None
         contract_address: Optional[str] = None
         last_exception: Optional[Exception] = None
         while contract_address is None and elapsed_time < self.n_total_msg_retries:
             try:
-                msg = self.get_packed_init_msg(
-                    sender_address=sender_crypto.get_address(),
-                    code_id=code_id,
-                    init_msg=init_msg,
-                    label=label,
-                )
-
                 tx = self.generate_tx(
                     [msg],
                     [sender_crypto.get_address()],
                     [sender_crypto.get_pubkey_as_bytes()],
-                    gas_limit=gas_limit,
+                    gas_limit=DEFAULT_TX_MAXIMUM_GAS_LIMIT,
                 )
                 self.sign_tx(tx, sender_crypto)
+
+                if gas_limit == "auto":
+                    estimated_gas_limit = DEFAULT_CONTRACT_TX_GAS
+                    try:
+                        estimated_gas_limit = int(
+                            self.simulate_tx(tx).gas_info.gas_used * 1.1
+                        )
+                    except Exception as e:
+                        _logger.warning(f"Failed to simulate tx: {e}")
+
+                    tx = self.generate_tx(
+                        [msg],
+                        [sender_crypto.get_address()],
+                        [sender_crypto.get_pubkey_as_bytes()],
+                        gas_limit=estimated_gas_limit,
+                    )
+
+                    self.sign_tx(tx, sender_crypto)
 
                 res = self.broadcast_tx(tx)
 
@@ -485,7 +505,13 @@ class CosmosLedger(AbstractLedger):
                 self.sign_tx(tx, sender_crypto)
 
                 if gas_limit == "auto":
-                    estimated_gas_limit = int(self.simulate_tx(tx) * 1.1)
+                    estimated_gas_limit = DEFAULT_CONTRACT_TX_GAS
+                    try:
+                        estimated_gas_limit = int(
+                            self.simulate_tx(tx).gas_info.gas_used * 1.1
+                        )
+                    except Exception as e:
+                        _logger.warning(f"Failed to simulate tx: {e}")
 
                     tx = self.generate_tx(
                         [msg],
@@ -944,39 +970,22 @@ class CosmosLedger(AbstractLedger):
         # Wait for transaction to settle
         return self._make_tx_request(txhash=broad_tx_resp.tx_response.txhash)
 
-    def simulate_tx(self, tx: Tx, retries: Optional[int] = None) -> GetTxResponse:
+    def simulate_tx(self, tx: Tx) -> SimulateResponse:
         """
-        Broadcast transaction and get receipt
+        Simulate transaction and get estimated tx_limit
 
         :param tx: Transaction
+        :param retries: Number of attempts
 
-        :raises BroadcastException: if broadcasting fails.
+        :raises BroadcastException: if simulate fails.
 
-        :return: GetTxResponse
+        :return: int estimated gas limit
         """
 
-        broad_tx_req = SimulateRequest(tx=tx)
+        simulate_req = SimulateRequest(tx=tx)
+        simulate_resp = self.tx_client.Simulate(simulate_req)
 
-        if retries is None:
-            retries = self.n_total_msg_retries
-
-        last_exception = None
-        broad_tx_resp = None
-        for _ in range(retries):
-            try:
-                broad_tx_resp = self.tx_client.Simulate(broad_tx_req)
-                break
-            except Exception as e:  # pylint: disable=W0703
-                last_exception = e
-                _logger.warning(f"Transaction broadcasting failed: {e}")
-                self._sleep(self.msg_retry_interval)
-
-        if broad_tx_resp is None:
-            raise BroadcastException(
-                f"Broadcasting tx failed after multiple attempts: {last_exception}"
-            )
-
-        return broad_tx_resp.gas_info.gas_used
+        return simulate_resp
 
     def _make_tx_request(self, txhash):
         tx_request = GetTxRequest(hash=txhash)

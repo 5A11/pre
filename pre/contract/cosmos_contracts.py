@@ -533,7 +533,6 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
             delegator_private_key, self.contract_address, submit_msg
         )
         self._exception_from_res(error_code, res)
-        return res
 
     def add_delegations(
         self,
@@ -567,7 +566,6 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
             delegator_private_key, self.contract_address, submit_msg
         )
         self._exception_from_res(error_code, res)
-        return res
 
     def get_delegation_status(
         self,
@@ -616,7 +614,6 @@ class DelegatorContract(AbstractDelegatorContract, ContractExecuteExceptionMixIn
             amount=[stake_amount.to_pb()],
         )
         self._exception_from_res(error_code, res)
-        return res
 
     def get_available_proxies(self) -> List[ProxyAvailability]:
         """
@@ -661,7 +658,6 @@ class ProxyContract(AbstractProxyContract, ContractExecuteExceptionMixIn):
             amount=[stake_amount.to_pb()] if stake_amount is not None else None,
         )
         self._exception_from_res(error_code, res)
-        return res
 
     def proxy_deactivate(
         self,

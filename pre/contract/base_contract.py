@@ -540,3 +540,6 @@ class ContractTerminated(ContractExecutionError):
 
 class ContractNotTerminated(ContractExecutionError):
     """Contract not terminated."""
+
+class WalletInsufficientFunds(ContractExecutionError):
+    """Wallet doesn't have enough funds to execute call on contract."""

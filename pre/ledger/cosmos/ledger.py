@@ -93,6 +93,9 @@ DEFAULT_SEND_TX_GAS = 120000
 DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
 DEFAULT_FUNDS_AMOUNT = 9 * 10 ** 18
 
+# Gas estimates will be increased by this multiplier
+DEFAULT_TX_ESTIMATE_MULTIPLIER = 1.1
+
 
 class BroadcastException(Exception):
     pass
@@ -367,7 +370,8 @@ class CosmosLedger(AbstractLedger):
                     estimated_gas_limit = DEFAULT_CONTRACT_TX_GAS
                     try:
                         estimated_gas_limit = int(
-                            self.simulate_tx(tx).gas_info.gas_used * 1.1
+                            self.simulate_tx(tx).gas_info.gas_used
+                            * DEFAULT_TX_ESTIMATE_MULTIPLIER
                         )
                     except Exception as e:
                         _logger.warning(f"Failed to simulate tx: {e}")
@@ -508,7 +512,8 @@ class CosmosLedger(AbstractLedger):
                     estimated_gas_limit = DEFAULT_CONTRACT_TX_GAS
                     try:
                         estimated_gas_limit = int(
-                            self.simulate_tx(tx).gas_info.gas_used * 1.1
+                            self.simulate_tx(tx).gas_info.gas_used
+                            * DEFAULT_TX_ESTIMATE_MULTIPLIER
                         )
                     except Exception as e:
                         _logger.warning(f"Failed to simulate tx: {e}")

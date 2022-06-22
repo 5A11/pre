@@ -3,6 +3,6 @@ cryptography
 ipfshttpclient
 click
 pyyaml
-cosmpy==v0.4.1
+cosmpy==v0.3.1
 requests
 prometheus-client

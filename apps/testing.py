@@ -1,16 +1,16 @@
 import argparse
 import json
 import multiprocessing
-import random
-import string
 import sys
 import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, IO, Optional, Tuple, Union
-
-import requests
 import yaml
+import requests
+import random
+import string
+
+from pathlib import Path
+from dataclasses import dataclass
+from typing import Any, IO, Optional, Tuple, Union
 
 from pre.api.delegatee import DelegateeAPI
 from pre.api.delegator import DelegatorAPI

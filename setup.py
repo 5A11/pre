@@ -23,7 +23,6 @@ setuptools.setup(
     ],
     python_requires=">=3.6",
     install_requires=[
-        "protobuf==3.20.1",
         "cosmpy==v0.3.1",
         "requests",
         "click",

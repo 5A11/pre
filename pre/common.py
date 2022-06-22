@@ -88,7 +88,7 @@ class Coin:
 class Delegation:
     """Delegation dataclass."""
 
-    proxy_pub_key: bytes
+    proxy_address: str
     delegation_string: bytes
 
 
@@ -210,6 +210,7 @@ class ProxyStatus:
 class ProxyAvailability:
     """Proxy availability data class."""
 
+    proxy_addr: str
     proxy_pubkey: bytes
     stake_amount: str
 

@@ -164,6 +164,7 @@ class UmbralCrypto(AbstractCrypto):
         threshold: int,
         delegatee_pubkey_bytes: bytes,
         proxies_pubkeys_bytes: List[bytes],
+        proxies_addresses: List[str],
         delegator_private_key: PrivateKey,
     ) -> List[Delegation]:
         """
@@ -172,6 +173,7 @@ class UmbralCrypto(AbstractCrypto):
         :param threshold: int
         :param delegatee_pubkey_bytes: reader public key in bytes
         :param proxies_pubkeys_bytes: List[bytes], list of proxies public keys in bytes
+        :param proxies_addresses: List[str], list of proxies addresses
         :param delegator_private_key:delegator encryption private key
 
         :return: List of Delegation
@@ -203,7 +205,7 @@ class UmbralCrypto(AbstractCrypto):
             encrypted_frag = encrypt(proxy_public_key, bytes(kfrag))
             delegations.append(
                 Delegation(
-                    proxy_pub_key=proxies_pubkeys_bytes[i],
+                    proxy_address=proxies_addresses[i],
                     delegation_string=bytes(
                         UmbralDelegation(_Delegation(*encrypted_frag))
                     ),

@@ -34,14 +34,14 @@ class ProxyAPI:
         return bytes(self._encryption_private_key.public_key)
 
     def registered(self) -> bool:
-        status = self._contract.get_proxy_status(self._pub_key_as_bytes())
+        status = self._contract.get_proxy_status(self._ledger_crypto.get_address())
         return (
             status.proxy_state == ProxyState.registered if status is not None else False
         )
 
     def register(self) -> Optional[Coin]:
         """Register a proxy on the specific contract."""
-        status = self._contract.get_proxy_status(self._pub_key_as_bytes())
+        status = self._contract.get_proxy_status(self._ledger_crypto.get_address())
         state = status.proxy_state if status is not None else ProxyState.authorised
         if state == ProxyState.registered:
             return None
@@ -92,7 +92,7 @@ class ProxyAPI:
 
         :return: List of ProxyTask
         """
-        return self._contract.get_proxy_tasks(self._pub_key_as_bytes())
+        return self._contract.get_proxy_tasks(self._ledger_crypto.get_address())
 
     def skip_task(self, task: ProxyTask):
         """Skip task for processing"""
@@ -132,4 +132,4 @@ class ProxyAPI:
         Get proxy status.
         :return: None or ProxyStatus instance
         """
-        return self._contract.get_proxy_status(self._pub_key_as_bytes())
+        return self._contract.get_proxy_status(self._ledger_crypto.get_address())

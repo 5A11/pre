@@ -70,6 +70,13 @@ class ProxyMetrics:
             labelnames=[PROM_INSTANCE_LABEL],
         )
 
+        self._balance = Gauge(
+            "proxy_balance",
+            "Tracks proxy wallet balance",
+            namespace=PROM_NAMESPACE,
+            labelnames=[PROM_INSTANCE_LABEL],
+        )
+
     @property
     def time_query_tasks(self):
         if self._disable:
@@ -111,3 +118,8 @@ class ProxyMetrics:
         if self._disable:
             return
         self._tasks_pending.labels(self.label).set(count)
+
+    def report_balance(self, balance: int):
+        if self._disable:
+            return
+        self._balance.labels(self.label).set(balance)

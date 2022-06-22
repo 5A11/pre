@@ -7,7 +7,11 @@ from prometheus_client import start_http_server
 from apps.conf import AppConf
 from apps.metrics import ProxyMetrics
 from pre.api.proxy import ProxyAPI
-from pre.contract.base_contract import ContractExecutionError, ContractQueryError
+from pre.contract.base_contract import (
+    ContractExecutionError,
+    ContractQueryError,
+    WalletInsufficientFunds,
+)
 from pre.contract.cosmos_contracts import encode_bytes
 from pre.crypto.base_crypto import DecryptionError
 
@@ -112,6 +116,7 @@ def process_tasks(
     metrics: ProxyMetrics,
     auto_withdrawal: bool,
     run_once_and_exit: bool,
+    do_fund: bool,
 ):
     logged = False
     while True:
@@ -131,6 +136,8 @@ def process_tasks(
             metrics.report_contract_query_failure()
             task = None
 
+        addr = proxy_api._ledger_crypto.get_address()
+
         # process next task, if any
         task_processing_failed = False
         if task is not None:
@@ -141,13 +148,23 @@ def process_tasks(
                     proxy_api.process_reencryption_request(task)
                 click.echo(f"Reencryption task processed: {task}")
                 metrics.report_task_succeeded()
-            except (DecryptionError, ContractExecutionError) as e:
+            except (
+                DecryptionError,
+                WalletInsufficientFunds,
+                ContractExecutionError,
+            ) as e:
                 click.echo(
                     f"Error: failed to process reencryption request {task.hash_id} : {str(e)}"
                 )
                 if isinstance(e, DecryptionError):
                     metrics.report_umbral_reencryption_failure()
                     task_processing_failed = True
+                elif isinstance(e, WalletInsufficientFunds):
+                    metrics.report_balance(0)  # to trigger alert on grafana board
+                    if do_fund:
+                        click.echo(f"funding wallet...")
+                        proxy_api._contract.ledger.ensure_funds([addr])
+                    metrics.report_balance(proxy_api._contract.ledger.get_balance(addr))
                 elif isinstance(e, ContractExecutionError):
                     metrics.report_contract_execution_failure()
                 metrics.report_task_failed()
@@ -161,10 +178,20 @@ def process_tasks(
                 if status is not None and int(status.withdrawable_stake_amount) > 0:
                     proxy_api.withdraw_stake()
                     click.echo("Stake withdrawn.")
-            except (ContractQueryError, ContractExecutionError) as e:
+            except (
+                ContractQueryError,
+                WalletInsufficientFunds,
+                ContractExecutionError,
+            ) as e:
                 click.echo(f"Error: failed to withdraw stake: {str(e)}")
                 if isinstance(e, ContractQueryError):
                     metrics.report_contract_query_failure()
+                elif isinstance(e, WalletInsufficientFunds):
+                    metrics.report_balance(0)  # to trigger alert on grafana board
+                    if do_fund:
+                        click.echo(f"funding wallet...")
+                        proxy_api._contract.ledger.ensure_funds([addr])
+                    metrics.report_balance(proxy_api._contract.ledger.get_balance(addr))
                 elif isinstance(e, ContractExecutionError):
                     metrics.report_contract_execution_failure()
 
@@ -175,6 +202,8 @@ def process_tasks(
             except ContractExecutionError as e:
                 click.echo(f"Error: failed to skip task {task}, {e}")
                 metrics.report_contract_execution_failure()
+
+        metrics.report_balance(proxy_api._contract.ledger.get_balance(addr))
 
         if run_once_and_exit:  # pragma: nocover
             break
@@ -239,6 +268,7 @@ def run(
 
     if app_config.fund_if_needed():
         click.echo(f"{address} was funded")
+    metrics.report_balance(proxy_api._contract.ledger.get_balance(address))
 
     try:
         if not proxy_api.registered():
@@ -256,7 +286,9 @@ def run(
         raise
 
     try:
-        process_tasks(proxy_api, metrics, auto_withdrawal, run_once_and_exit)
+        process_tasks(
+            proxy_api, metrics, auto_withdrawal, run_once_and_exit, app_config.do_fund
+        )
     finally:
         try:
             click.echo(

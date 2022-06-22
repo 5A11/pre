@@ -1,6 +1,8 @@
 import argparse
 import json
 import multiprocessing
+import random
+import string
 import sys
 import time
 from dataclasses import dataclass
@@ -27,9 +29,9 @@ DEFAULT_KEY_PREFIX = "testing"
 DEFAULT_DELEGATORS_COUNT = 1
 
 DEFAULT_FAUCET_URL = "https://faucet-dorado.fetch.ai"
-DEFAULT_DATA = b"some data to store and share safely"
 MAX_REENCRYPTION_WAIT_TIME = 10 * 60  # 10 mins
 MINIMUM_FUNDS_AMOUNT = DEFAULT_FUNDS_AMOUNT / 10
+DEFAULT_DATA_SIZE = 1000
 
 _key_counter = multiprocessing.Value("i", 0)
 
@@ -42,6 +44,7 @@ class TestingConfig:
     owners_count: int
     proc_count: int
     scenario_default: int
+    keys_path_config: Tuple[str, str]
 
     def check_availability(self):
         self.ledger.check_availability()
@@ -69,6 +72,7 @@ class TestingConfig:
             args.owners_count,
             args.proc_count,
             args.scenario_default if args.scenario_default is not None else 0,
+            (args.keys_folder, args.key_file_prefix),
         )
 
 
@@ -124,10 +128,12 @@ def parse_commandline() -> Tuple[TestingConfig, Any]:
     return config, args
 
 
-def new_ledger_key(ledger: CosmosLedger, do_fund: bool = True) -> CosmosCrypto:
+def new_ledger_key(
+    ledger: CosmosLedger, keys_path_config: Tuple[str, str], do_fund: bool = True
+) -> CosmosCrypto:
     with _key_counter.get_lock():
         key_file = Path(
-            f"{DEFAULT_KEY_FOLDER}/{DEFAULT_KEY_PREFIX}_{str(_key_counter.value)}"
+            f"{keys_path_config[0]}/{keys_path_config[1]}_{str(_key_counter.value)}"
         )
         _key_counter.value += 1
     if key_file.exists():
@@ -156,12 +162,15 @@ def new_delegator(
     contract_address: FetchAddr,
     ledger: CosmosLedger,
     storage: IpfsStorage,
+    keys_path_config: Tuple[str, str],
     enc_key_maybe: Optional[UmbralPrivateKey] = None,
     ledger_key_maybe: Optional[CosmosCrypto] = None,
 ) -> DelegatorAPI:
     enc_key = enc_key_maybe if enc_key_maybe is not None else new_encryption_key()
     ledger_key = (
-        ledger_key_maybe if ledger_key_maybe is not None else new_ledger_key(ledger)
+        ledger_key_maybe
+        if ledger_key_maybe is not None
+        else new_ledger_key(ledger, keys_path_config)
     )
     contract_api = DelegatorContract(ledger, contract_address)
     return DelegatorAPI(enc_key, ledger_key, contract_api, storage, UmbralCrypto())
@@ -179,7 +188,14 @@ def new_delegatee(
 
 
 def register_data(user: DelegatorAPI, data_maybe: Optional[bytes] = None) -> HashID:
-    data = data_maybe if data_maybe is not None else DEFAULT_DATA
+    data = (
+        data_maybe
+        if data_maybe is not None
+        else "".join(
+            random.choice(string.ascii_uppercase + string.digits)
+            for _ in range(DEFAULT_DATA_SIZE)
+        ).encode()
+    )
     return user.add_data(data)
 
 
@@ -225,7 +241,9 @@ def scenario_default(args):
     config = TestingConfig.from_cli_args(args)
     config.storage.connect()
 
-    delegator = new_delegator(config.contract_address, config.ledger, config.storage)
+    delegator = new_delegator(
+        config.contract_address, config.ledger, config.storage, config.keys_path_config
+    )
 
     for _ in range(config.scenario_default):
         delegatee = new_delegatee(

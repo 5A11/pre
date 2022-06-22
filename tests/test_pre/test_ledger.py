@@ -89,6 +89,30 @@ def test_error_handling():
 
     sleep_mock.assert_called()
 
+    # Simulate TX is called when gas_limit is set to auto
+    with patch.object(ledger, "generate_tx"), patch.object(
+        ledger, "sign_tx"
+    ), patch.object(ledger, "broadcast_tx"), patch.object(
+        ledger, "simulate_tx", side_effect=BroadcastException("oops")
+    ) as simulate_tx_mock, patch.object(
+        ledger, "_sleep"
+    ) as sleep_mock:
+        ledger.send_execute_msg(Mock(), "", {}, gas_limit="auto")
+
+    simulate_tx_mock.assert_called()
+
+    # Simulate TX is not called when gas_limit is to exact number
+    with patch.object(ledger, "generate_tx"), patch.object(
+        ledger, "sign_tx"
+    ), patch.object(ledger, "broadcast_tx"), patch.object(
+        ledger, "simulate_tx", side_effect=BroadcastException("oops")
+    ) as simulate_tx_mock, patch.object(
+        ledger, "_sleep"
+    ) as sleep_mock:
+        ledger.send_execute_msg(Mock(), "", {}, gas_limit=123)
+
+    simulate_tx_mock.assert_not_called()
+
     tx = Mock()
     tx.SerializeToString.return_value = b""
     with patch.object(

@@ -2,20 +2,18 @@
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: ipfs-pre-vs
-  labels:
-    {{- include "pre-relayer.labels" . | nindent 4 }}
+  name: ipfs-pre-vs-{{ .Values.env }}
   namespace: {{ .Values.namespace }}
 spec:
   gateways:
-  - ipfs-pre-gw
+  - ipfs-pre-gw-{{ .Values.env }}
   hosts:
   - {{ .Values.ipfs.dns.host }}
   - {{ .Values.ipfs.dns.extrahost }}
   http:
   - route:
     - destination:
-        host: ipfs-pre-svc
+        host: ipfs-pre-svc-{{ .Values.env }}
         port:
           number: {{ .Values.ipfs.dns.port }}
 {{ end }}

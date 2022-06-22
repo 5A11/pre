@@ -246,6 +246,26 @@
     {
       "type": "object",
       "required": [
+        "remove_data"
+      ],
+      "properties": {
+        "remove_data": {
+          "type": "object",
+          "required": [
+            "data_id"
+          ],
+          "properties": {
+            "data_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "add_delegation"
       ],
       "properties": {

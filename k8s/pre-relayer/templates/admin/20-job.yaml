@@ -40,7 +40,7 @@ spec:
           args:
             - -c
             - >-
-                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 2 --output-file /contract-address/latest.json
+                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 2 --proxy-reward 0.1testfet --output-file /contract-address/latest.json
         - name: contract
           image: {{ .Values.admin.contract }}
           resources:

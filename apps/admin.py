@@ -1,7 +1,8 @@
 import json
 from dataclasses import asdict, dataclass
+from decimal import Decimal
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
 
@@ -10,6 +11,28 @@ from pre.api.admin import AdminAPI
 
 
 PROG_NAME = "admin"
+
+
+class Coin:
+    ATOM_PREFIX = "a"
+    ATOM_FACTOR = 10**18
+
+    def __init__(self, coin: str) -> None:
+        amount, denom = self._parse_coin(coin)
+        if denom[0] != self.ATOM_PREFIX:
+            denom = self.ATOM_PREFIX + denom
+            amount = amount * self.ATOM_FACTOR
+        self.amount = int(amount)
+        self.denom = denom
+
+    def __mul__(self, other_integer: int) -> "Coin":
+        return Coin(f"{self.amount*other_integer}{self.denom}")
+
+    def _parse_coin(self, coin: str) -> Tuple[Decimal, str]:
+        for i, c in enumerate(coin):
+            if str.isalpha(c) and i > 0:
+                return Decimal(coin[0:i]), coin[i:]
+        raise ValueError(f"Couldn't parse coin {coin}")
 
 
 @dataclass
@@ -51,6 +74,7 @@ def cli(ctx, app_config: AppConf):
 @click.option("--threshold", type=int, required=False, default=1)
 @click.option("--proxies", type=str, required=False)
 @click.option("--stake_denom", type=str, required=False, default="atestfet")
+@click.option("--proxy-reward", type=str, required=False, default="100atestfet")
 @click.option(
     "--output-file",
     type=str,
@@ -64,6 +88,7 @@ def instantiate_contract(
     admin_address: Optional[str] = None,
     stake_denom: str = "atestfet",
     proxies: str = "",
+    proxy_reward: str = "100atestfet",
     output_file: Optional[str] = None,
 ):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
@@ -82,11 +107,18 @@ def instantiate_contract(
     for proxy_addr in proxies_list:
         app_config.validate_address(proxy_addr)
 
+    proxy_reward_coin = Coin(proxy_reward)
+    if proxy_reward_coin.denom != stake_denom:
+        raise ValueError(f"Proxy reward should be in {stake_denom}")
+
     kwargs = dict(
         admin_address=admin_address,
         stake_denom=stake_denom,
         threshold=threshold,
         proxies=proxies_list,
+        per_proxy_task_reward_amount=proxy_reward_coin.amount,
+        per_task_slash_stake_amount=proxy_reward_coin.amount,
+        minimum_proxy_stake_amount=proxy_reward_coin.amount * 10,
     )
 
     click.echo("instantiate contract with options:")

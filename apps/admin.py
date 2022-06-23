@@ -81,6 +81,7 @@ def cli(ctx, app_config: AppConf):
     required=False,
     help="Path to file containing deployed contract address",
 )
+@click.option("--proxy-whitelisting", is_flag=True, help="Enable proxy whitelisting")
 @click.pass_context
 def instantiate_contract(
     ctx,
@@ -90,6 +91,7 @@ def instantiate_contract(
     proxies: str = "",
     proxy_reward: str = "100atestfet",
     output_file: Optional[str] = None,
+    proxy_whitelisting: Optional[bool] = False,
 ):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
     ledger = app_config.get_ledger_instance()
@@ -116,6 +118,7 @@ def instantiate_contract(
         stake_denom=stake_denom,
         threshold=threshold,
         proxies=proxies_list,
+        proxy_whitelisting=proxy_whitelisting,
         per_proxy_task_reward_amount=proxy_reward_coin.amount,
         per_task_slash_stake_amount=proxy_reward_coin.amount,
         minimum_proxy_stake_amount=proxy_reward_coin.amount * 10,
@@ -144,7 +147,7 @@ def instantiate_contract(
         Path(output_file).write_text(json.dumps(asdict(contract), indent=4))
 
     click.echo()
-    click.echo(f"Contract was set succesfully. Contract address is {contract_addr}")
+    click.echo(f"Contract was set successfully. Contract address is {contract_addr}")
 
 
 @cli.command("add-proxy")

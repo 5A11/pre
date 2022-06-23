@@ -36,6 +36,7 @@ services:
         --ledger-private-key /test_data/keys/admin_ledger.key
         instantiate-contract
           --threshold 2 
+          --proxy-whitelisting
           --proxies fetch1vz7c7h54ve0fcu6gv242xnz0nkegeaszvzs27c,fetch1njgnp7lvhzpgtx7rzt60qu4r2sg8dj0h4ln0y2,fetch10r8j0yf8emj78m3f0j7dddkrmfxpaegkxxan5c
           --proxy-reward 200atestfet
     networks:

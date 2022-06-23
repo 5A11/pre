@@ -166,7 +166,7 @@ class TestApps(TestCase):
         )
         assert result.exit_code == 0
         last_line = result.output.splitlines()[-1]
-        assert re.match("Contract was set succesfully. Contract address is ", last_line)
+        assert re.match("Contract was set successfully. Contract address is ", last_line)
         contract_address = last_line.rstrip().split(" ")[-1]
 
         self.global_config["contract_address"] = contract_address

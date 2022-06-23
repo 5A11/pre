@@ -61,7 +61,7 @@ instantiate contract with options:
  * threshold: 1
  * proxies: []
 
-Contract was set succesfully. Contract address is fetch18vd8fpwxzck93qlwghaj6arh4p7c5n890l3amr
+Contract was set successfully. Contract address is fetch18vd8fpwxzck93qlwghaj6arh4p7c5n890l3amr
 
 
 > ./apps/admin.py add-proxy --ledger-config /tmp/tmpplikfwmn/ledger_config.yaml --ledger-private-key /tmp/tmpplikfwmn/admin_ledger.key --contract-address fetch18vd8fpwxzck93qlwghaj6arh4p7c5n890l3amr fetch1rpwq4hfggqqfffj6yalkwhxdt5609p6ehvpr8j

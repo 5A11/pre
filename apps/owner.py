@@ -44,7 +44,9 @@ def add_data(
     )
 
     if app_config.fund_if_needed():
-        click.echo(f"{app_config.get_ledger_crypto()} was funded")
+        click.echo(
+            f"{app_config.get_ledger_crypto()} was funded with default gas fees funds"
+        )
 
     data = data_file.read_bytes()
     hash_id = delegator_api.add_data(data)
@@ -56,7 +58,12 @@ def add_data(
 @click.argument("reader-public-key", type=str, required=True)
 @click.option("--n-max-proxies", type=int, required=False, default=10)
 @click.pass_context
-def grant_access(ctx, hash_id: str, reader_public_key: str, n_max_proxies: int):
+def grant_access(
+    ctx,
+    hash_id: str,
+    reader_public_key: str,
+    n_max_proxies: int,
+):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
     delegator_api = DelegatorAPI(
         encryption_private_key=app_config.get_crypto_key(),
@@ -68,6 +75,11 @@ def grant_access(ctx, hash_id: str, reader_public_key: str, n_max_proxies: int):
     # click.echo(f"owner public key: {bytes(delegator_api._encryption_private_key.public_key).hex()}")
 
     delegatee_pubkey_bytes = bytes.fromhex(reader_public_key)
+
+    if app_config.fund_if_needed(staking=True):
+        click.echo(
+            f"{app_config.get_ledger_crypto()} was funded with default gas fees and stake funds"
+        )
 
     delegator_api.grant_access(
         hash_id=hash_id,

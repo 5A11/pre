@@ -96,11 +96,13 @@ class AbstractLedger:
         """
 
     @abstractmethod
-    def get_balance(self, address: Address) -> int:
+    def get_balance(self, address: Address, denom: Optional[str] = None) -> int:
         """
         Get balance for address.
 
         :param address: str, address
+        :param denom: str, denom
+
         :return: current balance
         """
 
@@ -123,12 +125,23 @@ class AbstractLedger:
         """
 
     @abstractmethod
-    def ensure_funds(self, addresses: List[str], amount: Optional[int] = None):
+    def ensure_funds(
+        self,
+        addresses: List[str],
+        amount: Optional[int] = None,
+        denom: Optional[str] = None,
+        faucet_url: Optional[str] = None,
+        validator_crypto: Optional[AbstractLedgerCrypto] = None,
+    ):
         """
         Refill funds of addresses using faucet or validator
 
         :param addresses: Address to be refilled
         :param amount: Amount of refill
+        :param denom: Denomination to refill
+        :param faucet_url: Faucet URL for refill
+        :param validator_crypto: Private key of validator for refill
+
 
         :return: Nothing
         """

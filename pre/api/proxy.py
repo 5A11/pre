@@ -130,6 +130,7 @@ class ProxyAPI:
     ) -> Optional[ProxyStatus]:
         """
         Get proxy status.
+
         :return: None or ProxyStatus instance
         """
         return self._contract.get_proxy_status(self._ledger_crypto.get_address())

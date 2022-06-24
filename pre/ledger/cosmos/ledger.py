@@ -172,7 +172,7 @@ class CosmosLedger(AbstractLedger):
         faucet_retry_interval: int = 20,
         n_total_msg_retries: int = 10,  # 10,
         get_response_retry_interval: float = 0.5,  # 2,
-        n_get_response_retries: int = 30,  # 30,
+        n_get_response_retries: int = 80,  # 30,
         minimum_gas_price_amount: int = DEFAULT_MINIMUM_GAS_PRICE_AMOUNT,
     ):
         """

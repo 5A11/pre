@@ -94,10 +94,14 @@ DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
 DEFAULT_FUNDS_AMOUNT = 9 * 10 ** 18
 
 # Gas estimates will be increased by this multiplier
-DEFAULT_TX_ESTIMATE_MULTIPLIER = 1.1
+DEFAULT_TX_ESTIMATE_MULTIPLIER = 1.2
 
 
 class BroadcastException(Exception):
+    pass
+
+
+class FailedToGetReceiptException(Exception):
     pass
 
 
@@ -1008,7 +1012,7 @@ class CosmosLedger(AbstractLedger):
                 self._sleep(self.get_response_retry_interval)
 
         if tx_response is None:
-            raise BroadcastException(
+            raise FailedToGetReceiptException(
                 f"Getting tx response failed after multiple attempts: {last_exception}"
             ) from last_exception
 

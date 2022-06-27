@@ -8,7 +8,8 @@ from pre.ledger.base_ledger import LedgerServerNotAvailable
 from pre.ledger.cosmos.ledger import (
     BroadcastException,
     CosmosLedger,
-    CosmosLedgerConfig, FailedToGetReceiptException,
+    CosmosLedgerConfig,
+    FailedToGetReceiptException,
 )
 
 
@@ -263,6 +264,3 @@ def test_check_availability():
     ):
         with pytest.raises(LedgerServerNotAvailable, match="Bad chain id"):
             ledger.check_availability()
-
-
-test_error_handling()

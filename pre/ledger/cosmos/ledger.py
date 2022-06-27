@@ -104,6 +104,10 @@ class BroadcastException(Exception):
 class FailedToGetReceiptException(Exception):
     txhash: str
 
+    def __init__(self, message, txhash):
+        super().__init__(message)
+        self.txhash = txhash
+
 
 class CosmosLedgerConfig(AbstractConfig):
     DEFAULT_FETCH_CHAIN_ID = "dorado-1"

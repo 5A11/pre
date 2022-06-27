@@ -138,7 +138,7 @@ def test_error_handling():
     ), patch.object(ledger, "_sleep") as sleep_mock:
         with pytest.raises(
             FailedToGetReceiptException,
-            match="Getting tx response failed after multiple attempts",
+            match="Getting tx  response failed after multiple attempts",
         ):
             ledger.make_tx_request("")
 
@@ -264,3 +264,6 @@ def test_check_availability():
     ):
         with pytest.raises(LedgerServerNotAvailable, match="Bad chain id"):
             ledger.check_availability()
+
+
+test_error_handling()

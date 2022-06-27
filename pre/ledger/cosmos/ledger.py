@@ -1033,7 +1033,7 @@ class CosmosLedger(AbstractLedger):
 
         if tx_response is None:
             raise FailedToGetReceiptException(
-                f"Getting tx response failed after multiple attempts: {last_exception}",
+                f"Getting tx {txhash} response failed after multiple attempts: {last_exception}",
                 txhash=txhash,
             ) from last_exception
 

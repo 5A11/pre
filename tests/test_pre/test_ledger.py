@@ -140,7 +140,7 @@ def test_error_handling():
             FailedToGetReceiptException,
             match="Getting tx response failed after multiple attempts",
         ):
-            ledger._make_tx_request("")
+            ledger.make_tx_request("")
 
     sleep_mock.assert_called()
 

@@ -102,7 +102,7 @@ class BroadcastException(Exception):
 
 
 class FailedToGetReceiptException(Exception):
-    pass
+    txhash: str
 
 
 class CosmosLedgerConfig(AbstractConfig):
@@ -977,7 +977,27 @@ class CosmosLedger(AbstractLedger):
             raise BroadcastException(f"Transaction cannot be broadcast: {raw_log}")
 
         # Wait for transaction to settle
-        return self._make_tx_request(txhash=broad_tx_resp.tx_response.txhash)
+        return self.make_tx_request(txhash=broad_tx_resp.tx_response.txhash)
+
+    def is_tx_settled(self, txhash: str) -> bool:
+        """
+        Get tx receipt and check error code
+
+        :param txhash: Transaction hash
+
+        :return: true if transaction was successful
+        """
+
+        res = None
+        try:
+            res = self.make_tx_request(txhash)
+        except FailedToGetReceiptException:
+            return False
+
+        if res is not None:
+            return True
+
+        return False
 
     def simulate_tx(self, tx: Tx) -> SimulateResponse:
         """
@@ -996,7 +1016,7 @@ class CosmosLedger(AbstractLedger):
 
         return simulate_resp
 
-    def _make_tx_request(self, txhash):
+    def make_tx_request(self, txhash):
         tx_request = GetTxRequest(hash=txhash)
         last_exception = None
         tx_response = None
@@ -1013,7 +1033,8 @@ class CosmosLedger(AbstractLedger):
 
         if tx_response is None:
             raise FailedToGetReceiptException(
-                f"Getting tx response failed after multiple attempts: {last_exception}"
+                f"Getting tx response failed after multiple attempts: {last_exception}",
+                txhash=txhash,
             ) from last_exception
 
         return tx_response

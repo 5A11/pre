@@ -9,7 +9,6 @@ from pre.ledger.cosmos.ledger import (
     BroadcastException,
     CosmosLedger,
     CosmosLedgerConfig,
-    FailedToGetReceiptException,
 )
 
 
@@ -137,10 +136,10 @@ def test_error_handling():
         ledger.tx_client, "GetTx", side_effect=BroadcastException("oops")
     ), patch.object(ledger, "_sleep") as sleep_mock:
         with pytest.raises(
-            FailedToGetReceiptException,
-            match="Getting tx  response failed after multiple attempts",
+            BroadcastException,
+            match="Getting tx response failed after multiple attempts",
         ):
-            ledger.make_tx_request("")
+            ledger._make_tx_request("")
 
     sleep_mock.assert_called()
 
@@ -264,6 +263,3 @@ def test_check_availability():
     ):
         with pytest.raises(LedgerServerNotAvailable, match="Bad chain id"):
             ledger.check_availability()
-
-
-test_error_handling()

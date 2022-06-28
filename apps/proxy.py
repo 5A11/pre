@@ -162,7 +162,7 @@ def process_tasks(
                 elif isinstance(e, WalletInsufficientFunds):
                     metrics.report_balance(0)  # to trigger alert on grafana board
                     if do_fund:
-                        click.echo("funding wallet...")
+                        click.echo(f"funding wallet...")
                         proxy_api._contract.ledger.ensure_funds([addr])
                     metrics.report_balance(proxy_api._contract.ledger.get_balance(addr))
                 elif isinstance(e, ContractExecutionError):
@@ -189,7 +189,7 @@ def process_tasks(
                 elif isinstance(e, WalletInsufficientFunds):
                     metrics.report_balance(0)  # to trigger alert on grafana board
                     if do_fund:
-                        click.echo("funding wallet...")
+                        click.echo(f"funding wallet...")
                         proxy_api._contract.ledger.ensure_funds([addr])
                     metrics.report_balance(proxy_api._contract.ledger.get_balance(addr))
                 elif isinstance(e, ContractExecutionError):

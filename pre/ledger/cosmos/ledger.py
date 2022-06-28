@@ -94,19 +94,11 @@ DEFAULT_MINIMUM_GAS_PRICE_AMOUNT = 500000000000
 DEFAULT_FUNDS_AMOUNT = 9 * 10 ** 18
 
 # Gas estimates will be increased by this multiplier
-DEFAULT_TX_ESTIMATE_MULTIPLIER = 1.2
+DEFAULT_TX_ESTIMATE_MULTIPLIER = 1.1
 
 
 class BroadcastException(Exception):
     pass
-
-
-class FailedToGetReceiptException(Exception):
-    txhash: str
-
-    def __init__(self, message, txhash):
-        super().__init__(message)
-        self.txhash = txhash
 
 
 class CosmosLedgerConfig(AbstractConfig):
@@ -175,8 +167,8 @@ class CosmosLedger(AbstractLedger):
         msg_failed_retry_interval: int = 10,
         faucet_retry_interval: int = 20,
         n_total_msg_retries: int = 10,  # 10,
-        get_response_retry_interval: float = 1,  # 2,
-        n_get_response_retries: int = 90,  # 30,
+        get_response_retry_interval: float = 0.5,  # 2,
+        n_get_response_retries: int = 30,  # 30,
         minimum_gas_price_amount: int = DEFAULT_MINIMUM_GAS_PRICE_AMOUNT,
     ):
         """
@@ -981,27 +973,7 @@ class CosmosLedger(AbstractLedger):
             raise BroadcastException(f"Transaction cannot be broadcast: {raw_log}")
 
         # Wait for transaction to settle
-        return self.make_tx_request(txhash=broad_tx_resp.tx_response.txhash)
-
-    def is_tx_settled(self, txhash: str) -> bool:
-        """
-        Get tx receipt and check error code
-
-        :param txhash: Transaction hash
-
-        :return: true if transaction was successful
-        """
-
-        res = None
-        try:
-            res = self.make_tx_request(txhash)
-        except FailedToGetReceiptException:
-            return False
-
-        if res is not None:
-            return True
-
-        return False
+        return self._make_tx_request(txhash=broad_tx_resp.tx_response.txhash)
 
     def simulate_tx(self, tx: Tx) -> SimulateResponse:
         """
@@ -1020,7 +992,7 @@ class CosmosLedger(AbstractLedger):
 
         return simulate_resp
 
-    def make_tx_request(self, txhash):
+    def _make_tx_request(self, txhash):
         tx_request = GetTxRequest(hash=txhash)
         last_exception = None
         tx_response = None
@@ -1036,9 +1008,8 @@ class CosmosLedger(AbstractLedger):
                 self._sleep(self.get_response_retry_interval)
 
         if tx_response is None:
-            raise FailedToGetReceiptException(
-                f"Getting tx {txhash} response failed after multiple attempts: {last_exception}",
-                txhash=txhash,
+            raise BroadcastException(
+                f"Getting tx response failed after multiple attempts: {last_exception}"
             ) from last_exception
 
         return tx_response

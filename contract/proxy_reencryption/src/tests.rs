@@ -5454,23 +5454,23 @@ fn test_timeouts_limit() {
 
     let proxy_delegations: Vec<ProxyDelegationString> = vec![
         ProxyDelegationString {
-            proxy_pubkey: proxy1_pubkey.clone(),
+            proxy_addr: proxy1.clone(),
             delegation_string: delegation_string.clone(),
         },
         ProxyDelegationString {
-            proxy_pubkey: proxy2_pubkey.clone(),
+            proxy_addr: proxy2.clone(),
             delegation_string: delegation_string.clone(),
         },
         ProxyDelegationString {
-            proxy_pubkey: proxy3_pubkey.clone(),
+            proxy_addr: proxy3.clone(),
             delegation_string: delegation_string.clone(),
         },
         ProxyDelegationString {
-            proxy_pubkey: proxy4_pubkey.clone(),
+            proxy_addr: proxy4.clone(),
             delegation_string: delegation_string.clone(),
         },
         ProxyDelegationString {
-            proxy_pubkey: proxy5_pubkey.clone(),
+            proxy_addr: proxy5.clone(),
             delegation_string: delegation_string.clone(),
         },
     ];
@@ -5537,14 +5537,13 @@ fn test_timeouts_limit() {
     )
     .is_ok());
 
-    let p1_tasks =
-        get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    let p1_tasks = get_proxy_tasks(deps.as_mut().storage, &proxy1, &DEFAULT_BLOCK_HEIGHT).unwrap();
     assert_eq!(p1_tasks.len(), 5);
 
     // All tasks will time out at height +100
     let p1_tasks = get_proxy_tasks(
         deps.as_mut().storage,
-        &proxy1_pubkey,
+        &proxy1,
         &(DEFAULT_BLOCK_HEIGHT + 100),
     )
     .unwrap();

@@ -15,7 +15,7 @@ PROG_NAME = "admin"
 
 class Coin:
     ATOM_PREFIX = "a"
-    ATOM_FACTOR = 10**18
+    ATOM_FACTOR = 10 ** 18
 
     def __init__(self, coin: str) -> None:
         amount, denom = self._parse_coin(coin)

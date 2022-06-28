@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryInto;
 
+const N_MAXIMUM_REQUESTS_TO_RESOLVE: u64 = 20;
+
 // Map proxy_task_id: u64 -> task: ProxyTask
 static PROXY_TASKS_STORE_KEY: &[u8] = b"ProxyTasks";
 
@@ -428,7 +430,20 @@ pub fn timeout_proxy_task(
 
     let mut re_task: ProxyTask = store_get_proxy_task(storage, re_task_id).unwrap();
 
+    // Completed or abandoned task
     if re_task.resolved {
+        return Ok(());
+    }
+
+    // Block height is irrelevant here as we are checking only for granted state
+    if get_reencryption_request_state(
+        storage,
+        &store_get_state(storage).unwrap(),
+        &re_task.data_id,
+        &re_task.delegatee_pubkey,
+        &0,
+    ) == ReencryptionRequestState::Granted
+    {
         return Ok(());
     }
 
@@ -467,20 +482,31 @@ pub fn check_and_resolve_all_timedout_tasks(
         return;
     }
 
+    // Limit maximum number of requets to be processed
+    let mut last_proxy_task_id = state.next_proxy_task_id;
+
+    // Subtracting replaced with addition to ensure no subtract underflow
+    if state.next_proxy_task_id - timeouts_config.next_task_id_to_be_checked
+        > N_MAXIMUM_REQUESTS_TO_RESOLVE
+    {
+        last_proxy_task_id =
+            timeouts_config.next_task_id_to_be_checked + N_MAXIMUM_REQUESTS_TO_RESOLVE
+    }
+
     let mut delegator_retrieve_funds_amount: HashMap<Addr, u128> = HashMap::new();
-    for i in timeouts_config.next_task_id_to_be_checked..state.next_proxy_task_id {
+    for i in timeouts_config.next_task_id_to_be_checked..last_proxy_task_id {
         match store_get_proxy_task(storage, &i) {
             // Skip if task was deleted
             None => {}
             Some(proxy_task) => {
-                // We can move pointer when task is already completed
-                if proxy_task.fragment.is_some() {
+                // We can move pointer when task is already resolved in case of abandoned request
+                if proxy_task.resolved {
                     timeouts_config.next_task_id_to_be_checked = i + 1;
                     continue;
                 }
 
-                // If task is Active it will become new next_task_id_to_be_checked
-                if block_height < proxy_task.timeout_height && !proxy_task.resolved {
+                // Stop pointer at last timed-out request
+                if block_height < proxy_task.timeout_height {
                     timeouts_config.next_task_id_to_be_checked = i;
                     break;
                 }

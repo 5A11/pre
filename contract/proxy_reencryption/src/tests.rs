@@ -4370,7 +4370,7 @@ fn test_timeouts() {
         store_get_timeouts_config(deps.as_mut().storage)
             .unwrap()
             .next_task_id_to_be_checked,
-        1
+        0
     );
 
     // Request 2 will timeout at 250+100
@@ -4402,7 +4402,7 @@ fn test_timeouts() {
         store_get_timeouts_config(deps.as_mut().storage)
             .unwrap()
             .next_task_id_to_be_checked,
-        2
+        0
     );
 
     // Height = 250
@@ -5284,4 +5284,363 @@ fn test_remove_proxies_from_delegation() {
         ),
         DelegationState::NonExisting
     );
+}
+
+#[test]
+fn test_timeouts_limit() {
+    let mut deps = mock_dependencies();
+
+    // Addresses
+    let creator = Addr::unchecked("creator".to_string());
+    let proxy1 = Addr::unchecked("proxy_1".to_string());
+    let proxy2 = Addr::unchecked("proxy_2".to_string());
+    let proxy3 = Addr::unchecked("proxy_3".to_string());
+    let proxy4 = Addr::unchecked("proxy_4".to_string());
+    let proxy5 = Addr::unchecked("proxy_5".to_string());
+
+    let delegator1 = Addr::unchecked("delegator1".to_string());
+
+    // Pubkeys
+    let proxy1_pubkey: String = String::from("proxy_pubkey1");
+    let proxy2_pubkey: String = String::from("proxy_pubkey2");
+    let proxy3_pubkey: String = String::from("proxy_pubkey3");
+    let proxy4_pubkey: String = String::from("proxy_pubkey4");
+    let proxy5_pubkey: String = String::from("proxy_pubkey5");
+
+    let data_id1 = String::from("DATA1");
+    let data_id2 = String::from("DATA2");
+    let data_id3 = String::from("DATA3");
+    let data_id4 = String::from("DATA4");
+    let data_id5 = String::from("DATA5");
+    let data_id6 = String::from("DATA6");
+    let data_id7 = String::from("DATA7");
+    let data_id8 = String::from("DATA8");
+
+    let delegation_string = String::from("DELESTRING");
+
+    // Staking
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
+    let minimum_proxy_stake_amount: u128 = 2000;
+    let per_proxy_task_reward_amount: u128 = 40;
+    let per_task_slash_stake_amount: u128 = 98;
+
+    let request_reward = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(per_proxy_task_reward_amount * 5),
+    }];
+
+    let proxy_stake = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(minimum_proxy_stake_amount),
+    }];
+
+    // Timetous
+    let timeout_height: u64 = 100;
+
+    /*************** Initialise *************/
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        DEFAULT_BLOCK_HEIGHT,
+        &Some(2),
+        &None,
+        &None,
+        &stake_denom,
+        &Some(Uint128::new(minimum_proxy_stake_amount)),
+        &Some(Uint128::new(per_proxy_task_reward_amount)),
+        &Some(Uint128::new(per_task_slash_stake_amount)),
+        &Some(timeout_height),
+        &Some(false),
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy1,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy1_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy2,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy2_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy3,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy3_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy4,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy4_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy5,
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy5_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    // Prepare scenario
+    // Proxies 1..5 gets 5 re-encryption tasks each
+
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .is_ok());
+
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id2,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .is_ok());
+
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id3,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .is_ok());
+
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id4,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .is_ok());
+
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id5,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .is_ok());
+
+    let proxy_delegations: Vec<ProxyDelegationString> = vec![
+        ProxyDelegationString {
+            proxy_pubkey: proxy1_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy2_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy3_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy4_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+        ProxyDelegationString {
+            proxy_pubkey: proxy5_pubkey.clone(),
+            delegation_string: delegation_string.clone(),
+        },
+    ];
+
+    // Add delegations
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
+        &proxy_delegations,
+    )
+    .is_ok());
+
+    // request 25 requests in total
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id2,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id3,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id4,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id5,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    let p1_tasks =
+        get_proxy_tasks(deps.as_mut().storage, &proxy1_pubkey, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    assert_eq!(p1_tasks.len(), 5);
+
+    // All tasks will time out at height +100
+    let p1_tasks = get_proxy_tasks(
+        deps.as_mut().storage,
+        &proxy1_pubkey,
+        &(DEFAULT_BLOCK_HEIGHT + 100),
+    )
+    .unwrap();
+    assert_eq!(p1_tasks.len(), 0);
+
+    // Create edge case with last task is skipped during resolving
+    assert!(provide_reencrypted_fragment(
+        deps.as_mut(),
+        &proxy5,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id5,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &FRAGMENT_P1_DR1_DE1.to_string(),
+    )
+    .is_ok());
+
+    // Complete first task
+    assert!(provide_reencrypted_fragment(
+        deps.as_mut(),
+        &proxy1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &FRAGMENT_P1_DR1_DE1.to_string(),
+    )
+    .is_ok());
+
+    assert!(provide_reencrypted_fragment(
+        deps.as_mut(),
+        &proxy2,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &FRAGMENT_P2_DR1_DE1.to_string(),
+    )
+    .is_ok());
+
+    // Only part of tasks gets resolved
+    let res = add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT + 100,
+        &data_id6,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .unwrap();
+
+    // Returning funds from 15 incomplete proxy tasks - 1 request with 5 proxies was completed
+    assert_eq!(
+        res.messages[0],
+        SubMsg::new(BankMsg::Send {
+            to_address: delegator1.to_string(),
+            amount: vec![Coin::new(
+                per_proxy_task_reward_amount * 15,
+                stake_denom.as_str(),
+            )],
+        })
+    );
+
+    let timeouts_config = store_get_timeouts_config(deps.as_mut().storage).unwrap();
+    assert_eq!(timeouts_config.next_task_id_to_be_checked, 20);
+
+    // Rest of tasks gets resolved
+    let res = add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT + 100,
+        &data_id7,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .unwrap();
+
+    // Returning funds from 5 incomplete tasks (1 task was completed out of threshold 2)
+    assert_eq!(
+        res.messages[0],
+        SubMsg::new(BankMsg::Send {
+            to_address: delegator1.to_string(),
+            amount: vec![Coin::new(
+                per_proxy_task_reward_amount * 5,
+                stake_denom.as_str(),
+            )],
+        })
+    );
+
+    let timeouts_config = store_get_timeouts_config(deps.as_mut().storage).unwrap();
+    assert_eq!(timeouts_config.next_task_id_to_be_checked, 25);
+
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT + 100,
+        &data_id8,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &CAPSULE.to_string(),
+    )
+    .is_ok());
 }

@@ -1,7 +1,7 @@
 from enum import Enum
 from functools import update_wrapper
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, cast
 
 import click
 import yaml

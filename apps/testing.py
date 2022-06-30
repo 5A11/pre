@@ -30,7 +30,7 @@ DEFAULT_DELEGATORS_COUNT = 1
 
 DEFAULT_FAUCET_URL = "https://faucet-dorado.fetch.ai"
 MAX_REENCRYPTION_WAIT_TIME = 10 * 60  # 10 mins
-MINIMUM_FUNDS_AMOUNT = DEFAULT_FUNDS_AMOUNT / 10
+MINIMUM_FUNDS_AMOUNT = DEFAULT_FUNDS_AMOUNT / 3
 DEFAULT_DATA_SIZE = 1000
 
 _key_counter = multiprocessing.Value("i", 0)
@@ -129,7 +129,7 @@ def parse_commandline() -> Tuple[TestingConfig, Any]:
 
 
 def new_ledger_key(
-    ledger: CosmosLedger, keys_path_config: Tuple[str, str], do_fund: bool = True
+    ledger: CosmosLedger, keys_path_config: Tuple[str, str]
 ) -> CosmosCrypto:
     with _key_counter.get_lock():
         key_file = Path(
@@ -143,13 +143,6 @@ def new_ledger_key(
         key = ledger.make_new_crypto()
         key_file.write_text(key.as_str())
         print(f"[D] Saved key {key.get_address()} to {str(key_file)}")
-    if do_fund:
-        addr = key.get_address()
-        if ledger.get_balance(addr) < MINIMUM_FUNDS_AMOUNT:
-            start = time.time()
-            ledger.ensure_funds([addr])
-            end = time.time()
-            print(f"[D] {addr} funded in {end-start}")
     return key
 
 
@@ -165,6 +158,7 @@ def new_delegator(
     keys_path_config: Tuple[str, str],
     enc_key_maybe: Optional[UmbralPrivateKey] = None,
     ledger_key_maybe: Optional[CosmosCrypto] = None,
+    do_fund: bool = True,
 ) -> DelegatorAPI:
     enc_key = enc_key_maybe if enc_key_maybe is not None else new_encryption_key()
     ledger_key = (
@@ -172,7 +166,17 @@ def new_delegator(
         if ledger_key_maybe is not None
         else new_ledger_key(ledger, keys_path_config)
     )
+
+    if do_fund:
+        addr = ledger_key.get_address()
+        if ledger.get_balance(addr) < MINIMUM_FUNDS_AMOUNT:
+            start = time.time()
+            ledger.ensure_funds([addr])
+            end = time.time()
+            print(f"[D] {addr} funded in {end-start}")
+
     contract_api = DelegatorContract(ledger, contract_address)
+
     return DelegatorAPI(enc_key, ledger_key, contract_api, storage, UmbralCrypto())
 
 

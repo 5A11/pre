@@ -68,6 +68,7 @@ from pre.common import (
     get_defaults,
     types_from_annotations,
 )
+from pre.contract.base_contract import WalletInsufficientFunds
 from pre.ledger.base_ledger import AbstractLedger, LedgerServerNotAvailable
 from pre.ledger.cosmos.crypto import CosmosCrypto
 from pre.utils.loggers import get_logger
@@ -95,6 +96,8 @@ DEFAULT_FUNDS_AMOUNT = 9 * 10 ** 18
 
 # Gas estimates will be increased by this multiplier
 DEFAULT_TX_ESTIMATE_MULTIPLIER = 1.2
+# When tx fails due to insufficient gas we increase multiplier by this factor
+INCREASE_TX_ESTIMATE_MULTIPLIER = 1.2
 
 
 class BroadcastException(Exception):
@@ -375,14 +378,9 @@ class CosmosLedger(AbstractLedger):
                 self.sign_tx(tx, sender_crypto)
 
                 if gas_limit == "auto":
-                    estimated_gas_limit = DEFAULT_CONTRACT_TX_GAS
-                    try:
-                        estimated_gas_limit = int(
-                            self.simulate_tx(tx).gas_info.gas_used
-                            * DEFAULT_TX_ESTIMATE_MULTIPLIER
-                        )
-                    except Exception as e:
-                        _logger.warning(f"Failed to simulate tx: {e}")
+                    estimated_gas_limit = int(
+                        self.estimate_tx_gas(tx) * DEFAULT_TX_ESTIMATE_MULTIPLIER
+                    )
 
                     tx = self.generate_tx(
                         [msg],
@@ -505,6 +503,7 @@ class CosmosLedger(AbstractLedger):
             funds=amount,
         )
 
+        tx_estimate_multiplier = DEFAULT_TX_ESTIMATE_MULTIPLIER
         for _ in range(retries):
             try:
                 tx = self.generate_tx(
@@ -517,14 +516,9 @@ class CosmosLedger(AbstractLedger):
                 self.sign_tx(tx, sender_crypto)
 
                 if gas_limit == "auto":
-                    estimated_gas_limit = DEFAULT_CONTRACT_TX_GAS
-                    try:
-                        estimated_gas_limit = int(
-                            self.simulate_tx(tx).gas_info.gas_used
-                            * DEFAULT_TX_ESTIMATE_MULTIPLIER
-                        )
-                    except Exception as e:
-                        _logger.warning(f"Failed to simulate tx: {e}")
+                    estimated_gas_limit = int(
+                        self.estimate_tx_gas(tx) * tx_estimate_multiplier
+                    )
 
                     tx = self.generate_tx(
                         [msg],
@@ -537,6 +531,15 @@ class CosmosLedger(AbstractLedger):
 
                 res = self.broadcast_tx(tx)
                 if res is not None:
+                    if "out of gas" in res.tx_response.raw_log:
+                        _logger.warning(
+                            f"Failed to execute contract code due out of gas: {res.tx_response.raw_log}"
+                        )
+
+                        # Increase gas estimate multiplier for this transaction
+                        tx_estimate_multiplier *= INCREASE_TX_ESTIMATE_MULTIPLIER
+                        self._sleep(self.msg_failed_retry_interval)
+                        continue
                     break
             except BroadcastException as e:
                 # Failure due to wrong sequence, signature, etc.
@@ -1002,6 +1005,26 @@ class CosmosLedger(AbstractLedger):
             return True
 
         return False
+
+    def estimate_tx_gas(self, tx) -> int:
+        """
+        Simulate transaction and get estimated tx_limit
+
+        :param tx: Transaction
+
+        :raises WalletInsufficientFunds: If there is not enough funds
+
+        :return: int estimated gas limit
+        """
+
+        estimated_gas_limit = DEFAULT_CONTRACT_TX_GAS
+        try:
+            estimated_gas_limit = int(self.simulate_tx(tx).gas_info.gas_used)
+        except Exception as e:
+            if "insufficient funds" in str(e):
+                raise WalletInsufficientFunds(str(e)) from e
+            _logger.warning(f"Failed to simulate tx: {e}")
+        return estimated_gas_limit
 
     def simulate_tx(self, tx: Tx) -> SimulateResponse:
         """

@@ -244,4 +244,7 @@ def get_defaults(func: Callable) -> Dict:
     """Get default values for kwargs of the function."""
     varnames = func.__code__.co_varnames
     defaults = func.__defaults__  # type: ignore
+
+    varnames = tuple(x for x in varnames if x != "args" and x != "kwargs")
+
     return dict(zip(varnames[-len(defaults) :], defaults))

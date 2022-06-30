@@ -5537,8 +5537,7 @@ fn test_timeouts_limit() {
     )
     .is_ok());
 
-    let p1_tasks =
-        get_proxy_tasks(deps.as_mut().storage, &proxy1, &DEFAULT_BLOCK_HEIGHT).unwrap();
+    let p1_tasks = get_proxy_tasks(deps.as_mut().storage, &proxy1, &DEFAULT_BLOCK_HEIGHT).unwrap();
     assert_eq!(p1_tasks.len(), 5);
 
     // All tasks will time out at height +100

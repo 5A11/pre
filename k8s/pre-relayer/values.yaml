@@ -72,6 +72,13 @@ proxy:
       name: proxy_encryption
       version: latest
 
+  address:
+    staging: fetch1lqpr5m98wmj35k2f3wh8hwn25rdyzwyksw0q7h,fetch1ltn9frv6ngc50mxjxenuzm7zxan4h5a2ewy0u4,fetch1c5a2v3ks0dpgwls676g4r76mps05vz0x69cld6,fetch1l4q9u47mkjk4lg9zvunqqhvhsszjfmyfyq79d5,fetch1plmqjwkzaxuelnl5cpu5c54d4n7lgzcw78dnp4
+    prod: fetch14uc52awm4wdfgg522ln77hkjlf3lfn4xs4ux9y,fetch1cdmupvtg9znxfhd6h6r09gy8na3n4xxeyj4zxx,fetch1drgycus4aeajnf07gz6uluhymtejnpghec0lkh,fetch1z0udec6nayx3flt8qcywz0vjjfkefhu303mc2l,fetch19nj9ss055u5sq7wvyzegjwanuumt7ganz4htge
+  reward:
+    staging: 0.1testfet
+    prod: 0.1testfet
+
 legder_config:
   # chain_id: test
   # denom: atestfet

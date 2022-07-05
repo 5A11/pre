@@ -36,7 +36,7 @@ spec:
             - -c
             - >-
                 PYTHONPATH=. python3 ./apps/keys.py generate-ledger-key --ledger-config ${LEDGER_CONFIG} lk-{{ $.Values.admin.tag }}.key &&
-                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key lk-{{ $.Values.admin.tag }}.key instantiate-contract --threshold 2 --output-file /contract-address/contract-test-{{ .Values.admin.tag }}.json
+                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key lk-{{ $.Values.admin.tag }}.key instantiate-contract --threshold 2 --proxy-reward 200atestfet --output-file /contract-address/contract-test-{{ .Values.admin.tag }}.json
         - name: contract
           image: {{ .Values.admin.contract }}
           resources:

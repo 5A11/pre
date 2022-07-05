@@ -40,7 +40,12 @@ spec:
           args:
             - -c
             - >-
-                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 2 --output-file /contract-address/latest.json
+{{ if eq .Values.env "staging" }}
+                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 2 --proxy-reward {{ .Values.proxy.reward.staging}} --proxy-whitelisting --proxies {{ .Values.proxy.address.staging}} --output-file /contract-address/latest.json
+{{ end }}
+{{ if eq .Values.env "prod" }}
+                python3 apps/admin.py --fund --ledger-config ${LEDGER_CONFIG} --ledger-private-key ${ADMIN_LEDGER} instantiate-contract --threshold 2 --proxy-reward {{ .Values.proxy.reward.prod}} --proxy-whitelisting --proxies {{ .Values.proxy.address.prod}} --output-file /contract-address/latest.json
+{{ end }}
         - name: contract
           image: {{ .Values.admin.contract }}
           resources:

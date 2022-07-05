@@ -599,7 +599,7 @@ fn try_provide_reencrypted_fragment(
 fn try_skip_reencryption_task(
     mut response: Response,
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     data_id: &str,
     delegatee_pubkey: &str,
@@ -632,6 +632,10 @@ fn try_skip_reencryption_task(
 
     if proxy_task.fragment.is_some() {
         return generic_err!("Task was already completed.");
+    }
+
+    if env.block.height >= proxy_task.timeout_height {
+        return generic_err!("Task timed out.");
     }
 
     // Remove re-encryption task and slash proxy

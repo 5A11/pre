@@ -3,7 +3,7 @@ env: staging
 
 ipfs:
   enabled: true
-  image: gcr.io/fetch-ai-images/ipfs-pre-staging:0.1
+  image: gcr.io/fetch-ai-images/ipfs-pre-staging:0.2
   config:
       addr: ipfs-pre.colearn-v3.fetch-ai.com
       port: 12000

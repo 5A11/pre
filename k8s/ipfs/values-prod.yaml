@@ -3,7 +3,7 @@ env: prod
 
 ipfs:
   enabled: true
-  image: gcr.io/fetch-ai-images/ipfs-pre-prod:0.1
+  image: gcr.io/fetch-ai-images/ipfs-pre-prod:0.9
   config:
       addr: ipfs-pre-prod.colearn-v3.fetch-ai.com
       port: 12000

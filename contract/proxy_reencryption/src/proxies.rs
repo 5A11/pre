@@ -23,12 +23,8 @@ pub struct Proxy {
 // Map proxy_addr: Addr -> proxy: Proxy
 static PROXIES_KEY: &[u8] = b"Proxies";
 
-// To get proxy address from proxy pubkey
-// Map proxy_pubkey: String -> proxy: Addr
-static PROXY_ADDRESS_KEY: &[u8] = b"ProxyAddress";
-
 // Active proxies
-// Map proxy_pubkey: String -> is_active: bool
+// Map proxy_addr: String -> is_active: bool
 static IS_PROXY_ACTIVE: &[u8] = b"IsProxyActive";
 
 // Getters and setters
@@ -54,36 +50,14 @@ pub fn store_get_proxy_entry(storage: &dyn Storage, proxy_addr: &Addr) -> Option
         .map(|data| from_slice(&data).unwrap())
 }
 
-// ACTIVE_PROXIES_ADDRESSES_KEY
-
-// PROXY_ADDRESS
-pub fn store_set_proxy_address(storage: &mut dyn Storage, proxy_pubkey: &str, proxy_addr: &Addr) {
-    let mut storage = PrefixedStorage::new(storage, PROXY_ADDRESS_KEY);
-
-    storage.set(proxy_pubkey.as_bytes(), proxy_addr.as_bytes());
-}
-
-pub fn store_remove_proxy_address(storage: &mut dyn Storage, proxy_pubkey: &str) {
-    let mut storage = PrefixedStorage::new(storage, PROXY_ADDRESS_KEY);
-
-    storage.remove(proxy_pubkey.as_bytes());
-}
-
-pub fn store_get_proxy_address(storage: &dyn Storage, proxy_pubkey: &str) -> Option<Addr> {
-    let store = ReadonlyPrefixedStorage::new(storage, PROXY_ADDRESS_KEY);
-
-    let res = store.get(proxy_pubkey.as_bytes());
-    res.map(|res| Addr::unchecked(String::from_utf8(res).unwrap()))
-}
-
 pub fn store_get_all_proxies(storage: &dyn Storage) -> Vec<Addr> {
-    let store = ReadonlyPrefixedStorage::new(storage, PROXY_ADDRESS_KEY);
+    let store = ReadonlyPrefixedStorage::new(storage, PROXIES_KEY);
 
     let mut deserialized_keys: Vec<Addr> = Vec::new();
 
     for pair in store.range(None, None, Order::Ascending) {
         // Deserialize keys
-        deserialized_keys.push(Addr::unchecked(String::from_utf8(pair.1).unwrap()));
+        deserialized_keys.push(Addr::unchecked(String::from_utf8(pair.0).unwrap()));
     }
 
     deserialized_keys
@@ -92,32 +66,32 @@ pub fn store_get_all_proxies(storage: &dyn Storage) -> Vec<Addr> {
 // IS_PROXY_ACTIVE
 pub fn store_set_is_proxy_active(
     storage: &mut dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     is_proxy_active: bool,
 ) {
     let mut store = PrefixedStorage::new(storage, IS_PROXY_ACTIVE);
 
     // Any value in store means true - &[1]
     match is_proxy_active {
-        true => store.set(proxy_pubkey.as_bytes(), &[1]),
-        false => store.remove(proxy_pubkey.as_bytes()),
+        true => store.set(proxy_addr.as_bytes(), &[1]),
+        false => store.remove(proxy_addr.as_bytes()),
     }
 }
 
-pub fn store_get_is_proxy_active(storage: &dyn Storage, proxy_pubkey: &str) -> bool {
+pub fn store_get_is_proxy_active(storage: &dyn Storage, proxy_addr: &Addr) -> bool {
     let store = ReadonlyPrefixedStorage::new(storage, IS_PROXY_ACTIVE);
 
-    store.get(proxy_pubkey.as_bytes()).is_some()
+    store.get(proxy_addr.as_bytes()).is_some()
 }
 
-pub fn store_get_all_active_proxy_pubkeys(storage: &dyn Storage) -> Vec<String> {
+pub fn store_get_all_active_proxy_addresses(storage: &dyn Storage) -> Vec<Addr> {
     let store = ReadonlyPrefixedStorage::new(storage, IS_PROXY_ACTIVE);
 
-    let mut deserialized_keys: Vec<String> = Vec::new();
+    let mut deserialized_keys: Vec<Addr> = Vec::new();
 
     for pair in store.range(None, None, Order::Ascending) {
         // Deserialize keys with inverse operation to &string.as_bytes()
-        deserialized_keys.push(std::str::from_utf8(&pair.0).unwrap().to_string());
+        deserialized_keys.push(Addr::unchecked(String::from_utf8(pair.0).unwrap()));
     }
 
     deserialized_keys

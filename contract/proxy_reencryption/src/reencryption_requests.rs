@@ -16,11 +16,11 @@ const N_MAXIMUM_REQUESTS_TO_RESOLVE: u64 = 20;
 static PROXY_TASKS_STORE_KEY: &[u8] = b"ProxyTasks";
 
 // Delegatee side to lookup fragments
-// Map data_id: String -> delegatee_pubkey: String -> proxy_pubkey: String -> proxy_task_id: u64
+// Map data_id: String -> delegatee_pubkey: String -> proxy_addr: Addr -> proxy_task_id: u64
 static DELEGATEE_PROXY_TASKS_STORE_KEY: &[u8] = b"DelegateeProxyTasks";
 
 // Proxy side to lookup active tasks
-// Map proxy_pubkey: String -> proxy_task_id: u64 -> is_task: bool
+// Map proxy_addr: Address -> proxy_task_id: u64 -> is_task: bool
 static PROXY_TASKS_QUEUE_STORE_KEY: &[u8] = b"ProxyTasksQueue";
 
 // Map data_id: String -> proxy_task_id: u64 -> is_task: bool
@@ -33,7 +33,7 @@ pub struct ProxyTask {
     pub delegatee_pubkey: String,
 
     // Individual task parameters
-    pub proxy_pubkey: String,
+    pub proxy_addr: Addr,
     pub fragment: Option<String>,
     pub delegation_string: String,
 
@@ -91,7 +91,7 @@ pub fn store_add_delegatee_proxy_task(
     storage: &mut dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     proxy_task_id: &u64,
 ) {
     let mut store = PrefixedStorage::multilevel(
@@ -103,14 +103,14 @@ pub fn store_add_delegatee_proxy_task(
         ],
     );
 
-    store.set(proxy_pubkey.as_bytes(), &proxy_task_id.to_le_bytes());
+    store.set(proxy_addr.as_bytes(), &proxy_task_id.to_le_bytes());
 }
 
 pub fn store_get_delegatee_proxy_task(
     storage: &mut dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
 ) -> Option<u64> {
     let store = ReadonlyPrefixedStorage::multilevel(
         storage,
@@ -122,7 +122,7 @@ pub fn store_get_delegatee_proxy_task(
     );
 
     store
-        .get(proxy_pubkey.as_bytes())
+        .get(proxy_addr.as_bytes())
         .map(|data| u64::from_le_bytes(data.try_into().unwrap()))
 }
 
@@ -176,7 +176,7 @@ pub fn store_remove_delegatee_proxy_task(
     storage: &mut dyn Storage,
     data_id: &str,
     delegatee_pubkey: &str,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
 ) {
     let mut store = PrefixedStorage::multilevel(
         storage,
@@ -187,7 +187,7 @@ pub fn store_remove_delegatee_proxy_task(
         ],
     );
 
-    store.remove(proxy_pubkey.as_bytes());
+    store.remove(proxy_addr.as_bytes());
 }
 
 // DATA_ID_TASKS_STORE_KEY
@@ -224,12 +224,12 @@ pub fn store_get_data_id_tasks(storage: &dyn Storage, data_id: &str) -> Vec<u64>
 // PROXY_TASKS_QUEUE_STORE_KEY
 pub fn store_add_proxy_task_to_queue(
     storage: &mut dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     proxy_task_id: &u64,
 ) {
     let mut store = PrefixedStorage::multilevel(
         storage,
-        &[PROXY_TASKS_QUEUE_STORE_KEY, proxy_pubkey.as_bytes()],
+        &[PROXY_TASKS_QUEUE_STORE_KEY, proxy_addr.as_bytes()],
     );
 
     // Any value in store means true - &[1]
@@ -238,12 +238,12 @@ pub fn store_add_proxy_task_to_queue(
 
 pub fn store_remove_proxy_task_from_queue(
     storage: &mut dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     proxy_task_id: &u64,
 ) {
     let mut store = PrefixedStorage::multilevel(
         storage,
-        &[PROXY_TASKS_QUEUE_STORE_KEY, proxy_pubkey.as_bytes()],
+        &[PROXY_TASKS_QUEUE_STORE_KEY, proxy_addr.as_bytes()],
     );
 
     store.remove(&proxy_task_id.to_le_bytes());
@@ -251,21 +251,21 @@ pub fn store_remove_proxy_task_from_queue(
 
 pub fn store_is_proxy_task_in_queue(
     storage: &dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     proxy_task_id: &u64,
 ) -> bool {
     let store = ReadonlyPrefixedStorage::multilevel(
         storage,
-        &[PROXY_TASKS_QUEUE_STORE_KEY, proxy_pubkey.as_bytes()],
+        &[PROXY_TASKS_QUEUE_STORE_KEY, proxy_addr.as_bytes()],
     );
 
     store.get(&proxy_task_id.to_le_bytes()).is_some()
 }
 
-pub fn store_get_all_proxy_tasks_in_queue(storage: &dyn Storage, proxy_pubkey: &str) -> Vec<u64> {
+pub fn store_get_all_proxy_tasks_in_queue(storage: &dyn Storage, proxy_addr: &Addr) -> Vec<u64> {
     let store = ReadonlyPrefixedStorage::multilevel(
         storage,
-        &[PROXY_TASKS_QUEUE_STORE_KEY, proxy_pubkey.as_bytes()],
+        &[PROXY_TASKS_QUEUE_STORE_KEY, proxy_addr.as_bytes()],
     );
 
     let mut deserialized_keys: Vec<u64> = Vec::new();
@@ -340,7 +340,7 @@ pub fn abandon_proxy_task(
     store_set_proxy_task(storage, re_task_id, &re_task);
 
     // Remove task from proxy queue
-    store_remove_proxy_task_from_queue(storage, &re_task.proxy_pubkey, re_task_id);
+    store_remove_proxy_task_from_queue(storage, &re_task.proxy_addr, re_task_id);
 
     if re_task.resolved {
         return Ok(());
@@ -389,7 +389,7 @@ pub fn abandon_proxy_task(
 // Delete all unfinished current proxy re-encryption tasks
 pub fn abandon_all_proxy_tasks(
     storage: &mut dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     response: &mut Response,
 ) -> StdResult<()> {
     let staking_config = store_get_staking_config(storage)?;
@@ -397,7 +397,7 @@ pub fn abandon_all_proxy_tasks(
 
     let mut delegator_retrieve_funds_amount: HashMap<Addr, u128> = HashMap::new();
 
-    for re_task_id in store_get_all_proxy_tasks_in_queue(storage, proxy_pubkey) {
+    for re_task_id in store_get_all_proxy_tasks_in_queue(storage, proxy_addr) {
         abandon_proxy_task(
             storage,
             &re_task_id,
@@ -460,7 +460,7 @@ pub fn timeout_proxy_task(
     store_set_proxy_task(storage, re_task_id, &re_task);
 
     // Remove task from proxy queue
-    store_remove_proxy_task_from_queue(storage, &re_task.proxy_pubkey, re_task_id);
+    store_remove_proxy_task_from_queue(storage, &re_task.proxy_addr, re_task_id);
 
     Ok(())
 }

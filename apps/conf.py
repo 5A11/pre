@@ -347,14 +347,49 @@ class AppConf:
     def get_query_contract(self) -> AbstractContractQueries:
         return self._get_contract(self.CONTRACT_CLASS.QUERIES_CONTRACT)
 
-    def fund_if_needed(self) -> bool:
-        if self.do_fund:
-            ledger = self.get_ledger_instance()
-            addr = self.get_ledger_crypto().get_address()
-            if ledger.get_balance(addr) < DEFAULT_FUNDS_AMOUNT:
-                ledger.ensure_funds([addr])
+    def fund_if_needed(
+        self,
+        staking: bool = False,
+    ) -> bool:
+        if not self.do_fund:
+            return False
+
+        ledger = self.get_ledger_instance()
+        addr = self.get_ledger_crypto().get_address()
+
+        ledger.ensure_funds([addr])
+
+        if staking:
+            stake_denom = None
+            if "stake_denom" in self.ledger_config:
+                stake_denom = self.ledger_config["stake_denom"]
+            else:
                 return True
-        return False
+
+            stake_validator_crypto_path = None
+            if "stake_validator_crypto_path" in self.ledger_config:
+                stake_validator_crypto_path = self.ledger_config[
+                    "stake_validator_crypto_path"
+                ]
+
+            stake_faucet_url = None
+            if "stake_faucet_url" in self.ledger_config:
+                stake_faucet_url = self.ledger_config["stake_faucet_url"]
+
+            if stake_validator_crypto_path is not None:
+                stake_validator_crypto = ledger.load_crypto_from_file(
+                    stake_validator_crypto_path
+                )
+
+            if ledger.get_balance(addr, denom=stake_denom) < DEFAULT_FUNDS_AMOUNT:
+                ledger.ensure_funds(
+                    [addr],
+                    denom=stake_denom,
+                    faucet_url=stake_faucet_url,
+                    validator_crypto=stake_validator_crypto,
+                )
+
+        return True
 
     def validate_address(self, address: str):
         self.LEDGER_CLASS.validate_address(address)

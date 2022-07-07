@@ -181,6 +181,8 @@ class CosmosLedger(AbstractLedger):
         get_response_retry_interval: float = 1,  # 2,
         n_get_response_retries: int = 90,  # 30,
         minimum_gas_price_amount: int = DEFAULT_MINIMUM_GAS_PRICE_AMOUNT,
+        *args,
+        **kwargs,
     ):
         """
         Create new instance to deploy and communicate with smart contract
@@ -558,21 +560,47 @@ class CosmosLedger(AbstractLedger):
         err_code = res.tx_response.code  # pylint: disable=E1101
         return MessageToDict(res), err_code
 
-    def ensure_funds(self, addresses: List[str], amount: Optional[int] = None):
+    def ensure_funds(
+        self,
+        addresses: List[str],
+        amount: Optional[int] = None,
+        denom: Optional[str] = None,
+        faucet_url: Optional[str] = None,
+        validator_crypto: Optional[CosmosCrypto] = None,
+    ):
         """
         Refill funds of addresses using faucet or validator
         Refilling from validator is preferred if both options are present
 
         :param addresses: Address to be refilled
         :param amount: Amount of refill
+        :param denom: Denomination to refill
+        :param faucet_url: Faucet URL for refill
+        :param validator_crypto: Private key of validator for refill
 
         :return: Nothing
         """
 
-        if self.validator_crypto is not None:
-            self._refill_wealth_from_validator(addresses, amount)
-        elif self.faucet_url is not None:
-            self._refill_wealth_from_faucet(addresses, amount)
+        denom = denom if denom is not None else self.denom
+        assert denom is not None
+
+        used_faucet_url = None
+        used_validator_crypto = None
+
+        if validator_crypto is not None:
+            used_validator_crypto = validator_crypto
+        elif faucet_url is not None:
+            used_faucet_url = faucet_url
+        else:
+            used_faucet_url = self.faucet_url
+            used_validator_crypto = self.validator_crypto
+
+        if used_validator_crypto is not None:
+            self._refill_wealth_from_validator(
+                used_validator_crypto, denom, addresses, amount
+            )
+        elif used_faucet_url is not None:
+            self._refill_wealth_from_faucet(used_faucet_url, denom, addresses, amount)
         else:
             raise RuntimeError(
                 "Faucet or validator was not specified, cannot refill addresses"
@@ -628,27 +656,33 @@ class CosmosLedger(AbstractLedger):
 
         return int(res.balance.amount)
 
-    def _refill_wealth_from_faucet(self, addresses, amount: Optional[int] = None):
+    def _refill_wealth_from_faucet(
+        self, faucet_url: str, denom: str, addresses, amount: Optional[int] = None
+    ):
         """
         Uses faucet api to refill balance of addresses
 
+        :param faucet_url: Faucet URL
+        :param denom: Denom
         :param addresses: List of addresses to be refilled
+        :param amount: Amount to be refilled
 
         :return: Nothing
         """
 
+        if amount:
+            min_amount_required = amount
+        else:
+            min_amount_required = DEFAULT_FUNDS_AMOUNT
+
         for address in addresses:
             attempts_allowed = 10
-            if amount:
-                min_amount_required = self.get_balance(address) + amount
-            else:
-                min_amount_required = DEFAULT_FUNDS_AMOUNT
 
             # Retry in case of network issues
             while attempts_allowed > 0:
                 try:
                     attempts_allowed -= 1
-                    balance = self.get_balance(address)
+                    balance = self.get_balance(address, denom=denom)
 
                     if balance < min_amount_required:
                         _logger.info(
@@ -656,7 +690,7 @@ class CosmosLedger(AbstractLedger):
                         )
                         # Send faucet request
                         response = requests.post(
-                            f"{self.faucet_url}/api/v3/claims",
+                            f"{faucet_url}/api/v3/claims",
                             json={"address": address},
                         )
 
@@ -740,30 +774,32 @@ class CosmosLedger(AbstractLedger):
             crypto.account_number = account.account_number  # pylint: disable=E1101
 
     def _refill_wealth_from_validator(
-        self, addresses: List[str], amount: Optional[int] = None
+        self,
+        validator_crypto: CosmosCrypto,
+        denom: str,
+        addresses: List[str],
+        amount: Optional[int] = None,
     ):
         """
         Refill funds of addresses using validator
         - Works only for network with validator account
 
+        :param validator_crypto: Validator crypto
+        :param denom: Denom to be refilled
         :param addresses: Address to be refilled
+        :param amount: Amount to be refilled
 
         :raises BroadcastException: if refilling fails.
 
         :return: Nothing
         """
-        if self.validator_crypto is None:
-            raise RuntimeError(
-                "Cannot refill from validator. Validator is not defined."
-            )
-
         if amount:
             min_amount_required = amount
         else:
             min_amount_required = DEFAULT_FUNDS_AMOUNT
 
         for address in addresses:
-            balance = self.get_balance(address)
+            balance = self.get_balance(address, denom=denom)
             assert isinstance(balance, int)
             if balance < min_amount_required:
 
@@ -774,12 +810,13 @@ class CosmosLedger(AbstractLedger):
                     elapsed_time += 1
                     try:
                         _logger.info(
-                            f"Refilling balance of {str(address)} from validator {str(self.validator_crypto.get_address())}"
+                            f"Refilling balance of {str(address)} from validator {str(validator_crypto.get_address())}"
                         )
                         res = self.send_funds(
-                            self.validator_crypto,
+                            validator_crypto,
                             address,
                             min_amount_required - balance,
+                            denom=denom,
                         )
                         if res is not None and res.tx_response.code == 0:
                             done = True

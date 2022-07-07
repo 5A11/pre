@@ -6,10 +6,9 @@ use crate::msg::{
     ProxyTaskResponse, QueryMsg,
 };
 use crate::proxies::{
-    get_maximum_withdrawable_stake_amount, store_get_all_active_proxy_pubkeys,
-    store_get_all_proxies, store_get_proxy_address, store_get_proxy_entry,
-    store_remove_proxy_address, store_remove_proxy_entry, store_set_is_proxy_active,
-    store_set_proxy_address, store_set_proxy_entry, Proxy, ProxyState,
+    get_maximum_withdrawable_stake_amount, store_get_all_active_proxy_addresses,
+    store_get_all_proxies, store_get_proxy_entry, store_remove_proxy_entry,
+    store_set_is_proxy_active, store_set_proxy_entry, Proxy, ProxyState,
 };
 use crate::state::{
     store_get_data_entry, store_get_delegator_address, store_get_staking_config, store_get_state,
@@ -191,15 +190,14 @@ fn try_remove_proxy(
     }?;
 
     // Registered or Leaving state
-    if let Some(proxy_pubkey) = proxy.proxy_pubkey {
+    if proxy.proxy_pubkey.is_some() {
         // In leaving state this was already done
         if proxy.state != ProxyState::Leaving {
-            store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-            remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
+            store_set_is_proxy_active(deps.storage, proxy_addr, false);
+            remove_proxy_from_delegations(deps.storage, proxy_addr)?;
         }
 
-        abandon_all_proxy_tasks(deps.storage, &proxy_pubkey, &mut response)?;
-        store_remove_proxy_address(deps.storage, &proxy_pubkey);
+        abandon_all_proxy_tasks(deps.storage, proxy_addr, &mut response)?;
     }
 
     // Update proxy entry to get correct stake amount after possible slashing
@@ -241,18 +239,16 @@ fn try_terminate_contract(
 
     ensure_not_terminated(&state)?;
 
-    let proxy_pubkeys = store_get_all_active_proxy_pubkeys(deps.storage);
+    let proxy_addresses = store_get_all_active_proxy_addresses(deps.storage);
 
-    for proxy_pubkey in proxy_pubkeys {
-        let proxy_address = store_get_proxy_address(deps.storage, &proxy_pubkey).unwrap();
+    for proxy_addr in proxy_addresses {
+        let mut proxy_entry = store_get_proxy_entry(deps.storage, &proxy_addr).unwrap();
 
-        let mut proxy_entry = store_get_proxy_entry(deps.storage, &proxy_address).unwrap();
-
-        store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-        remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
+        store_set_is_proxy_active(deps.storage, &proxy_addr, false);
+        remove_proxy_from_delegations(deps.storage, &proxy_addr)?;
 
         proxy_entry.state = ProxyState::Leaving;
-        store_set_proxy_entry(deps.storage, &proxy_address, &proxy_entry);
+        store_set_proxy_entry(deps.storage, &proxy_addr, &proxy_entry);
     }
 
     // Update contract state
@@ -379,13 +375,6 @@ fn try_register_proxy(
         Some(proxy) => Ok(proxy),
     }?;
 
-    // Check if provided pubkey is not used by other proxy
-    if let Some(address) = store_get_proxy_address(deps.storage, &proxy_pubkey) {
-        if address != info.sender {
-            return generic_err!("Pubkey already used by different proxy.");
-        }
-    }
-
     let mut funds_amount: u128 = 0;
     match &proxy.proxy_pubkey {
         // reactivation case
@@ -406,20 +395,19 @@ fn try_register_proxy(
         }
         // registration case
         None => {
-            proxy.proxy_pubkey = Some(proxy_pubkey.clone());
+            proxy.proxy_pubkey = Some(proxy_pubkey);
             funds_amount = ensure_stake(
                 &staking_config,
                 &info.funds,
                 &staking_config.minimum_proxy_stake_amount.u128(),
             )?;
-            store_set_proxy_address(deps.storage, &proxy_pubkey, &info.sender);
         }
     }
 
     proxy.state = ProxyState::Registered;
     proxy.stake_amount = proxy.stake_amount.checked_add(Uint128::new(funds_amount))?;
     store_set_proxy_entry(deps.storage, &info.sender, &proxy);
-    store_set_is_proxy_active(deps.storage, &proxy_pubkey, true);
+    store_set_is_proxy_active(deps.storage, &info.sender, true);
 
     // Return response
     response
@@ -452,13 +440,12 @@ fn try_unregister_proxy(
     }?;
 
     if proxy.state != ProxyState::Leaving {
-        store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-        remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
+        store_set_is_proxy_active(deps.storage, &info.sender, false);
+        remove_proxy_from_delegations(deps.storage, &info.sender)?;
     }
 
     // This can resolve to proxy being slashed
-    abandon_all_proxy_tasks(deps.storage, &proxy_pubkey, &mut response)?;
-    store_remove_proxy_address(deps.storage, &proxy_pubkey);
+    abandon_all_proxy_tasks(deps.storage, &info.sender, &mut response)?;
 
     // Update proxy entry to get correct stake amount after possible slashing
     proxy = store_get_proxy_entry(deps.storage, &info.sender).unwrap();
@@ -505,11 +492,8 @@ fn try_deactivate_proxy(
                 return generic_err!("Proxy already deactivated");
             }
 
-            // Pubkey is missing only when in Authorised/Unregistered state
-            let proxy_pubkey = proxy.proxy_pubkey.clone().unwrap();
-
-            store_set_is_proxy_active(deps.storage, &proxy_pubkey, false);
-            remove_proxy_from_delegations(deps.storage, &proxy_pubkey)?;
+            store_set_is_proxy_active(deps.storage, &info.sender, false);
+            remove_proxy_from_delegations(deps.storage, &info.sender)?;
 
             proxy.state = ProxyState::Leaving;
             store_set_proxy_entry(deps.storage, &info.sender, &proxy);
@@ -541,21 +525,17 @@ fn try_provide_reencrypted_fragment(
         Some(proxy) => Ok(proxy),
     }?;
 
-    let proxy_pubkey = match proxy.proxy_pubkey.clone() {
-        None => generic_err!("Proxy not active"),
-        Some(proxy_pubkey) => Ok(proxy_pubkey),
-    }?;
+    if proxy.proxy_pubkey.is_none() {
+        return generic_err!("Proxy not active");
+    }
 
     // Get task_id or return error
-    let task_id: u64 = match store_get_delegatee_proxy_task(
-        deps.storage,
-        data_id,
-        delegatee_pubkey,
-        &proxy_pubkey,
-    ) {
-        None => generic_err!("This fragment was not requested."),
-        Some(task_id) => Ok(task_id),
-    }?;
+    let task_id: u64 =
+        match store_get_delegatee_proxy_task(deps.storage, data_id, delegatee_pubkey, &info.sender)
+        {
+            None => generic_err!("This fragment was not requested."),
+            Some(task_id) => Ok(task_id),
+        }?;
 
     // Task must exist - panic otherwise
     let mut proxy_task = store_get_proxy_task(deps.storage, &task_id).unwrap();
@@ -597,7 +577,7 @@ fn try_provide_reencrypted_fragment(
     store_set_proxy_task(deps.storage, &task_id, &proxy_task);
 
     // Remove task from proxy queue as it's completed
-    store_remove_proxy_task_from_queue(deps.storage, &proxy_pubkey, &task_id);
+    store_remove_proxy_task_from_queue(deps.storage, &info.sender, &task_id);
 
     // Return response
     response
@@ -636,21 +616,17 @@ fn try_skip_reencryption_task(
         Some(proxy) => Ok(proxy),
     }?;
 
-    let proxy_pubkey = match proxy.proxy_pubkey {
-        None => generic_err!("Proxy not registered"),
-        Some(proxy_pubkey) => Ok(proxy_pubkey),
-    }?;
+    if proxy.proxy_pubkey.is_none() {
+        return generic_err!("Proxy not registered");
+    }
 
     // Get task_id or return error
-    let task_id: u64 = match store_get_delegatee_proxy_task(
-        deps.storage,
-        data_id,
-        delegatee_pubkey,
-        &proxy_pubkey,
-    ) {
-        None => generic_err!("Task doesn't exist."),
-        Some(task_id) => Ok(task_id),
-    }?;
+    let task_id: u64 =
+        match store_get_delegatee_proxy_task(deps.storage, data_id, delegatee_pubkey, &info.sender)
+        {
+            None => generic_err!("Task doesn't exist."),
+            Some(task_id) => Ok(task_id),
+        }?;
 
     let proxy_task = store_get_proxy_task(deps.storage, &task_id).unwrap();
 
@@ -850,14 +826,14 @@ fn try_remove_data(
         let proxy_task = store_get_proxy_task(deps.storage, task_id).unwrap();
 
         // Remove task from proxy queue
-        store_remove_proxy_task_from_queue(deps.storage, &proxy_task.proxy_pubkey, task_id);
+        store_remove_proxy_task_from_queue(deps.storage, &proxy_task.proxy_addr, task_id);
 
         // Remove delegatee proxy task
         store_remove_delegatee_proxy_task(
             deps.storage,
             data_id,
             &proxy_task.delegatee_pubkey,
-            &proxy_task.proxy_pubkey,
+            &proxy_task.proxy_addr,
         );
 
         // Remove proxy task
@@ -867,18 +843,16 @@ fn try_remove_data(
         if proxy_task.fragment.is_none() {
             refund += staking_config.per_proxy_task_reward_amount.u128();
 
-            let proxy_addr =
-                store_get_proxy_address(deps.storage, &proxy_task.proxy_pubkey).unwrap();
-            let mut proxy = store_get_proxy_entry(deps.storage, &proxy_addr).unwrap();
+            let mut proxy = store_get_proxy_entry(deps.storage, &proxy_task.proxy_addr).unwrap();
 
             // Give back stake to proxy
             proxy.stake_amount = proxy
                 .stake_amount
                 .checked_add(staking_config.per_task_slash_stake_amount)?;
-            store_set_proxy_entry(deps.storage, &proxy_addr, &proxy);
+            store_set_proxy_entry(deps.storage, &proxy_task.proxy_addr, &proxy);
 
             proxy_stake.push(ProxyStakeResponse {
-                proxy_addr: proxy_addr.clone(),
+                proxy_addr: proxy_task.proxy_addr.clone(),
                 stake: proxy.stake_amount,
             });
         }
@@ -939,24 +913,35 @@ fn try_add_delegation(
     }
 
     for proxy_delegation in proxy_delegations {
-        if store_get_proxy_address(deps.storage, &proxy_delegation.proxy_pubkey).is_none() {
-            return generic_err!(format!(
-                "Unknown proxy with pubkey {}",
-                &proxy_delegation.proxy_pubkey
-            ));
+        // Proxy must be registered
+        match store_get_proxy_entry(deps.storage, &proxy_delegation.proxy_addr) {
+            None => {
+                return generic_err!(format!(
+                    "Unknown proxy with address {}",
+                    &proxy_delegation.proxy_addr
+                ));
+            }
+            Some(proxy_entry) => {
+                if proxy_entry.proxy_pubkey.is_none() {
+                    return generic_err!(format!(
+                        "Unregistered proxy with address {}",
+                        &proxy_delegation.proxy_addr
+                    ));
+                }
+            }
         }
 
         if store_get_proxy_delegation_id(
             deps.storage,
             delegator_pubkey,
             delegatee_pubkey,
-            &proxy_delegation.proxy_pubkey,
+            &proxy_delegation.proxy_addr,
         )
         .is_some()
         {
             return generic_err!(format!(
                 "Delegation string was already provided for proxy {}.",
-                &proxy_delegation.proxy_pubkey
+                &proxy_delegation.proxy_addr
             ));
         }
 
@@ -971,12 +956,12 @@ fn try_add_delegation(
             deps.storage,
             delegator_pubkey,
             delegatee_pubkey,
-            &proxy_delegation.proxy_pubkey,
+            &proxy_delegation.proxy_addr,
             &state.next_delegation_id,
         );
         store_add_per_proxy_delegation(
             deps.storage,
-            &proxy_delegation.proxy_pubkey,
+            &proxy_delegation.proxy_addr,
             &state.next_delegation_id,
         );
 
@@ -1029,13 +1014,13 @@ fn try_request_reencryption(
         }?;
 
     // Get selected proxies for current delegation
-    let proxy_pubkeys = store_get_all_proxies_from_delegation(
+    let proxy_addresses = store_get_all_proxies_from_delegation(
         deps.storage,
         &data_entry.delegator_pubkey,
         delegatee_pubkey,
     );
 
-    if proxy_pubkeys.is_empty() {
+    if proxy_addresses.is_empty() {
         return generic_err!("ProxyDelegation doesn't exist.");
     }
 
@@ -1061,7 +1046,7 @@ fn try_request_reencryption(
         return generic_err!(format!(
             "Proxies are too busy, try again later. Available {} proxies out of {}, minimum is {}",
             n_available_proxies,
-            proxy_pubkeys.len(),
+            proxy_addresses.len(),
             n_minimum_proxies
         ));
     }
@@ -1080,7 +1065,7 @@ fn try_request_reencryption(
         delegatee_pubkey: delegatee_pubkey.to_string(),
         data_id: data_id.to_string(),
         fragment: None,
-        proxy_pubkey: "".to_string(),
+        proxy_addr: Addr::unchecked(""),
         delegation_string: "".to_string(),
         resolved: false,
         abandoned: false,
@@ -1091,10 +1076,9 @@ fn try_request_reencryption(
     let mut proxy_stake = Vec::new();
 
     // Assign re-encrpytion tasks to all available proxies
-    for proxy_pubkey in &proxy_pubkeys {
+    for proxy_addr in &proxy_addresses {
         // Check if proxy has enough stake
-        let proxy_addr = store_get_proxy_address(deps.storage, proxy_pubkey).unwrap();
-        let mut proxy = store_get_proxy_entry(deps.storage, &proxy_addr).unwrap();
+        let mut proxy = store_get_proxy_entry(deps.storage, proxy_addr).unwrap();
 
         if proxy.stake_amount.u128() < staking_config.per_task_slash_stake_amount.u128() {
             // Proxy cannot be selected for insufficient amount
@@ -1105,20 +1089,28 @@ fn try_request_reencryption(
         proxy.stake_amount = proxy
             .stake_amount
             .checked_sub(staking_config.per_task_slash_stake_amount)?;
-        store_set_proxy_entry(deps.storage, &proxy_addr, &proxy);
+        store_set_proxy_entry(deps.storage, proxy_addr, &proxy);
 
         // Get delegation
         let delegation_id = store_get_proxy_delegation_id(
             deps.storage,
             &data_entry.delegator_pubkey,
             delegatee_pubkey,
-            proxy_pubkey,
+            proxy_addr,
         )
         .unwrap();
         let delegation = store_get_delegation(deps.storage, &delegation_id).unwrap();
 
         // Add reencryption task for each proxy
-        new_proxy_task.proxy_pubkey = proxy_pubkey.clone();
+        match store_get_proxy_entry(deps.storage, proxy_addr) {
+            None => generic_err!("Proxy not registered"),
+            Some(proxy_entry) => match proxy_entry.proxy_pubkey {
+                None => generic_err!("Proxy not registered"),
+                Some(proxy_pubkey) => Ok(proxy_pubkey),
+            },
+        }?;
+
+        new_proxy_task.proxy_addr = proxy_addr.clone();
         new_proxy_task.delegation_string = delegation.delegation_string;
         let task_id = state.next_proxy_task_id;
         store_set_proxy_task(deps.storage, &task_id, &new_proxy_task);
@@ -1126,10 +1118,10 @@ fn try_request_reencryption(
             deps.storage,
             data_id,
             delegatee_pubkey,
-            proxy_pubkey,
+            proxy_addr,
             &task_id,
         );
-        store_add_proxy_task_to_queue(deps.storage, proxy_pubkey, &task_id);
+        store_add_proxy_task_to_queue(deps.storage, proxy_addr, &task_id);
         store_add_data_id_task(deps.storage, data_id, &task_id);
         state.next_proxy_task_id += 1;
 
@@ -1176,14 +1168,14 @@ fn try_request_reencryption(
 
 pub fn get_proxy_tasks(
     store: &dyn Storage,
-    proxy_pubkey: &str,
+    proxy_addr: &Addr,
     block_height: &u64,
 ) -> StdResult<Vec<ProxyTaskResponse>> {
     // Returns first available proxy task from queue
 
     let mut tasks_response: Vec<ProxyTaskResponse> = Vec::new();
 
-    let tasks = store_get_all_proxy_tasks_in_queue(store, proxy_pubkey);
+    let tasks = store_get_all_proxy_tasks_in_queue(store, proxy_addr);
 
     // No tasks
     if tasks.is_empty() {
@@ -1210,16 +1202,17 @@ pub fn get_proxy_tasks(
 }
 
 pub fn get_proxies_availability(store: &dyn Storage) -> Vec<ProxyAvailabilityResponse> {
-    let proxy_pubkeys = store_get_all_active_proxy_pubkeys(store);
+    let proxy_addresses = store_get_all_active_proxy_addresses(store);
 
     let mut res: Vec<ProxyAvailabilityResponse> = Vec::new();
 
-    for proxy_pubkey in proxy_pubkeys {
-        let proxy_addr = store_get_proxy_address(store, &proxy_pubkey).unwrap();
+    for proxy_addr in proxy_addresses {
         let proxy_entry: Proxy = store_get_proxy_entry(store, &proxy_addr).unwrap();
 
         res.push(ProxyAvailabilityResponse {
-            proxy_pubkey,
+            proxy_addr,
+            // If a proxy is in an active proxies map it has a pubkey
+            proxy_pubkey: proxy_entry.proxy_pubkey.unwrap(),
             stake_amount: proxy_entry.stake_amount,
         });
     }
@@ -1370,8 +1363,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             })?)
         }
 
-        QueryMsg::GetProxyTasks { proxy_pubkey } => Ok(to_binary(&GetProxyTasksResponse {
-            proxy_tasks: get_proxy_tasks(deps.storage, &proxy_pubkey, &env.block.height)?,
+        QueryMsg::GetProxyTasks { proxy_addr } => Ok(to_binary(&GetProxyTasksResponse {
+            proxy_tasks: get_proxy_tasks(deps.storage, &proxy_addr, &env.block.height)?,
         })?),
 
         QueryMsg::GetDelegationStatus {
@@ -1402,21 +1395,20 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             })?)
         }
 
-        QueryMsg::GetProxyStatus { proxy_pubkey } => {
+        QueryMsg::GetProxyStatus { proxy_addr } => {
             let mut proxy_status: Option<ProxyStatusResponse> = None;
 
-            if let Some(proxy_addr) = store_get_proxy_address(deps.storage, &proxy_pubkey) {
-                let proxy = store_get_proxy_entry(deps.storage, &proxy_addr).unwrap();
+            if let Some(proxy_entry) = store_get_proxy_entry(deps.storage, &proxy_addr) {
                 let staking_config = store_get_staking_config(deps.storage)?;
 
                 proxy_status = Some(ProxyStatusResponse {
-                    proxy_address: proxy_addr,
-                    stake_amount: proxy.stake_amount,
+                    proxy_addr,
+                    stake_amount: proxy_entry.stake_amount,
                     withdrawable_stake_amount: Uint128::new(get_maximum_withdrawable_stake_amount(
                         &staking_config,
-                        &proxy,
+                        &proxy_entry,
                     )),
-                    proxy_state: proxy.state,
+                    proxy_state: proxy_entry.state,
                 })
             }
 

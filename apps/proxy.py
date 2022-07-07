@@ -38,7 +38,9 @@ def cli(ctx, app_config: AppConf):
 
 @cli.command(name="register")
 @click.pass_context
-def register(ctx):
+def register(
+    ctx,
+):
     app_config: AppConf = ctx.obj[AppConf.ctx_key]
     proxy_api = ProxyAPI(
         app_config.get_crypto_key(),
@@ -47,8 +49,10 @@ def register(ctx):
         crypto=app_config.get_crypto_instance(),
     )
 
-    if app_config.fund_if_needed():
-        click.echo(f"{app_config.get_ledger_crypto()} was funded")
+    if app_config.fund_if_needed(staking=True):
+        click.echo(
+            f"{app_config.get_ledger_crypto()} was funded with default gas fees and stake funds"
+        )
 
     proxy_api.register()
     click.echo("Proxy was registered")
@@ -266,9 +270,8 @@ def run(
     click.echo(f"Proxy address {address}")
     click.echo(f"Proxy pubkey  {encode_bytes(proxy_api._pub_key_as_bytes())}")
 
-    if app_config.fund_if_needed():
-        click.echo(f"{address} was funded")
-    metrics.report_balance(proxy_api._contract.ledger.get_balance(address))
+    if app_config.fund_if_needed(staking=True):
+        click.echo(f"{address} was funded with default gas fees and stake funds")
 
     try:
         if not proxy_api.registered():

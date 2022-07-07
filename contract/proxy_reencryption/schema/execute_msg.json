@@ -328,14 +328,14 @@
       "type": "object",
       "required": [
         "delegation_string",
-        "proxy_pubkey"
+        "proxy_addr"
       ],
       "properties": {
         "delegation_string": {
           "type": "string"
         },
-        "proxy_pubkey": {
-          "type": "string"
+        "proxy_addr": {
+          "$ref": "#/definitions/Addr"
         }
       }
     },

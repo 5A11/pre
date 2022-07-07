@@ -88,7 +88,7 @@ class Coin:
 class Delegation:
     """Delegation dataclass."""
 
-    proxy_pub_key: bytes
+    proxy_address: str
     delegation_string: bytes
 
 
@@ -210,6 +210,7 @@ class ProxyStatus:
 class ProxyAvailability:
     """Proxy availability data class."""
 
+    proxy_addr: str
     proxy_pubkey: bytes
     stake_amount: str
 
@@ -243,4 +244,7 @@ def get_defaults(func: Callable) -> Dict:
     """Get default values for kwargs of the function."""
     varnames = func.__code__.co_varnames
     defaults = func.__defaults__  # type: ignore
+
+    varnames = tuple(x for x in varnames if x != "args" and x != "kwargs")
+
     return dict(zip(varnames[-len(defaults) :], defaults))

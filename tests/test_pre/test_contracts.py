@@ -325,13 +325,6 @@ class TestDelegatorContract(BaseContractTestCase):
         self.admin_contract.add_proxy(
             self.ledger_crypto, proxy_addr=self.some_crypto.get_address()
         )
-        with pytest.raises(ProxyAlreadyRegistered):
-            self.proxy_contract.proxy_register(
-                self.some_crypto,
-                proxy_pubkey_bytes=self.proxy_pub_key,
-                stake_amount=minimum_registration_stake,
-            )
-
         assert self.delegator_contract.get_available_proxies()
 
         self.delegator_contract.add_delegations(
@@ -339,9 +332,7 @@ class TestDelegatorContract(BaseContractTestCase):
             self.delegator_pub_key,
             self.delegatee_pub_key,
             delegations=[
-                Delegation(
-                    proxy_pub_key=self.proxy_pub_key, delegation_string=b"somedata"
-                )
+                Delegation(proxy_address=self.proxy_addr, delegation_string=b"somedata")
             ],
         )
 
@@ -352,7 +343,7 @@ class TestDelegatorContract(BaseContractTestCase):
                 self.delegatee_pub_key,
                 delegations=[
                     Delegation(
-                        proxy_pub_key=self.proxy_pub_key, delegation_string=b"somedata"
+                        proxy_address=self.proxy_addr, delegation_string=b"somedata"
                     )
                 ],
             )
@@ -366,7 +357,7 @@ class TestDelegatorContract(BaseContractTestCase):
         )
 
         assert not self.proxy_contract.get_proxy_tasks(
-            proxy_pubkey_bytes=self.proxy_pub_key
+            proxy_address=self.ledger_crypto.get_address()
         )
 
         assert self.proxy_contract.get_contract_state()
@@ -421,14 +412,16 @@ class TestDelegatorContract(BaseContractTestCase):
             ),
         )
 
-        proxy_status = self.proxy_contract.get_proxy_status(self.proxy_pub_key)
+        proxy_status = self.proxy_contract.get_proxy_status(
+            self.ledger_crypto.get_address()
+        )
         assert proxy_status
 
-        proxy_status = self.proxy_contract.get_proxy_status(b"some bad key")
+        proxy_status = self.proxy_contract.get_proxy_status("some bad addr")
         assert not proxy_status
 
         proxy_task = self.proxy_contract.get_proxy_tasks(
-            proxy_pubkey_bytes=self.proxy_pub_key
+            proxy_address=self.ledger_crypto.get_address()
         )
         assert proxy_task
 

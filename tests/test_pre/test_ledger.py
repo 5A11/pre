@@ -168,43 +168,55 @@ def test_error_handling():
             BroadcastException,
             match="Refilling funds from validator failed after multiple attempts",
         ):
-            ledger._refill_wealth_from_validator(["someaddr"], 10000000)
+            ledger._refill_wealth_from_validator(
+                ledger.validator_crypto, ledger.denom, ["someaddr"], 10000000
+            )
 
     sendfunds_mock.assert_called()
 
     with patch.object(ledger, "validator_crypto", None):
-        with pytest.raises(RuntimeError, match="Validator is not defined."):
-            ledger._refill_wealth_from_validator(["someaddr"], 10000000)
+        with pytest.raises(
+            BroadcastException, match="Getting balance failed after multiple attempts"
+        ):
+            ledger._refill_wealth_from_validator(
+                ledger.validator_crypto, ledger.denom, ["someaddr"], 10000000
+            )
 
     resp = Mock()
     resp.status_code = 200
 
-    with patch.object(ledger, "get_balance", return_value=10000000), patch.object(
+    with patch.object(ledger, "get_balance", return_value=1000000), patch.object(
         ledger, "_sleep"
     ) as sleep_mock, patch("pre.ledger.cosmos.ledger.requests.post", return_value=resp):
-        ledger._refill_wealth_from_faucet(["someaddr"], 10000000)
+        ledger._refill_wealth_from_faucet(
+            ledger.faucet_url, ledger.denom, ["someaddr"], 10000000
+        )
 
     sleep_mock.assert_called()
 
     with patch.object(ledger, "get_balance", return_value=5000000000), patch.object(
         ledger, "_sleep"
     ) as sleep_mock, patch("requests.post", return_value=resp):
-        ledger._refill_wealth_from_faucet(["someaddr"])
+        ledger._refill_wealth_from_faucet(ledger.faucet_url, ledger.denom, ["someaddr"])
 
     with patch.object(ledger, "get_balance", return_value=1), patch.object(
         ledger, "_sleep"
     ) as sleep_mock, patch(
         "pre.ledger.cosmos.ledger.requests.post", side_effect=Exception("oops")
     ):
-        ledger._refill_wealth_from_faucet(["someaddr"], 10000000)
+        ledger._refill_wealth_from_faucet(
+            ledger.faucet_url, ledger.denom, ["someaddr"], 10000000
+        )
 
     sleep_mock.assert_called()
 
     resp.status_code = 400
-    with patch.object(ledger, "get_balance", return_value=5000000000), patch.object(
+    with patch.object(ledger, "get_balance", return_value=1000000), patch.object(
         ledger, "_sleep"
     ) as sleep_mock, patch("requests.post", return_value=resp):
-        ledger._refill_wealth_from_faucet(["someaddr"], 10000000)
+        ledger._refill_wealth_from_faucet(
+            ledger.faucet_url, ledger.denom, ["someaddr"], 10000000
+        )
     sleep_mock.assert_called()
 
     resp = Mock()
@@ -234,13 +246,25 @@ def test_error_handling():
         ledger, "_refill_wealth_from_faucet"
     ) as mock:
         ledger.ensure_funds(["someaddr"])
-    mock.assert_called()
+    mock.assert_called_with("some", "", ["someaddr"], None)
+
+    with patch.object(ledger, "faucet_url", "some"), patch.object(
+        ledger, "_refill_wealth_from_faucet"
+    ) as mock:
+        ledger.ensure_funds(["someaddr"], denom="testlearn", faucet_url="testurl")
+    mock.assert_called_with("testurl", "testlearn", ["someaddr"], None)
 
     with patch.object(ledger, "validator_crypto", "some"), patch.object(
         ledger, "_refill_wealth_from_validator"
     ) as mock:
         ledger.ensure_funds(["someaddr"])
-    mock.assert_called()
+    mock.assert_called_with("some", "", ["someaddr"], None)
+
+    with patch.object(ledger, "validator_crypto", "some"), patch.object(
+        ledger, "_refill_wealth_from_validator"
+    ) as mock:
+        ledger.ensure_funds(["someaddr"], denom="testlearn", validator_crypto="crypto")
+    mock.assert_called_with("crypto", "testlearn", ["someaddr"], None)
 
 
 def test_config():
@@ -266,4 +290,8 @@ def test_check_availability():
             ledger.check_availability()
 
 
-test_error_handling()
+def test_ledger_unsued_params():
+    ledger_config = CosmosLedgerConfig.make_default()
+    ledger_config["stake_denom"] = "testlearn"
+
+    CosmosLedger(**ledger_config)

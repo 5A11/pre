@@ -95,11 +95,11 @@ class AbstractContractQueries(BaseAbstractContract):
         """
 
     @abstractmethod
-    def get_proxy_tasks(self, proxy_pubkey_bytes: bytes) -> List[ProxyTask]:
+    def get_proxy_tasks(self, proxy_address: str) -> List[ProxyTask]:
         """
         Get next proxy task for proxy specified by proxy public key.
 
-        :param proxy_pubkey_bytes: bytes, proxy public key
+        :param proxy_address: str, proxy address
 
         :return: ProxyTask instance or None if no tasks left
         """
@@ -327,11 +327,11 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         """
 
     @abstractmethod
-    def get_proxy_tasks(self, proxy_pubkey_bytes: bytes) -> List[ProxyTask]:
+    def get_proxy_tasks(self, proxy_address: str) -> List[ProxyTask]:
         """
         Get next proxy task.
 
-        :param proxy_pubkey_bytes: Proxy public key as bytes
+        :param proxy_address: Proxy address as str
         :return: None or ProxyTask instance
         """
 
@@ -405,11 +405,11 @@ class AbstractProxyContract(BaseAbstractContract, ABC):
         """
 
     @abstractmethod
-    def get_proxy_status(self, proxy_pubkey_bytes: bytes) -> Optional[ProxyStatus]:
+    def get_proxy_status(self, proxy_address: str) -> Optional[ProxyStatus]:
         """
         Get proxy status.
 
-        :param proxy_pubkey_bytes: proxy public key as bytes
+        :param proxy_address: proxy address as bytes
 
         :return: None or ProxyStatus instance
         """

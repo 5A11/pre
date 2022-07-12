@@ -141,6 +141,31 @@ services:
         --ipfs-config /test_data/configs/ipfs_config_gcloud.yaml
         --contract-url https://pre-relayer.s3.us-west-2.amazonaws.com/contract/staging/latest.json
 
+  query:
+    profiles: ["query"]
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    image: pre:latest
+    networks:
+      - localnet
+    entrypoint: >
+      python3 apps/query.py
+  
+  query_prod:
+    extends: query
+    container_name: query_prod
+    entrypoint: >
+      python3 apps/query.py
+        https://pre-relayer.s3.us-west-2.amazonaws.com/contract/prod/latest.json
+  
+  query_staging:
+    extends: query
+    container_name: query_staging
+    entrypoint: >
+      python3 apps/query.py
+        https://pre-relayer.s3.us-west-2.amazonaws.com/contract/staging/latest.json
+
   tests:
     profiles: ["tests"]
     build:

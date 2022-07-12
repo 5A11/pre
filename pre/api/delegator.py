@@ -21,7 +21,7 @@ class DelegatorAPI:
         crypto: AbstractCrypto,
     ):
         """
-        Init api isntance.
+        Init api instance.
 
         :param encryption_private_key: PrivateKey,
         :param ledger_crypto: ledger private key instance,

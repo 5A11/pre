@@ -317,6 +317,30 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "resolve_timed_out_task"
+      ],
+      "properties": {
+        "resolve_timed_out_task": {
+          "type": "object",
+          "required": [
+            "data_id",
+            "delegatee_pubkey"
+          ],
+          "properties": {
+            "data_id": {
+              "type": "string"
+            },
+            "delegatee_pubkey": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

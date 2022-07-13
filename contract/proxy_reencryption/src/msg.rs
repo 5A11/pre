@@ -53,6 +53,7 @@ pub struct InstantiateMsg {
 
     // Timeouts
     pub timeout_height: Option<u64>,
+    pub withdrawal_period: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -115,6 +116,10 @@ pub enum ExecuteMsg {
         proxy_delegations: Vec<ProxyDelegationString>,
     },
     RequestReencryption {
+        data_id: String,
+        delegatee_pubkey: String,
+    },
+    ResolveTimedOutTask {
         data_id: String,
         delegatee_pubkey: String,
     },

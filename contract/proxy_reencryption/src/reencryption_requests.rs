@@ -1,16 +1,11 @@
 use crate::common::add_bank_msg;
-use crate::state::{
-    store_get_staking_config, store_get_state, store_get_timeouts_config,
-    store_set_timeouts_config, StakingConfig, State, TimeoutsConfig,
-};
+use crate::state::{store_get_staking_config, store_get_state, StakingConfig, State};
 use cosmwasm_std::{from_slice, to_vec, Addr, Order, Response, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryInto;
-
-const N_MAXIMUM_REQUESTS_TO_RESOLVE: u64 = 20;
 
 // Map proxy_task_id: u64 -> task: ProxyTask
 static PROXY_TASKS_STORE_KEY: &[u8] = b"ProxyTasks";
@@ -435,18 +430,6 @@ pub fn timeout_proxy_task(
         return Ok(());
     }
 
-    // Block height is irrelevant here as we are checking only for granted state
-    if get_reencryption_request_state(
-        storage,
-        &store_get_state(storage).unwrap(),
-        &re_task.data_id,
-        &re_task.delegatee_pubkey,
-        &0,
-    ) == ReencryptionRequestState::Granted
-    {
-        return Ok(());
-    }
-
     // Refund the delegator - even when is completed
     update_refunds_map(
         delegator_retrieve_funds_amount,
@@ -463,81 +446,6 @@ pub fn timeout_proxy_task(
     store_remove_proxy_task_from_queue(storage, &re_task.proxy_addr, re_task_id);
 
     Ok(())
-}
-
-pub fn check_and_resolve_all_timedout_tasks(
-    storage: &mut dyn Storage,
-    response: &mut Response,
-    block_height: u64,
-) {
-    // Check and resolve all tasks between next_task_id_to_be_checked..next_proxy_task_id
-    // next_task_id_to_be_checked is moved to first task ID that is not timed-out
-
-    let state: State = store_get_state(storage).unwrap();
-    let staking_config: StakingConfig = store_get_staking_config(storage).unwrap();
-    let mut timeouts_config: TimeoutsConfig = store_get_timeouts_config(storage).unwrap();
-
-    // All existing tasks were already checked
-    if timeouts_config.next_task_id_to_be_checked == state.next_proxy_task_id {
-        return;
-    }
-
-    // Limit maximum number of requets to be processed
-    let mut last_proxy_task_id = state.next_proxy_task_id;
-
-    // Subtracting replaced with addition to ensure no subtract underflow
-    if state.next_proxy_task_id - timeouts_config.next_task_id_to_be_checked
-        > N_MAXIMUM_REQUESTS_TO_RESOLVE
-    {
-        last_proxy_task_id =
-            timeouts_config.next_task_id_to_be_checked + N_MAXIMUM_REQUESTS_TO_RESOLVE
-    }
-
-    let mut delegator_retrieve_funds_amount: HashMap<Addr, u128> = HashMap::new();
-    for i in timeouts_config.next_task_id_to_be_checked..last_proxy_task_id {
-        match store_get_proxy_task(storage, &i) {
-            // Skip if task was deleted
-            None => {}
-            Some(proxy_task) => {
-                // We can move pointer when task is already resolved in case of abandoned request
-                if proxy_task.resolved {
-                    timeouts_config.next_task_id_to_be_checked = i + 1;
-                    continue;
-                }
-
-                // Stop pointer at last timed-out request
-                if block_height < proxy_task.timeout_height {
-                    timeouts_config.next_task_id_to_be_checked = i;
-                    break;
-                }
-
-                // Resolve timed-out task
-                timeout_proxy_task(
-                    storage,
-                    &i,
-                    &staking_config,
-                    &mut delegator_retrieve_funds_amount,
-                )
-                .unwrap();
-            }
-        }
-        timeouts_config.next_task_id_to_be_checked = i + 1;
-    }
-    // If this finish without being terminated next_task_id_to_be_checked == next_proxy_task_id
-
-    // Update next_task_id_to_be_checked
-    store_set_timeouts_config(storage, &timeouts_config).unwrap();
-
-    // Return stake from unfinished tasks to delegators
-    let staking_config = store_get_staking_config(storage).unwrap();
-    for (delegator_addr, stake_amount) in delegator_retrieve_funds_amount {
-        add_bank_msg(
-            response,
-            &delegator_addr,
-            stake_amount,
-            &staking_config.stake_denom,
-        );
-    }
 }
 
 pub fn get_all_fragments(

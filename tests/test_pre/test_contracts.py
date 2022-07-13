@@ -26,6 +26,7 @@ from pre.contract.base_contract import (
     ReencryptionNotPermitted,
     UnknownProxy,
     UnkownReencryptionRequest,
+    WithdrawalNotPossibleYet,
 )
 from pre.contract.cosmos_contracts import (
     AdminContract,
@@ -223,7 +224,7 @@ class TestAdminContract(BaseContractTestCase):
 
         self.admin_contract.terminate_contract(self.ledger_crypto)
 
-        with pytest.raises(NotEnoughStakeToWithdraw):
+        with pytest.raises(WithdrawalNotPossibleYet):
             self.admin_contract.withdraw_contract(self.ledger_crypto, recipient_addr)
 
     def test_get_contract_state(self):

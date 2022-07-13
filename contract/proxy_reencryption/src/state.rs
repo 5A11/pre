@@ -30,6 +30,11 @@ pub struct State {
     pub next_delegation_id: u64,
 
     pub terminated: bool,
+    pub withdrawn: bool,
+    // When contract was terminated
+    pub terminate_height: u64,
+    // How many blocks after termination we allow withdrawal
+    pub withdrawal_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -42,8 +47,8 @@ pub struct StakingConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct TimeoutsConfig {
+    // Task timeout height
     pub timeout_height: u64,
-    pub next_task_id_to_be_checked: u64,
 }
 
 // Store structures

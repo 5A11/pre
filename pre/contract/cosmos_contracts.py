@@ -52,6 +52,7 @@ from pre.contract.base_contract import (
     UnknownProxy,
     UnkownReencryptionRequest,
     WalletInsufficientFunds,
+    WithdrawalNotPossibleYet,
 )
 from pre.ledger.base_ledger import AbstractLedgerCrypto
 from pre.ledger.cosmos.ledger import BroadcastException, CosmosLedger
@@ -144,6 +145,8 @@ class ContractExecuteExceptionMixIn:  # pylint: disable=too-few-public-methods
             raise ReencryptionNotPermitted(raw_log, error_code, res)
         if "insufficient funds" in raw_log:
             raise WalletInsufficientFunds(raw_log, error_code, res)
+        if "Withdrawal will be possible at height" in raw_log:
+            raise WithdrawalNotPossibleYet(raw_log, error_code, res)
 
         raise ContractExecutionError(
             f"Contract execution failed: {raw_log}", error_code, res

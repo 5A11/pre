@@ -544,3 +544,7 @@ class ContractNotTerminated(ContractExecutionError):
 
 class WalletInsufficientFunds(ContractExecutionError):
     """Wallet doesn't have enough funds to execute call on contract."""
+
+
+class WithdrawalNotPossibleYet(ContractExecutionError):
+    """Waiting for withdrawal interval to pass."""

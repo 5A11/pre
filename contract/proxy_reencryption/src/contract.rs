@@ -1610,6 +1610,6 @@ pub fn verify_fragment(
         &delegatee_pubkey,
     ) {
         Ok(_) => Ok(()),
-        Err(error) => generic_err!(format!("{}{}", FRAGMENT_VERIFICATION_ERROR, error)),
+        Err(error) => generic_err!(format!("{}{:?}", FRAGMENT_VERIFICATION_ERROR, error)),
     }
 }

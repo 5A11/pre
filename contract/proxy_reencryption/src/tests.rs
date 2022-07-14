@@ -9,7 +9,7 @@ use crate::contract::{
     DEFAULT_TASK_REWARD_AMOUNT,
 };
 
-//use crate::contract::verify_fragment;
+use crate::contract::verify_fragment;
 use crate::delegations::{
     get_delegation_state, get_n_available_proxies_from_delegation,
     get_n_minimum_proxies_for_refund, store_add_per_proxy_delegation, store_get_delegation,
@@ -1162,7 +1162,7 @@ fn test_remove_data_when_reencryption_requested() {
 
     let data_id1 = String::from("DATA1");
 
-    let capsule = String::from("capsule");
+    let capsule = String::from(CAPSULE);
 
     let data_entry = DataEntry {
         delegator_pubkey: DELEGATOR1_PUBKEY.to_string(),
@@ -1273,7 +1273,7 @@ fn test_remove_data_when_reencryption_requested() {
     .is_ok());
 
     // Provide fragment
-    let proxy_fragment = String::from(FRAGMENT_P1_DR1_DE1);
+    let proxy_fragment = String::from(FRAGMENT_P2_DR1_DE1);
     assert!(provide_reencrypted_fragment(
         deps.as_mut(),
         &proxy2,
@@ -4143,7 +4143,6 @@ fn test_get_n_minimum_proxies_for_refund() {
     assert_eq!(get_n_minimum_proxies_for_refund(&state, &staking_config), 2);
 }
 
-/*
 #[test]
 fn test_verify_fragments() {
     assert!(verify_fragment(
@@ -4162,7 +4161,6 @@ fn test_verify_fragments() {
     )
     .is_err());
 }
- */
 
 #[test]
 fn test_timeouts() {

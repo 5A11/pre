@@ -328,7 +328,7 @@ fn request_reencryption(
     execute(deps, env.0, env.1, msg)
 }
 
-fn resolve_timed_out_task(
+fn resolve_timed_out_request(
     deps: DepsMut,
     creator: &Addr,
     block_height: u64,
@@ -337,7 +337,7 @@ fn resolve_timed_out_task(
 ) -> StdResult<Response> {
     let env = mock_env_height(creator, block_height, &vec![]);
 
-    let msg = ExecuteMsg::ResolveTimedOutTask {
+    let msg = ExecuteMsg::ResolveTimedOutRequest {
         data_id: data_id.clone(),
         delegatee_pubkey: delegatee_pubkey.clone(),
     };
@@ -4528,7 +4528,6 @@ fn test_timeouts() {
 
     // No tasks to complete after timeout
     // These tasks still exist but are skipped in get_proxy_tasks
-    // These tasks will be removed when ExecuteMsg triggers check_and_resolve_all_timedout_tasks
     assert!(get_proxy_tasks(deps.as_mut().storage, &proxy1, &500)
         .unwrap()
         .is_empty());
@@ -4539,7 +4538,7 @@ fn test_timeouts() {
         .unwrap()
         .is_empty());
 
-    let res = resolve_timed_out_task(
+    let res = resolve_timed_out_request(
         deps.as_mut(),
         &delegator2,
         500,

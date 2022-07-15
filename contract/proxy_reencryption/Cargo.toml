@@ -36,7 +36,7 @@ thiserror = { version = "1.0.24" }
 
 umbral-pre = { version = "0.5.2", default-features = false, features = []}
 
-# won't compile if js feature is not selected
+# won't compile if js feature is not selected -> But JS feature is not supported by CosmWasm
 getrandom = { version = "0.2", default-features = false, features = ["js"] }
 
 base64 = { version = "0.13", default-features = false, features = ["alloc"] }

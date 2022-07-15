@@ -645,7 +645,7 @@ fn try_skip_reencryption_task(
     Ok(response)
 }
 
-pub fn try_resolve_timed_out_task(
+pub fn try_resolve_timed_out_request(
     mut response: Response,
     deps: DepsMut,
     env: Env,
@@ -708,7 +708,7 @@ pub fn try_resolve_timed_out_task(
     // Return response
     response
         .attributes
-        .push(Attribute::new("action", "resolve_timedout_task"));
+        .push(Attribute::new("action", "resolve_timed_out_request"));
     response.attributes.push(Attribute::new("data_id", data_id));
     response
         .attributes
@@ -1309,10 +1309,10 @@ pub fn execute(
             data_id,
             delegatee_pubkey,
         } => try_request_reencryption(response, deps, env, info, &data_id, &delegatee_pubkey),
-        ExecuteMsg::ResolveTimedOutTask {
+        ExecuteMsg::ResolveTimedOutRequest {
             data_id,
             delegatee_pubkey,
-        } => try_resolve_timed_out_task(response, deps, env, info, &data_id, &delegatee_pubkey),
+        } => try_resolve_timed_out_request(response, deps, env, info, &data_id, &delegatee_pubkey),
     }
 }
 

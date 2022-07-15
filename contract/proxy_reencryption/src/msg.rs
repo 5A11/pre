@@ -119,7 +119,7 @@ pub enum ExecuteMsg {
         data_id: String,
         delegatee_pubkey: String,
     },
-    ResolveTimedOutTask {
+    ResolveTimedOutRequest {
         data_id: String,
         delegatee_pubkey: String,
     },

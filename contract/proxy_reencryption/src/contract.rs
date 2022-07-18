@@ -1,6 +1,7 @@
 use crate::msg::{
     ExecuteMsg, ExecuteMsgJSONResponse, GetAvailableProxiesResponse, GetContractStateResponse,
-    GetDataIDResponse, GetDelegationStatusResponse, GetFragmentsResponse, GetProxyStatusResponse,
+    GetDataIDResponse, GetDataLabelsResponse, GetDelegateeLabelsResponse,
+    GetDelegationStatusResponse, GetFragmentsResponse, GetProxyStatusResponse,
     GetProxyTasksResponse, GetStakingConfigResponse, InstantiateMsg, InstantiateMsgResponse,
     ProxyAvailabilityResponse, ProxyDelegationString, ProxyStakeResponse, ProxyStatusResponse,
     ProxyTaskResponse, QueryMsg,
@@ -40,7 +41,10 @@ use cosmwasm_std::{
 use std::collections::HashMap;
 
 use crate::common::add_bank_msg;
-use crate::reencryption_permissions::get_permission;
+use crate::reencryption_permissions::{
+    get_permission, store_add_data_labels, store_add_delegatee_labels, store_get_all_data_labels,
+    store_get_all_delegatee_labels, store_remove_data_labels, store_remove_delegatee_labels,
+};
 
 //use umbral_pre::{Capsule, CapsuleFrag, DeserializableFromArray, PublicKey};
 
@@ -830,6 +834,7 @@ fn try_add_data(
     data_id: &str,
     delegator_pubkey: &str,
     capsule: &str,
+    data_labels: &Option<Vec<String>>,
 ) -> StdResult<Response> {
     let state: State = store_get_state(deps.storage)?;
 
@@ -846,6 +851,14 @@ fn try_add_data(
         capsule: capsule.to_string(),
     };
     store_set_data_entry(deps.storage, data_id, &entry);
+
+    // Add data labels
+    if let Some(data_labels) = data_labels {
+        store_add_data_labels(deps.storage, data_id, data_labels);
+        response
+            .attributes
+            .push(Attribute::new("data_labels", data_labels.join(", ")));
+    }
 
     // Return response
     response
@@ -960,6 +973,7 @@ fn try_add_delegation(
     delegator_pubkey: &str,
     delegatee_pubkey: &str,
     proxy_delegations: &[ProxyDelegationString],
+    delegatee_labels: &Option<Vec<String>>,
 ) -> StdResult<Response> {
     ensure_delegator(deps.storage, delegator_pubkey, &info.sender)?;
 
@@ -1036,6 +1050,20 @@ fn try_add_delegation(
 
     store_set_state(deps.storage, &state)?;
 
+    // Add delegatee labels
+    if let Some(delegatee_labels) = delegatee_labels {
+        store_add_delegatee_labels(
+            deps.storage,
+            &info.sender,
+            delegatee_pubkey,
+            delegatee_labels,
+        );
+        response.attributes.push(Attribute::new(
+            "delegatee_labels",
+            delegatee_labels.join(", "),
+        ));
+    }
+
     // Return response
     response
         .attributes
@@ -1090,7 +1118,7 @@ fn try_request_reencryption(
         return generic_err!("ProxyDelegation doesn't exist.");
     }
 
-    // Check if encryption was permitted - get_permission always returns true for now
+    // Check if encryption was permitted
     if info.sender != delegator_addr
         && !get_permission(deps.storage, &delegator_addr, delegatee_pubkey, data_id)
     {
@@ -1232,6 +1260,118 @@ fn try_request_reencryption(
     Ok(response)
 }
 
+pub fn try_add_data_labels(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    data_id: &str,
+    data_labels: &[String],
+) -> StdResult<Response> {
+    let state: State = store_get_state(deps.storage).unwrap();
+    ensure_not_terminated(&state)?;
+    ensure_data_owner(deps.storage, data_id, &info.sender)?;
+    store_add_data_labels(deps.storage, data_id, data_labels);
+
+    // Return response
+    response
+        .attributes
+        .push(Attribute::new("action", "add_data_labels"));
+    response.attributes.push(Attribute::new("data_id", data_id));
+    response
+        .attributes
+        .push(Attribute::new("data_labels", data_labels.join(", ")));
+    Ok(response)
+}
+
+pub fn try_remove_data_labels(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    data_id: &str,
+    data_labels: &[String],
+) -> StdResult<Response> {
+    let state: State = store_get_state(deps.storage).unwrap();
+    ensure_not_terminated(&state)?;
+    ensure_data_owner(deps.storage, data_id, &info.sender)?;
+    store_remove_data_labels(deps.storage, data_id, data_labels)?;
+
+    // Return response
+    response
+        .attributes
+        .push(Attribute::new("action", "remove_data_labels"));
+    response.attributes.push(Attribute::new("data_id", data_id));
+    response
+        .attributes
+        .push(Attribute::new("data_labels", data_labels.join(", ")));
+    Ok(response)
+}
+
+pub fn try_add_delegatee_labels(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    delegatee_pubkey: &str,
+    delegatee_labels: &[String],
+) -> StdResult<Response> {
+    let state: State = store_get_state(deps.storage).unwrap();
+    ensure_not_terminated(&state)?;
+
+    store_add_delegatee_labels(
+        deps.storage,
+        &info.sender,
+        delegatee_pubkey,
+        delegatee_labels,
+    );
+
+    // Return response
+    response
+        .attributes
+        .push(Attribute::new("action", "add_delegatee_labels"));
+    response
+        .attributes
+        .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
+    response.attributes.push(Attribute::new(
+        "delegatee_labels",
+        delegatee_labels.join(", "),
+    ));
+    Ok(response)
+}
+
+pub fn try_remove_delegatee_labels(
+    mut response: Response,
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    delegatee_pubkey: &str,
+    delegatee_labels: &[String],
+) -> StdResult<Response> {
+    let state: State = store_get_state(deps.storage).unwrap();
+    ensure_not_terminated(&state)?;
+
+    store_remove_delegatee_labels(
+        deps.storage,
+        &info.sender,
+        delegatee_pubkey,
+        delegatee_labels,
+    )?;
+
+    // Return response
+    response
+        .attributes
+        .push(Attribute::new("action", "remove_delegatee_labels"));
+    response
+        .attributes
+        .push(Attribute::new("delegatee_pubkey", delegatee_pubkey));
+    response.attributes.push(Attribute::new(
+        "delegatee_labels",
+        delegatee_labels.join(", "),
+    ));
+    Ok(response)
+}
+
 #[entry_point]
 pub fn execute(
     deps: DepsMut,
@@ -1287,6 +1427,7 @@ pub fn execute(
             data_id,
             delegator_pubkey,
             capsule,
+            data_labels,
             ..
         } => try_add_data(
             response,
@@ -1296,12 +1437,14 @@ pub fn execute(
             &data_id,
             &delegator_pubkey,
             &capsule,
+            &data_labels,
         ),
         ExecuteMsg::RemoveData { data_id } => try_remove_data(response, deps, env, info, &data_id),
         ExecuteMsg::AddDelegation {
             delegator_pubkey,
             delegatee_pubkey,
             proxy_delegations,
+            delegatee_labels,
         } => try_add_delegation(
             response,
             deps,
@@ -1310,6 +1453,7 @@ pub fn execute(
             &delegator_pubkey,
             &delegatee_pubkey,
             &proxy_delegations,
+            &delegatee_labels,
         ),
         ExecuteMsg::RequestReencryption {
             data_id,
@@ -1319,6 +1463,40 @@ pub fn execute(
             data_id,
             delegatee_pubkey,
         } => try_resolve_timed_out_request(response, deps, env, info, &data_id, &delegatee_pubkey),
+
+        ExecuteMsg::AddDataLabels {
+            data_id,
+            data_labels,
+        } => try_add_data_labels(response, deps, env, info, &data_id, &data_labels),
+
+        ExecuteMsg::RemoveDataLabels {
+            data_id,
+            data_labels,
+        } => try_remove_data_labels(response, deps, env, info, &data_id, &data_labels),
+
+        ExecuteMsg::AddDelegateeLabels {
+            delegatee_pubkey,
+            delegatee_labels,
+        } => try_add_delegatee_labels(
+            response,
+            deps,
+            env,
+            info,
+            &delegatee_pubkey,
+            &delegatee_labels,
+        ),
+
+        ExecuteMsg::RemoveDelegateeLabels {
+            delegatee_pubkey,
+            delegatee_labels,
+        } => try_remove_delegatee_labels(
+            response,
+            deps,
+            env,
+            info,
+            &delegatee_pubkey,
+            &delegatee_labels,
+        ),
     }
 }
 
@@ -1502,6 +1680,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
             Ok(to_binary(&GetProxyStatusResponse { proxy_status })?)
         }
+        QueryMsg::GetDataLabels { data_id } => Ok(to_binary(&GetDataLabelsResponse {
+            data_labels: store_get_all_data_labels(deps.storage, &data_id),
+        })?),
+        QueryMsg::GetDelegateeLabels {
+            delegator_addr,
+            delegatee_pubkey,
+        } => Ok(to_binary(&GetDelegateeLabelsResponse {
+            delegatee_labels: store_get_all_delegatee_labels(
+                deps.storage,
+                &delegator_addr,
+                &delegatee_pubkey,
+            ),
+        })?),
     }
 }
 
@@ -1532,6 +1723,26 @@ fn ensure_delegator(
         // Reserve delegator_pubkey for current delegator_address
         store_set_delegator_address(storage, delegator_pubkey, delegator_address);
     }
+    Ok(())
+}
+
+fn ensure_data_owner(
+    storage: &mut dyn Storage,
+    data_id: &str,
+    delegator_address: &Addr,
+) -> StdResult<()> {
+    let data_entry: DataEntry = match store_get_data_entry(storage, data_id) {
+        None => generic_err!("Data entry doesn't exist."),
+        Some(data_entry) => Ok(data_entry),
+    }?;
+
+    let correct_delegator_addr: Addr =
+        store_get_delegator_address(storage, &data_entry.delegator_pubkey).unwrap();
+
+    if &correct_delegator_addr != delegator_address {
+        return generic_err!("Sender is not a data owner.");
+    }
+
     Ok(())
 }
 

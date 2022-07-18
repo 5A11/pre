@@ -104,6 +104,7 @@ pub enum ExecuteMsg {
         delegator_pubkey: String,
         capsule: String, // symmetric key encoded with data owner public key (only data owner can decode this)
         tags: Option<Vec<Tag>>,
+        data_labels: Option<Vec<String>>,
     },
     // Remove data, reencryption request and fragments
     RemoveData {
@@ -113,6 +114,7 @@ pub enum ExecuteMsg {
         delegator_pubkey: String,
         delegatee_pubkey: String,
         proxy_delegations: Vec<ProxyDelegationString>,
+        delegatee_labels: Option<Vec<String>>,
     },
     RequestReencryption {
         data_id: String,
@@ -121,6 +123,23 @@ pub enum ExecuteMsg {
     ResolveTimedOutRequest {
         data_id: String,
         delegatee_pubkey: String,
+    },
+
+    AddDataLabels {
+        data_id: String,
+        data_labels: Vec<String>,
+    },
+    RemoveDataLabels {
+        data_id: String,
+        data_labels: Vec<String>,
+    },
+    AddDelegateeLabels {
+        delegatee_pubkey: String,
+        delegatee_labels: Vec<String>,
+    },
+    RemoveDelegateeLabels {
+        delegatee_pubkey: String,
+        delegatee_labels: Vec<String>,
     },
 }
 
@@ -147,6 +166,14 @@ pub enum QueryMsg {
     },
     GetProxyStatus {
         proxy_addr: Addr,
+    },
+
+    GetDataLabels {
+        data_id: String,
+    },
+    GetDelegateeLabels {
+        delegator_addr: Addr,
+        delegatee_pubkey: String,
     },
 }
 
@@ -197,6 +224,16 @@ pub struct GetDelegationStatusResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GetProxyStatusResponse {
     pub proxy_status: Option<ProxyStatusResponse>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct GetDataLabelsResponse {
+    pub data_labels: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct GetDelegateeLabelsResponse {
+    pub delegatee_labels: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]

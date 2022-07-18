@@ -21,6 +21,7 @@ use crate::proxies::{
     store_get_all_active_proxy_addresses, store_get_is_proxy_active, store_get_proxy_entry,
     ProxyState,
 };
+use crate::reencryption_permissions::{get_permission, store_get_all_data_labels};
 use crate::reencryption_requests::{
     get_all_fragments, get_reencryption_request_state, store_get_all_proxy_tasks_in_queue,
     store_get_delegatee_proxy_task, store_get_proxy_task, store_is_proxy_task_in_queue,
@@ -263,6 +264,7 @@ fn add_data(
     data_id: &String,
     delegator_pubkey: &String,
     capsule: &String,
+    data_labels: &Option<Vec<String>>,
 ) -> StdResult<Response> {
     let env = mock_env_height(creator, block_height, &vec![]);
 
@@ -271,6 +273,7 @@ fn add_data(
         delegator_pubkey: delegator_pubkey.clone(),
         capsule: capsule.clone(),
         tags: None,
+        data_labels: data_labels.clone(),
     };
 
     execute(deps, env.0, env.1, msg)
@@ -298,6 +301,7 @@ fn add_delegation(
     delegator_pubkey: &String,
     delegatee_pubkey: &String,
     proxy_delegations: &[ProxyDelegationString],
+    delegatee_labels: &Option<Vec<String>>,
 ) -> StdResult<Response> {
     let env = mock_env_height(creator, block_height, &vec![]);
 
@@ -305,6 +309,7 @@ fn add_delegation(
         delegator_pubkey: delegator_pubkey.clone(),
         delegatee_pubkey: delegatee_pubkey.clone(),
         proxy_delegations: proxy_delegations.to_vec(),
+        delegatee_labels: delegatee_labels.clone(),
     };
 
     execute(deps, env.0, env.1, msg)
@@ -340,6 +345,74 @@ fn resolve_timed_out_request(
     let msg = ExecuteMsg::ResolveTimedOutRequest {
         data_id: data_id.clone(),
         delegatee_pubkey: delegatee_pubkey.clone(),
+    };
+
+    execute(deps, env.0, env.1, msg)
+}
+
+fn add_data_labels(
+    deps: DepsMut,
+    creator: &Addr,
+    block_height: u64,
+    data_id: &String,
+    data_labels: &[String],
+) -> StdResult<Response> {
+    let env = mock_env_height(creator, block_height, &vec![]);
+
+    let msg = ExecuteMsg::AddDataLabels {
+        data_id: data_id.clone(),
+        data_labels: data_labels.to_vec(),
+    };
+
+    execute(deps, env.0, env.1, msg)
+}
+
+fn remove_data_labels(
+    deps: DepsMut,
+    creator: &Addr,
+    block_height: u64,
+    data_id: &String,
+    data_labels: &[String],
+) -> StdResult<Response> {
+    let env = mock_env_height(creator, block_height, &vec![]);
+
+    let msg = ExecuteMsg::RemoveDataLabels {
+        data_id: data_id.clone(),
+        data_labels: data_labels.to_vec(),
+    };
+
+    execute(deps, env.0, env.1, msg)
+}
+
+fn add_delegatee_labels(
+    deps: DepsMut,
+    creator: &Addr,
+    block_height: u64,
+    delegatee_pubkey: &String,
+    delegatee_labels: &[String],
+) -> StdResult<Response> {
+    let env = mock_env_height(creator, block_height, &vec![]);
+
+    let msg = ExecuteMsg::AddDelegateeLabels {
+        delegatee_pubkey: delegatee_pubkey.clone(),
+        delegatee_labels: delegatee_labels.to_vec(),
+    };
+
+    execute(deps, env.0, env.1, msg)
+}
+
+fn remove_delegatee_labels(
+    deps: DepsMut,
+    creator: &Addr,
+    block_height: u64,
+    delegatee_pubkey: &String,
+    delegatee_labels: &[String],
+) -> StdResult<Response> {
+    let env = mock_env_height(creator, block_height, &vec![]);
+
+    let msg = ExecuteMsg::RemoveDelegateeLabels {
+        delegatee_pubkey: delegatee_pubkey.clone(),
+        delegatee_labels: delegatee_labels.to_vec(),
     };
 
     execute(deps, env.0, env.1, msg)
@@ -565,7 +638,7 @@ fn test_register_unregister_proxy_whitelisting() {
     assert_eq!(store_get_all_active_proxy_addresses(&deps.storage).len(), 0);
 
     // Check proxy state
-    assert!(!store_get_is_proxy_active(deps.as_mut().storage, &proxy1,));
+    assert!(!store_get_is_proxy_active(deps.as_mut().storage, &proxy1));
     assert!(get_proxy_tasks(deps.as_mut().storage, &proxy1, &0)
         .unwrap()
         .is_empty());
@@ -618,7 +691,7 @@ fn test_register_unregister_proxy_whitelisting() {
     ));
 
     // Check proxy state
-    assert!(store_get_is_proxy_active(deps.as_mut().storage, &proxy1,));
+    assert!(store_get_is_proxy_active(deps.as_mut().storage, &proxy1));
     assert!(
         get_proxy_tasks(deps.as_mut().storage, &proxy1, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
@@ -818,6 +891,7 @@ fn test_add_data() {
         &data_id1,
         &data_entry.delegator_pubkey,
         &capsule,
+        &None,
     )
     .is_ok());
 
@@ -830,6 +904,7 @@ fn test_add_data() {
             &data_id1,
             &data_entry.delegator_pubkey,
             &capsule,
+            &None,
         ),
         "already exist",
     ));
@@ -852,6 +927,7 @@ fn test_add_data() {
             &data_id2,
             &DELEGATOR1_PUBKEY.to_string(),
             &capsule,
+            &None,
         ),
         "already registered with this pubkey",
     ));
@@ -903,6 +979,7 @@ fn test_remove_data() {
         &data_id1,
         &data_entry.delegator_pubkey,
         &capsule,
+        &None,
     )
     .is_ok());
 
@@ -916,15 +993,15 @@ fn test_remove_data() {
     );
 
     assert!(is_err(
-        remove_data(deps.as_mut(), &delegator2, DEFAULT_BLOCK_HEIGHT, &data_id1,),
+        remove_data(deps.as_mut(), &delegator2, DEFAULT_BLOCK_HEIGHT, &data_id1),
         format!(
             "Delegator {} already registered with this pubkey.",
             delegator1
         )
-        .as_str()
+        .as_str(),
     ));
 
-    assert!(remove_data(deps.as_mut(), &delegator1, DEFAULT_BLOCK_HEIGHT, &data_id1,).is_ok());
+    assert!(remove_data(deps.as_mut(), &delegator1, DEFAULT_BLOCK_HEIGHT, &data_id1).is_ok());
 
     assert_eq!(store_get_data_entry(deps.as_mut().storage, &data_id1), None,);
 }
@@ -1018,6 +1095,7 @@ fn test_add_delegation_and_request_reencryption() {
         &data_id,
         &data_entry.delegator_pubkey,
         &capsule,
+        &None,
     )
     .is_ok());
 
@@ -1050,6 +1128,7 @@ fn test_add_delegation_and_request_reencryption() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -1062,6 +1141,7 @@ fn test_add_delegation_and_request_reencryption() {
             &DELEGATOR1_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
+            &None,
         ),
         "Delegation already exists.",
     ));
@@ -1089,7 +1169,7 @@ fn test_add_delegation_and_request_reencryption() {
             &DELEGATEE1_PUBKEY.to_string(),
             &higher_request_reward,
         ),
-        "Reencryption is not permitted"
+        "Reencryption is not permitted",
     ));
 
     // Reencryption can be requested only after add_delegation
@@ -1224,6 +1304,7 @@ fn test_remove_data_when_reencryption_requested() {
         &data_id1,
         &data_entry.delegator_pubkey,
         &capsule,
+        &None,
     )
     .is_ok());
 
@@ -1258,6 +1339,7 @@ fn test_remove_data_when_reencryption_requested() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -1304,7 +1386,7 @@ fn test_remove_data_when_reencryption_requested() {
         Some(1u64)
     );
 
-    assert!(remove_data(deps.as_mut(), &delegator1, DEFAULT_BLOCK_HEIGHT, &data_id1,).is_ok());
+    assert!(remove_data(deps.as_mut(), &delegator1, DEFAULT_BLOCK_HEIGHT, &data_id1).is_ok());
 
     assert_eq!(store_get_data_entry(deps.as_mut().storage, &data_id1), None,);
 
@@ -1400,6 +1482,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -1412,6 +1495,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
             &data_id1,
             &DELEGATOR1_PUBKEY.to_string(),
             &capsule,
+            &None,
         ),
         "Delegator delegator1 already registered with this pubkey.",
     ));
@@ -1423,6 +1507,7 @@ fn test_add_delegation_and_then_data_with_diffent_proxy_same_pubkey() {
         &data_id2,
         &DELEGATOR2_PUBKEY.to_string(),
         &capsule,
+        &None,
     )
     .is_ok());
 }
@@ -1493,6 +1578,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATOR1_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
+            &None,
         ),
         "Unregistered proxy with address proxy2",
     ));
@@ -1513,6 +1599,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATOR1_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
+            &None,
         ),
         "Delegation string was already provided for proxy proxy1",
     ));
@@ -1526,6 +1613,7 @@ fn test_add_delegation_edge_cases() {
             &DELEGATOR2_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &[],
+            &None,
         ),
         "Required at least 1 proxies.",
     ));
@@ -1603,6 +1691,7 @@ fn test_provide_reencrypted_fragment() {
         &data_id,
         &data_entry.delegator_pubkey,
         &capsule,
+        &None,
     )
     .is_ok());
 
@@ -1620,6 +1709,7 @@ fn test_provide_reencrypted_fragment() {
         &delegator_pubkey,
         &delegatee_pubkey,
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -1636,7 +1726,7 @@ fn test_provide_reencrypted_fragment() {
 
     /*************** Provide reencrypted fragment *************/
     assert_eq!(
-        store_get_delegatee_proxy_task(deps.as_mut().storage, &data_id, &delegatee_pubkey, &proxy,)
+        store_get_delegatee_proxy_task(deps.as_mut().storage, &data_id, &delegatee_pubkey, &proxy)
             .unwrap(),
         0u64
     );
@@ -1787,6 +1877,7 @@ fn test_contract_lifecycle() {
         &data_id,
         &data_entry.delegator_pubkey,
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
 
@@ -1821,6 +1912,7 @@ fn test_contract_lifecycle() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -1840,6 +1932,7 @@ fn test_contract_lifecycle() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE2_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -2157,6 +2250,7 @@ fn test_contract_lifecycle() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -2295,6 +2389,7 @@ fn test_proxy_unregister_with_requests() {
         &data_id1,
         &DELEGATOR1_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
     assert!(add_data(
@@ -2304,6 +2399,7 @@ fn test_proxy_unregister_with_requests() {
         &data_id2,
         &DELEGATOR1_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
     assert!(add_data(
@@ -2313,6 +2409,7 @@ fn test_proxy_unregister_with_requests() {
         &data_id3,
         &DELEGATOR2_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
 
@@ -2948,6 +3045,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &data_id1,
         &DELEGATOR1_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
     assert!(add_data(
@@ -2957,6 +3055,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &data_id2,
         &DELEGATOR1_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
     assert!(add_data(
@@ -2966,6 +3065,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         &data_id3,
         &DELEGATOR2_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
 
@@ -3120,7 +3220,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
         .is_ok());
 
     // Check proxy state
-    assert!(store_get_is_proxy_active(deps.as_mut().storage, &proxy2,));
+    assert!(store_get_is_proxy_active(deps.as_mut().storage, &proxy2));
     assert!(
         !get_proxy_tasks(deps.as_mut().storage, &proxy2, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
@@ -3145,7 +3245,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     ));
 
     // Check proxy state
-    assert!(!store_get_is_proxy_active(deps.as_mut().storage, &proxy2,));
+    assert!(!store_get_is_proxy_active(deps.as_mut().storage, &proxy2));
     assert!(
         !get_proxy_tasks(deps.as_mut().storage, &proxy2, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
@@ -3274,7 +3374,7 @@ fn test_proxy_deactivate_and_remove_with_requests() {
     ));
 
     // Check proxy state
-    assert!(!store_get_is_proxy_active(deps.as_mut().storage, &proxy2,));
+    assert!(!store_get_is_proxy_active(deps.as_mut().storage, &proxy2));
     assert!(
         get_proxy_tasks(deps.as_mut().storage, &proxy2, &DEFAULT_BLOCK_HEIGHT)
             .unwrap()
@@ -3793,6 +3893,7 @@ fn test_proxy_insufficient_funds_task_skip() {
         &data_id1,
         &DELEGATOR1_PUBKEY.to_string(),
         &capsule,
+        &None,
     )
     .is_ok());
     assert!(add_data(
@@ -3802,6 +3903,7 @@ fn test_proxy_insufficient_funds_task_skip() {
         &data_id2,
         &DELEGATOR1_PUBKEY.to_string(),
         &capsule,
+        &None,
     )
     .is_ok());
     assert!(add_data(
@@ -3811,6 +3913,7 @@ fn test_proxy_insufficient_funds_task_skip() {
         &data_id3,
         &DELEGATOR1_PUBKEY.to_string(),
         &capsule,
+        &None,
     )
     .is_ok());
 
@@ -3836,6 +3939,7 @@ fn test_proxy_insufficient_funds_task_skip() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -4259,6 +4363,7 @@ fn test_timeouts() {
         &data_id1,
         &DELEGATOR1_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
 
@@ -4269,6 +4374,7 @@ fn test_timeouts() {
         &data_id2,
         &DELEGATOR2_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
 
@@ -4295,6 +4401,7 @@ fn test_timeouts() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &delegation1,
+        &None,
     )
     .is_ok());
 
@@ -4316,6 +4423,7 @@ fn test_timeouts() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE2_PUBKEY.to_string(),
         &delegation2,
+        &None,
     )
     .is_ok());
 
@@ -4341,6 +4449,7 @@ fn test_timeouts() {
         &DELEGATOR2_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &delegation3,
+        &None,
     )
     .is_ok());
 
@@ -4703,6 +4812,7 @@ fn test_terminate_contract() {
         &data_id1,
         &DELEGATOR1_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
 
@@ -4725,6 +4835,7 @@ fn test_terminate_contract() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
     assert!(add_delegation(
@@ -4734,6 +4845,7 @@ fn test_terminate_contract() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE2_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -4794,6 +4906,7 @@ fn test_terminate_contract() {
             &DELEGATOR2_PUBKEY.to_string(),
             &DELEGATEE1_PUBKEY.to_string(),
             &proxy_delegations,
+            &None,
         ),
         "Contract was terminated.",
     ));
@@ -4987,6 +5100,7 @@ fn test_skip_task() {
         &data_id1,
         &DELEGATOR1_PUBKEY.to_string(),
         &CAPSULE.to_string(),
+        &None,
     )
     .is_ok());
 
@@ -5013,6 +5127,7 @@ fn test_skip_task() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
     assert!(add_delegation(
@@ -5022,6 +5137,7 @@ fn test_skip_task() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE2_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -5261,6 +5377,7 @@ fn test_remove_proxies_from_delegation() {
         &DELEGATOR1_PUBKEY.to_string(),
         &DELEGATEE1_PUBKEY.to_string(),
         &proxy_delegations,
+        &None,
     )
     .is_ok());
 
@@ -5268,7 +5385,7 @@ fn test_remove_proxies_from_delegation() {
         get_delegation_state(
             deps.as_mut().storage,
             &DELEGATOR1_PUBKEY.to_string(),
-            &DELEGATEE1_PUBKEY.to_string()
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
         DelegationState::Active
     );
@@ -5279,7 +5396,7 @@ fn test_remove_proxies_from_delegation() {
         get_delegation_state(
             deps.as_mut().storage,
             &DELEGATOR1_PUBKEY.to_string(),
-            &DELEGATEE1_PUBKEY.to_string()
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
         DelegationState::Active
     );
@@ -5291,7 +5408,7 @@ fn test_remove_proxies_from_delegation() {
         get_delegation_state(
             deps.as_mut().storage,
             &DELEGATOR1_PUBKEY.to_string(),
-            &DELEGATEE1_PUBKEY.to_string()
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
         DelegationState::NonExisting
     );
@@ -5302,8 +5419,362 @@ fn test_remove_proxies_from_delegation() {
         get_delegation_state(
             deps.as_mut().storage,
             &DELEGATOR1_PUBKEY.to_string(),
-            &DELEGATEE1_PUBKEY.to_string()
+            &DELEGATEE1_PUBKEY.to_string(),
         ),
         DelegationState::NonExisting
     );
+}
+
+#[test]
+fn test_add_remove_labels() {
+    let mut deps = mock_dependencies();
+
+    // Addresses
+    let creator = Addr::unchecked("creator".to_string());
+    let delegator1 = Addr::unchecked("delegator1".to_string());
+    let delegator2 = Addr::unchecked("delegator2".to_string());
+
+    // Data
+    let data_id1 = String::from("DATA1");
+    let data_id2 = String::from("DATA2");
+    let data_id3 = String::from("DATA3");
+
+    let capsule = String::from("capsule");
+
+    /*************** Initialise *************/
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        DEFAULT_BLOCK_HEIGHT,
+        &None,
+        &None,
+        &None,
+        &DEFAULT_STAKE_DENOM.to_string(),
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+    )
+    .is_ok());
+
+    /*************** Add data and delegations by delegator *************/
+
+    // Add data by delegator1
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &capsule,
+        &Some(["x".to_string()].to_vec()),
+    )
+    .is_ok());
+
+    // Add data by delegator2
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator2,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id2,
+        &DELEGATOR2_PUBKEY.to_string(),
+        &capsule,
+        &None,
+    )
+    .is_ok());
+
+    assert!(add_data_labels(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &["a".to_string(), "b".to_string()]
+    )
+    .is_ok());
+    assert_eq!(
+        store_get_all_data_labels(deps.as_ref().storage, &data_id1),
+        &["a".to_string(), "b".to_string(), "x".to_string()]
+    );
+
+    assert!(add_data_labels(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &["b".to_string(), "c".to_string()]
+    )
+    .is_ok());
+    assert_eq!(
+        store_get_all_data_labels(deps.as_ref().storage, &data_id1),
+        &[
+            "a".to_string(),
+            "b".to_string(),
+            "c".to_string(),
+            "x".to_string()
+        ]
+    );
+
+    // Try to add label for that that are not owned by delegator2
+    assert!(is_err(
+        add_data_labels(
+            deps.as_mut(),
+            &delegator2,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id1,
+            &["d".to_string()]
+        ),
+        "Sender is not a data owner."
+    ));
+
+    assert!(add_delegatee_labels(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &["d".to_string(), "e".to_string()]
+    )
+    .is_ok());
+
+    // Reencryption not permitted
+    assert!(!get_permission(
+        deps.as_mut().storage,
+        &delegator1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &data_id1
+    ));
+
+    // Add label "b" that is also under data1
+    assert!(add_delegatee_labels(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &["b".to_string(), "e".to_string()]
+    )
+    .is_ok());
+
+    // Reencryption is now permitted
+    assert!(get_permission(
+        deps.as_mut().storage,
+        &delegator1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &data_id1
+    ));
+
+    // Add label "b" that is also under data1
+    assert!(remove_delegatee_labels(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &["b".to_string(), "e".to_string()]
+    )
+    .is_ok());
+
+    // Reencryption not permitted
+    assert!(!get_permission(
+        deps.as_mut().storage,
+        &delegator1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &data_id1
+    ));
+
+    // Only owner can add/remove data labels
+    assert!(is_err(
+        add_data_labels(
+            deps.as_mut(),
+            &delegator2,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id1,
+            &["b".to_string()]
+        ),
+        "Sender is not a data owner."
+    ));
+    assert!(is_err(
+        remove_data_labels(
+            deps.as_mut(),
+            &delegator2,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id1,
+            &["b".to_string()]
+        ),
+        "Sender is not a data owner."
+    ));
+    // Entry doesn't exist
+    assert!(is_err(
+        add_data_labels(
+            deps.as_mut(),
+            &delegator2,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id3,
+            &["b".to_string()]
+        ),
+        "Data entry doesn't exist."
+    ));
+    assert!(is_err(
+        remove_data_labels(
+            deps.as_mut(),
+            &delegator2,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id3,
+            &["b".to_string()]
+        ),
+        "Data entry doesn't exist."
+    ));
+
+    // Remove label "b" from data1
+    assert!(remove_data_labels(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &["b".to_string()]
+    )
+    .is_ok());
+    assert_eq!(
+        store_get_all_data_labels(deps.as_ref().storage, &data_id1),
+        &["a".to_string(), "c".to_string(), "x".to_string()]
+    );
+}
+
+#[test]
+fn test_reencryption_with_labels() {
+    let mut deps = mock_dependencies();
+
+    // Addresses
+    let creator = Addr::unchecked("creator".to_string());
+    let delegator1 = Addr::unchecked("delegator1".to_string());
+    let proxy1 = Addr::unchecked("proxy_1".to_string());
+
+    // Data
+    let data_id1 = String::from("DATA1");
+    let data_id2 = String::from("DATA2");
+    let capsule = String::from("capsule");
+
+    // Pubkeys
+    let proxy1_pubkey: String = String::from("proxy_pubkey1");
+
+    let delegation_string = String::from("DELESTRING");
+
+    // Staking
+    let stake_denom = DEFAULT_STAKE_DENOM.to_string();
+    let minimum_proxy_stake_amount: u128 = 200;
+    let per_proxy_task_reward_amount: u128 = 40;
+    let per_task_slash_stake_amount: u128 = 98;
+
+    let proxy_stake = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(minimum_proxy_stake_amount),
+    }];
+
+    let request_reward = vec![Coin {
+        denom: DEFAULT_STAKE_DENOM.to_string(),
+        amount: Uint128::new(per_proxy_task_reward_amount * 1),
+    }];
+
+    /*************** Initialise *************/
+    assert!(init_contract(
+        deps.as_mut(),
+        &creator,
+        DEFAULT_BLOCK_HEIGHT,
+        &Some(1),
+        &None,
+        &None,
+        &stake_denom,
+        &Some(Uint128::new(minimum_proxy_stake_amount)),
+        &Some(Uint128::new(per_proxy_task_reward_amount)),
+        &Some(Uint128::new(per_task_slash_stake_amount)),
+        &None,
+        &None,
+        &None,
+    )
+    .is_ok());
+
+    assert!(register_proxy(
+        deps.as_mut(),
+        &proxy1.clone(),
+        DEFAULT_BLOCK_HEIGHT,
+        &proxy1_pubkey,
+        &proxy_stake,
+    )
+    .is_ok());
+
+    /*************** Add data and delegations by delegator *************/
+
+    // Add data by delegator1
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &capsule,
+        &Some(["x".to_string()].to_vec()),
+    )
+    .is_ok());
+
+    assert!(add_data(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id2,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &capsule,
+        &Some(["y".to_string()].to_vec()),
+    )
+    .is_ok());
+
+    let proxy_delegations: Vec<ProxyDelegationString> = vec![ProxyDelegationString {
+        proxy_addr: proxy1.clone(),
+        delegation_string: delegation_string.clone(),
+    }];
+
+    // Add delegation
+    assert!(add_delegation(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &DELEGATOR1_PUBKEY.to_string(),
+        &DELEGATEE1_PUBKEY.to_string(),
+        &proxy_delegations,
+        &Some(["x".to_string()].to_vec()),
+    )
+    .is_ok());
+
+    // Reencryption not permitted
+    assert!(is_err(
+        request_reencryption(
+            deps.as_mut(),
+            &creator,
+            DEFAULT_BLOCK_HEIGHT,
+            &data_id2,
+            &DELEGATEE1_PUBKEY.to_string(),
+            &request_reward,
+        ),
+        "Reencryption is not permitted.",
+    ));
+
+    // Only delegator can request data2 for delegatee1
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &delegator1,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id2,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
+
+    // But Data1 can be re-encrypted for delegatee1
+    assert!(request_reencryption(
+        deps.as_mut(),
+        &creator,
+        DEFAULT_BLOCK_HEIGHT,
+        &data_id1,
+        &DELEGATEE1_PUBKEY.to_string(),
+        &request_reward,
+    )
+    .is_ok());
 }

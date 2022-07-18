@@ -1,0 +1,7 @@
+chain_id: dorado-1
+denom: atestfet
+node_address: grpc-dorado.fetch.ai:443
+prefix: fetch
+faucet_url: https://faucet-dorado.fetch.ai
+secure_channel: true
+#funding: https://faucet-dorado.fetch.ai

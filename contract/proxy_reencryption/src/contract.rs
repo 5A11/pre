@@ -696,6 +696,10 @@ pub fn try_resolve_timed_out_request(
         }
     }
 
+    if delegator_retrieve_funds_amount.len() > 1 {
+        return generic_err!("One request can't have multiple delegators.");
+    }
+
     // Return stake from unfinished tasks to delegators
     let staking_config = store_get_staking_config(deps.storage).unwrap();
     for (delegator_addr, stake_amount) in delegator_retrieve_funds_amount {
@@ -1423,6 +1427,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 admin: state.admin,
                 threshold: state.threshold,
                 terminated: state.terminated,
+                withdrawn: state.withdrawn,
             })?)
         }
 
@@ -1436,9 +1441,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             })?)
         }
 
-        QueryMsg::GetProxyTasks { proxy_addr } => Ok(to_binary(&GetProxyTasksResponse {
-            proxy_tasks: get_proxy_tasks(deps.storage, &proxy_addr, &env.block.height)?,
-        })?),
+        QueryMsg::GetProxyTasks { proxy_addr } => {
+            let state = store_get_state(deps.storage)?;
+
+            if state.withdrawn {
+                return to_binary(&GetProxyTasksResponse {
+                    proxy_tasks: Vec::new(),
+                });
+            }
+
+            Ok(to_binary(&GetProxyTasksResponse {
+                proxy_tasks: get_proxy_tasks(deps.storage, &proxy_addr, &env.block.height)?,
+            })?)
+        }
 
         QueryMsg::GetDelegationStatus {
             delegator_pubkey,
@@ -1475,7 +1490,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 let staking_config = store_get_staking_config(deps.storage)?;
 
                 proxy_status = Some(ProxyStatusResponse {
-                    proxy_addr,
+                    proxy_pubkey: proxy_entry.proxy_pubkey.clone(),
                     stake_amount: proxy_entry.stake_amount,
                     withdrawable_stake_amount: Uint128::new(get_maximum_withdrawable_stake_amount(
                         &staking_config,

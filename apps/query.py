@@ -1,19 +1,18 @@
-import click
-import certifi
-import grpc
 import json
-import requests
-
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Union
 
-from cosmpy.protos.cosmos.base.query.v1beta1.pagination_pb2 import PageRequest
-from cosmpy.protos.cosmos.base.abci.v1beta1.abci_pb2 import TxResponse
-from cosmpy.tx.rest_client import GetTxsEventRequest
-from cosmpy.protos.cosmos.tx.v1beta1.service_pb2_grpc import ServiceStub as TxGrpcClient
-
+import certifi
+import click
+import grpc
+import requests
 from admin import DeployedContract, LedgerNetworkConfig
+from cosmpy.protos.cosmos.base.abci.v1beta1.abci_pb2 import TxResponse
+from cosmpy.protos.cosmos.base.query.v1beta1.pagination_pb2 import PageRequest
+from cosmpy.protos.cosmos.tx.v1beta1.service_pb2_grpc import ServiceStub as TxGrpcClient
+from cosmpy.tx.rest_client import GetTxsEventRequest
+
 
 PRINT_DELIM = "\t"
 
@@ -205,7 +204,7 @@ def events(ctx: click.Context, data_registrations: bool, reencryption_requests: 
     contract = fetch_contract_info(ctx.parent.params["contract_url"])
     querier = EventQuerier(contract)
 
-    events = []
+    events: Sequence[Union[str, Event]] = []
 
     if data_registrations:
         events = querier.get(EventType.add_data)

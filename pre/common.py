@@ -170,6 +170,7 @@ class ContractState:
     admin: Address
     threshold: int
     terminated: bool
+    withdrawn: bool
 
 
 @dataclass
@@ -200,7 +201,7 @@ class ProxyState(Enum):
 class ProxyStatus:
     """Proxy status data class."""
 
-    proxy_address: Address
+    proxy_pubkey: Optional[str]
     stake_amount: str
     withdrawable_stake_amount: str
     proxy_state: ProxyState

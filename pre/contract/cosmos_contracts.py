@@ -223,6 +223,7 @@ class ContractQueries(AbstractContractQueries):
             admin=cast(str, json_res["admin"]),
             threshold=cast(int, json_res["threshold"]),
             terminated=cast(bool, json_res["terminated"]),
+            withdrawn=cast(bool, json_res["withdrawn"]),
         )
 
     def get_staking_config(self) -> StakingConfig:
@@ -344,14 +345,18 @@ class ContractQueries(AbstractContractQueries):
         json_res = self.ledger.send_query_msg(self.contract_address, state_msg)
 
         if json_res["proxy_status"]:
-            return ProxyStatus(
-                proxy_address=json_res["proxy_status"]["proxy_addr"],
+            proxy_status = ProxyStatus(
+                proxy_pubkey=None,
                 stake_amount=json_res["proxy_status"]["stake_amount"],
                 withdrawable_stake_amount=json_res["proxy_status"][
                     "withdrawable_stake_amount"
                 ],
                 proxy_state=ProxyState[json_res["proxy_status"]["proxy_state"]],
             )
+            if "proxy_pubkey" in json_res["proxy_status"]:
+                proxy_status.proxy_pubkey = json_res["proxy_status"]["proxy_pubkey"]
+
+            return proxy_status
         return None
 
 

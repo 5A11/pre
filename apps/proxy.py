@@ -120,7 +120,7 @@ def process_tasks(
     metrics: ProxyMetrics,
     auto_withdrawal: bool,
     run_once_and_exit: bool,
-    do_fund: bool,
+    app_config,
 ):
     logged = False
     while True:
@@ -165,9 +165,10 @@ def process_tasks(
                     task_processing_failed = True
                 elif isinstance(e, WalletInsufficientFunds):
                     metrics.report_balance(0)  # to trigger alert on grafana board
-                    if do_fund:
-                        click.echo("funding wallet...")
-                        proxy_api._contract.ledger.ensure_funds([addr])
+                    if app_config.fund_if_needed(staking=True):
+                        click.echo(
+                            "Wallet was funded with default gas fees and stake funds"
+                        )
                     metrics.report_balance(proxy_api._contract.ledger.get_balance(addr))
                 elif isinstance(e, ContractExecutionError):
                     metrics.report_contract_execution_failure()
@@ -192,9 +193,10 @@ def process_tasks(
                     metrics.report_contract_query_failure()
                 elif isinstance(e, WalletInsufficientFunds):
                     metrics.report_balance(0)  # to trigger alert on grafana board
-                    if do_fund:
-                        click.echo("funding wallet...")
-                        proxy_api._contract.ledger.ensure_funds([addr])
+                    if app_config.fund_if_needed(staking=True):
+                        click.echo(
+                            "Wallet was funded with default gas fees and stake funds"
+                        )
                     metrics.report_balance(proxy_api._contract.ledger.get_balance(addr))
                 elif isinstance(e, ContractExecutionError):
                     metrics.report_contract_execution_failure()
@@ -290,7 +292,7 @@ def run(
 
     try:
         process_tasks(
-            proxy_api, metrics, auto_withdrawal, run_once_and_exit, app_config.do_fund
+            proxy_api, metrics, auto_withdrawal, run_once_and_exit, app_config
         )
     finally:
         try:

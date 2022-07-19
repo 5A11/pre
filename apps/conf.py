@@ -1,3 +1,4 @@
+import time
 from enum import Enum
 from functools import update_wrapper
 from pathlib import Path
@@ -352,7 +353,7 @@ class AppConf:
         staking: bool = False,
     ) -> bool:
         if not self.do_fund:
-            return False
+            return self.wait_for_funds(staking)
 
         ledger = self.get_ledger_instance()
         addr = self.get_ledger_crypto().get_address()
@@ -388,6 +389,24 @@ class AppConf:
                     faucet_url=stake_faucet_url,
                     validator_crypto=stake_validator_crypto,
                 )
+
+        return True
+
+    def wait_for_funds(
+        self,
+        staking: bool = False,
+        minimum_required_balance: int = DEFAULT_FUNDS_AMOUNT,
+    ) -> bool:
+        ledger = self.get_ledger_instance()
+        addr = self.get_ledger_crypto().get_address()
+
+        balance = ledger.get_balance(addr)
+        while balance < minimum_required_balance:
+            print(
+                f"Address {str(addr)} is waiting for balance to be at least {str(minimum_required_balance)}, current balance is {str(balance)}"
+            )
+            time.sleep(10)
+            balance = ledger.get_balance(addr)
 
         return True
 

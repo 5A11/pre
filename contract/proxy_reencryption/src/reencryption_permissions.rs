@@ -1,83 +1,158 @@
-use cosmwasm_std::{from_slice, to_vec, Addr, Storage};
+use cosmwasm_std::{Addr, Order, StdError, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
-// To be able to tell that delegator allowed delegatee to request access
-// Map delegator_address: Addr -> delegatee_pubkey: String -> permission: ReencryptionPermission
-static REENCRYPTION_PERMISSION_STORE_KEY: &[u8] = b"ReencryptionPermissionStore";
+// Map data_id: String -> label: String -> is_label: bool
+static DATA_LABELS_STORE_KEY: &[u8] = b"DataLabelsStore";
 
-// This will represent data entry permission filter
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct ReencryptionPermission {
-    ids: HashSet<String>,
-}
+// Map delegator_address: Addr -> delegatee_pubkey: String -> label: String -> is_label: bool
+static DELEGATEE_LABELS_STORE_KEY: &[u8] = b"DelegateeLabelsStore";
 
-impl ReencryptionPermission {
-    fn new() -> ReencryptionPermission {
-        ReencryptionPermission {
-            ids: HashSet::new(),
-        }
+// DATA_LABELS_STORE
+pub fn store_add_data_labels(storage: &mut dyn Storage, data_id: &str, labels: &[String]) {
+    let mut store =
+        PrefixedStorage::multilevel(storage, &[DATA_LABELS_STORE_KEY, data_id.as_bytes()]);
+
+    for label in labels {
+        store.set(label.as_bytes(), &[1])
     }
 }
 
-pub fn store_get_permission(
-    storage: &dyn Storage,
-    delegator_addr: &Addr,
-    delegatee_pubkey: &str,
-) -> Option<ReencryptionPermission> {
-    let store = ReadonlyPrefixedStorage::multilevel(
-        storage,
-        &[REENCRYPTION_PERMISSION_STORE_KEY, delegator_addr.as_bytes()],
-    );
+pub fn store_remove_data_labels(
+    storage: &mut dyn Storage,
+    data_id: &str,
+    labels: &[String],
+) -> StdResult<()> {
+    let mut store =
+        PrefixedStorage::multilevel(storage, &[DATA_LABELS_STORE_KEY, data_id.as_bytes()]);
 
-    store
-        .get(delegatee_pubkey.as_bytes())
-        .map(|data| from_slice(&data).unwrap())
+    for label in labels {
+        if store.get(label.as_bytes()).is_none() {
+            return Err(StdError::generic_err(format!(
+                "Non existing data label {}",
+                &label
+            )));
+        }
+
+        store.remove(label.as_bytes())
+    }
+
+    Ok(())
 }
 
-pub fn store_set_permission(
+pub fn store_is_data_label(storage: &dyn Storage, data_id: &str, label: &str) -> bool {
+    let store =
+        ReadonlyPrefixedStorage::multilevel(storage, &[DATA_LABELS_STORE_KEY, data_id.as_bytes()]);
+
+    store.get(label.as_bytes()).is_some()
+}
+
+pub fn store_get_all_data_labels(storage: &dyn Storage, data_id: &str) -> Vec<String> {
+    let store =
+        ReadonlyPrefixedStorage::multilevel(storage, &[DATA_LABELS_STORE_KEY, data_id.as_bytes()]);
+
+    let mut deserialized_keys: Vec<String> = Vec::new();
+
+    for pair in store.range(None, None, Order::Ascending) {
+        // Deserialize keys with inverse operation to &string.as_bytes()
+        deserialized_keys.push(String::from_utf8(pair.0).unwrap());
+    }
+
+    deserialized_keys
+}
+
+// DELEGATEE_LABELS_STORE
+pub fn store_add_delegatee_labels(
     storage: &mut dyn Storage,
     delegator_addr: &Addr,
     delegatee_pubkey: &str,
-    permission: &ReencryptionPermission,
+    labels: &[String],
 ) {
     let mut store = PrefixedStorage::multilevel(
         storage,
-        &[REENCRYPTION_PERMISSION_STORE_KEY, delegator_addr.as_bytes()],
+        &[
+            DELEGATEE_LABELS_STORE_KEY,
+            delegator_addr.as_bytes(),
+            delegatee_pubkey.as_bytes(),
+        ],
     );
 
-    store.set(delegatee_pubkey.as_bytes(), &to_vec(permission).unwrap());
+    for label in labels {
+        store.set(label.as_bytes(), &[1])
+    }
 }
 
-pub fn set_permission(
+pub fn store_remove_delegatee_labels(
     storage: &mut dyn Storage,
     delegator_addr: &Addr,
     delegatee_pubkey: &str,
-    data_id: &str,
-    permitted: bool,
-) {
-    let mut permissions: ReencryptionPermission =
-        match store_get_permission(storage, delegator_addr, delegatee_pubkey) {
-            None => {
-                if permitted {
-                    ReencryptionPermission::new()
-                } else {
-                    return;
-                }
-            }
-            Some(permission) => permission,
-        };
+    labels: &[String],
+) -> StdResult<()> {
+    let mut store = PrefixedStorage::multilevel(
+        storage,
+        &[
+            DELEGATEE_LABELS_STORE_KEY,
+            delegator_addr.as_bytes(),
+            delegatee_pubkey.as_bytes(),
+        ],
+    );
 
-    if permitted {
-        permissions.ids.insert(data_id.to_string());
-    } else {
-        permissions.ids.remove(&data_id.to_string());
+    for label in labels {
+        if store.get(label.as_bytes()).is_none() {
+            return Err(StdError::generic_err(format!(
+                "Non existing delegatee label {}",
+                &label
+            )));
+        }
+
+        store.remove(label.as_bytes())
     }
 
-    store_set_permission(storage, delegator_addr, delegatee_pubkey, &permissions);
+    Ok(())
 }
+
+pub fn store_is_delegatee_label(
+    storage: &dyn Storage,
+    delegator_addr: &Addr,
+    delegatee_pubkey: &str,
+    label: &str,
+) -> bool {
+    let store = ReadonlyPrefixedStorage::multilevel(
+        storage,
+        &[
+            DELEGATEE_LABELS_STORE_KEY,
+            delegator_addr.as_bytes(),
+            delegatee_pubkey.as_bytes(),
+        ],
+    );
+
+    store.get(label.as_bytes()).is_some()
+}
+
+pub fn store_get_all_delegatee_labels(
+    storage: &dyn Storage,
+    delegator_addr: &Addr,
+    delegatee_pubkey: &str,
+) -> Vec<String> {
+    let store = ReadonlyPrefixedStorage::multilevel(
+        storage,
+        &[
+            DELEGATEE_LABELS_STORE_KEY,
+            delegator_addr.as_bytes(),
+            delegatee_pubkey.as_bytes(),
+        ],
+    );
+
+    let mut deserialized_keys: Vec<String> = Vec::new();
+
+    for pair in store.range(None, None, Order::Ascending) {
+        // Deserialize keys with inverse operation to &string.as_bytes()
+        deserialized_keys.push(String::from_utf8(pair.0).unwrap());
+    }
+
+    deserialized_keys
+}
+
+// Public functions
 
 pub fn get_permission(
     storage: &dyn Storage,
@@ -85,15 +160,14 @@ pub fn get_permission(
     delegatee_pubkey: &str,
     data_id: &str,
 ) -> bool {
-    // Placeholder for whitelisting access control
+    let delegatee_labels =
+        store_get_all_delegatee_labels(storage, delegator_addr, delegatee_pubkey);
 
-    let permissions: ReencryptionPermission =
-        match store_get_permission(storage, delegator_addr, delegatee_pubkey) {
-            None => {
-                return false;
-            }
-            Some(permissions) => permissions,
-        };
+    for delegatee_label in delegatee_labels {
+        if store_is_data_label(storage, data_id, &delegatee_label) {
+            return true;
+        }
+    }
 
-    permissions.ids.contains(data_id)
+    false
 }

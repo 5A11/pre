@@ -226,6 +226,15 @@
             "data_id": {
               "type": "string"
             },
+            "data_labels": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
             "delegator_pubkey": {
               "type": "string"
             },
@@ -277,6 +286,15 @@
             "proxy_delegations"
           ],
           "properties": {
+            "delegatee_labels": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
             "delegatee_pubkey": {
               "type": "string"
             },
@@ -333,6 +351,114 @@
           "properties": {
             "data_id": {
               "type": "string"
+            },
+            "delegatee_pubkey": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "add_data_labels"
+      ],
+      "properties": {
+        "add_data_labels": {
+          "type": "object",
+          "required": [
+            "data_id",
+            "data_labels"
+          ],
+          "properties": {
+            "data_id": {
+              "type": "string"
+            },
+            "data_labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "remove_data_labels"
+      ],
+      "properties": {
+        "remove_data_labels": {
+          "type": "object",
+          "required": [
+            "data_id",
+            "data_labels"
+          ],
+          "properties": {
+            "data_id": {
+              "type": "string"
+            },
+            "data_labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "add_delegatee_labels"
+      ],
+      "properties": {
+        "add_delegatee_labels": {
+          "type": "object",
+          "required": [
+            "delegatee_labels",
+            "delegatee_pubkey"
+          ],
+          "properties": {
+            "delegatee_labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "delegatee_pubkey": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "remove_delegatee_labels"
+      ],
+      "properties": {
+        "remove_delegatee_labels": {
+          "type": "object",
+          "required": [
+            "delegatee_labels",
+            "delegatee_pubkey"
+          ],
+          "properties": {
+            "delegatee_labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             },
             "delegatee_pubkey": {
               "type": "string"

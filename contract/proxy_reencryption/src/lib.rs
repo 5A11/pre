@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 pub mod common;
 pub mod contract;
 pub mod delegations;

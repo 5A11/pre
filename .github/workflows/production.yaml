@@ -13,6 +13,7 @@ jobs:
     env:
       EKS_CLUSTER_NAME: colearn-v3
       AWS_REGION: us-west-2
+      NAMESPACE: pre-prod
 
     steps:
       - name: Checkout
@@ -94,8 +95,8 @@ jobs:
             --set proxy.enabled=false \
             --set ipfs.enabled=false \
             --set env="prod" \
-            --set namespace="pre-prod" \
-            -n pre-prod
+            --set namespace="${{ env.NAMESPACE }}" \
+            -n ${{ env.NAMESPACE }}
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 
@@ -112,8 +113,8 @@ jobs:
             --set proxy.tag=${{ env.SHORTSHA }}  \
             --set ipfs.enabled=false \
             --set env="prod" \
-            --set namespace="pre-prod" \
-            -n pre-prod
+            --set namespace="${{ env.NAMESPACE }}" \
+            -n ${{ env.NAMESPACE }}
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 
@@ -126,3 +127,14 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: ${{ job.status }}
           deployment_id: ${{ steps.deployment_production.outputs.deployment_id }}
+      
+      # Get Logs for Admin and Proxy K8s Deployment
+      - name: Get Admin and Proxy Logs
+        if: always()
+        run: |
+          echo "Looking for ${{ env.SHORTSHA }} deployments in namespace ${{ env.NAMESPACE }}:"
+          kubectl get all -n ${{ env.NAMESPACE }}
+          kubectl logs  $(kubectl get pods -n ${{ env.NAMESPACE }} | grep admin-${{ env.SHORTSHA }} | awk '{ print $1 }') --timestamps -n ${{ env.NAMESPACE }}
+          for POD in    $(kubectl get pods -n ${{ env.NAMESPACE }} | grep proxy-                    | awk '{ print $1 }'); do kubectl logs $POD --timestamps -n ${{ env.NAMESPACE }}; done
+        env:
+          SHORTSHA: ${{ steps.vars.outputs.sha_short }}

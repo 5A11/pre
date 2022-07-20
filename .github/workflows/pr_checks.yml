@@ -12,6 +12,7 @@ jobs:
     env:
       EKS_CLUSTER_NAME: colearn-v3
       AWS_REGION: us-west-2
+      NAMESPACE: pre-test
 
     steps:
       - name: Checkout
@@ -83,7 +84,7 @@ jobs:
             --set admin.name=admin-${{ env.SHORTSHA }} \
             --set admin.tag=${{ env.SHORTSHA }}  \
             --set proxy.enabled=false \
-            -n pre-test
+            -n ${{ env.NAMESPACE }}
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 
@@ -97,7 +98,7 @@ jobs:
           helm upgrade --install --wait --timeout 120s sandbox-proxy-${{ env.SHORTSHA }} ./k8s/pre-relayer-test/ \
             --set admin.enabled=false \
             --set proxy.tag=${{ env.SHORTSHA }}  \
-            -n pre-test
+            -n ${{ env.NAMESPACE }}
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 
@@ -171,12 +172,24 @@ jobs:
           docker-compose -f "docker/docker-compose.yml" run reader --contract-address $CONT_ADDR get-data $DATA_ID /data/decrypted_data.txt;
           echo "[OK] Decrypted file: $(cat decrypted_data.txt)";
           diff original_data.txt decrypted_data.txt
+      
+      # Get Logs for Admin and Proxy K8s Deployment
+      - name: Get Admin and Proxy Logs
+        if: always()
+        run: |
+          echo "Looking for ${{ env.SHORTSHA }} deployments in namespace ${{ env.NAMESPACE }}:"
+          kubectl get pods -n ${{ env.NAMESPACE }}
+          kubectl logs  $(kubectl get pods -n ${{ env.NAMESPACE }} | grep admin-${{ env.SHORTSHA }} | awk '{ print $1 }') --timestamps -n ${{ env.NAMESPACE }}
+          for POD in    $(kubectl get pods -n ${{ env.NAMESPACE }} | grep proxy-${{ env.SHORTSHA }} | awk '{ print $1 }'); do kubectl logs $POD --timestamps -n ${{ env.NAMESPACE }}; done
+        env:
+          SHORTSHA: ${{ steps.vars.outputs.sha_short }}
+      
       # Removing Admin and Proxy K8s Deployment
       - name: Cleaning Up Admin and Proxy from Sandbox
         if: always()
         run: |
-          helm uninstall sandbox-admin-${{ env.SHORTSHA }} -n pre-test
-          helm uninstall sandbox-proxy-${{ env.SHORTSHA }} -n pre-test
+          helm uninstall sandbox-admin-${{ env.SHORTSHA }} -n ${{ env.NAMESPACE }}
+          helm uninstall sandbox-proxy-${{ env.SHORTSHA }} -n ${{ env.NAMESPACE }}
         env:
           SHORTSHA: ${{ steps.vars.outputs.sha_short }}
 

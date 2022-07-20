@@ -52,7 +52,7 @@ spec:
             exec:
               command:
                 - /bin/sh
-                - ./scripts/liveness.sh
+                - ./scripts/liveness.sh https://pre-relayer.s3.us-west-2.amazonaws.com/contract/{{ $.Values.env }}/latest.json
             initialDelaySeconds: 15
             periodSeconds: 5
             timeoutSeconds: 10

@@ -412,7 +412,7 @@ class AppConf:
             time.sleep(10)
             balance = ledger.get_balance(addr)
 
-        return True
+        return False
 
     def validate_address(self, address: str):
         self.LEDGER_CLASS.validate_address(address)

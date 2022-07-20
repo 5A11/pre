@@ -19,7 +19,11 @@ from pre.contract.cosmos_contracts import CosmosContract
 from pre.crypto.base_crypto import AbstractCrypto
 from pre.crypto.umbral_crypto import UmbralCrypto
 from pre.ledger.base_ledger import AbstractLedger, AbstractLedgerCrypto
-from pre.ledger.cosmos.ledger import CosmosLedger, DEFAULT_FUNDS_AMOUNT
+from pre.ledger.cosmos.ledger import (
+    CosmosLedger,
+    DEFAULT_FUNDS_AMOUNT,
+    MINIMUM_FUNDS_AMOUNT,
+)
 from pre.storage.base_storage import AbstractStorage
 from pre.storage.ipfs_storage import IpfsStorage
 
@@ -395,7 +399,7 @@ class AppConf:
     def wait_for_funds(
         self,
         staking: bool = False,
-        minimum_required_balance: int = DEFAULT_FUNDS_AMOUNT,
+        minimum_required_balance: int = MINIMUM_FUNDS_AMOUNT,
     ) -> bool:
         ledger = self.get_ledger_instance()
         addr = self.get_ledger_crypto().get_address()
